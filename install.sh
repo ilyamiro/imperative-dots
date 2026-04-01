@@ -138,12 +138,12 @@ draw_header() {
     clear
     printf "${BOLD}${C_CYAN}"
     cat << "EOF"
-  _   _                 _                 _   ____        _        
- | | | |_   _ _ __  _ __| | __ _ _ __   __| | |  _ \  ___ | |_ ___ 
- | |_| | | | | '_ \| '__| |/ _` | '_ \ / _` | | | | |/ _ \| __/ __|
- |  _  | |_| | |_) | |  | | (_| | | | | (_| | | |_| | (_) | |_\__ \
- |_| |_|\__, | .__/|_|  |_|\__,_|_| |_|\__,_| |____/ \___/ \__|___/
-        |___/|_|                                                   
+ ██╗██╗  ██╗   ██╗ █████╗ ███╗   ███╗██╗██████╗  ██████╗ 
+ ██║██║  ╚██╗ ██╔╝██╔══██╗████╗ ████║██║██╔══██╗██╔═══██╗
+ ██║██║   ╚████╔╝ ███████║██╔████╔██║██║██████╔╝██║   ██║
+ ██║██║    ╚██╔╝  ██╔══██║██║╚██╔╝██║██║██╔══██╗██║   ██║
+ ██║███████╗██║   ██║  ██║██║ ╚═╝ ██║██║██║  ██║╚██████╔╝
+ ╚═╝╚══════╝╚═╝   ╚═╝  ╚═╝╚═╝    ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ 
 EOF
     printf "${RESET}\n"
     printf "${C_MAGENTA}=================================================================${RESET}\n"
@@ -161,7 +161,7 @@ manage_packages() {
     while true; do
         draw_header
         local action
-        action=$(echo -e "1. 👁️  View Packages to be Installed\n2. ➕ Add Custom Packages\n3. 🔙 Back to Main Menu" | fzf \
+        action=$(echo -e "1. View Packages to be Installed\n2. Add Custom Packages\n3. Back to Main Menu" | fzf \
             --layout=reverse \
             --prompt="Package Manager > " \
             --header="Use ARROW KEYS and ENTER")
@@ -289,7 +289,7 @@ while true; do
     elif [[ "$WEATHER_API_KEY" == "Skipped" ]]; then API_DISPLAY="Skipped"
     else API_DISPLAY="Set (Hidden)"; fi
 
-    MENU_OPTION=$(echo -e "1. 📦 Manage Packages [${#PKGS[@]} queued]\n2. ⌨️  Set Keyboard Switcher [${KB_SHORTCUT_DISPLAY}]\n3. 🖼️  Set Wallpaper Dir [${WALLPAPER_DIR}]\n4. 🌦️  Set Weather API Key [${API_DISPLAY}]\n5. 🚀 START INSTALLATION\n6. ❌ Exit" | fzf \
+    MENU_OPTION=$(echo -e "1. Manage Packages [${#PKGS[@]} queued]\n2. Set Keyboard Switcher [${KB_SHORTCUT_DISPLAY}]\n3. Set Wallpaper Dir [${WALLPAPER_DIR}]\n4. Set Weather API Key [${API_DISPLAY}]\n5. START INSTALLATION\n6. Exit" | fzf \
         --layout=reverse \
         --prompt="Main Menu > " \
         --header="Navigate with ARROWS. Select with ENTER.")
@@ -313,17 +313,32 @@ draw_header
 echo -e "${BOLD}${C_BLUE}::${RESET} ${BOLD}Starting Installation Process...${RESET}\n"
 
 # --- 1. Install Dependencies ---
-echo -e "${C_CYAN}[ INFO ]${RESET} Installing System Packages..."
+echo -e "${C_CYAN}[ INFO ]${RESET} Installing System Packages...\n"
 if [[ "$OS" == "fedora" ]]; then
     sudo dnf copr enable -y errornointernet/quickshell > /dev/null 2>&1 || true
 fi
 
+TOTAL_PKGS=${#PKGS[@]}
+CURRENT_PKG=0
+
 for pkg in "${PKGS[@]}"; do
-    printf "  -> Installing %-30s " "$pkg"
+    ((CURRENT_PKG++))
+    PERCENT=$((CURRENT_PKG * 100 / TOTAL_PKGS))
+    BAR_WIDTH=30
+    FILLED=$((PERCENT * BAR_WIDTH / 100))
+    EMPTY=$((BAR_WIDTH - FILLED))
+    BAR=$(printf "%${FILLED}s" | tr ' ' '█')
+    SPACES=$(printf "%${EMPTY}s" | tr ' ' '-')
+
+    # Print the loading bar state
+    printf "\r${C_CYAN}[%s%s] %3d%%${RESET} | Installing %-30s" "$BAR" "$SPACES" "$PERCENT" "$pkg"
+
     if $PKG_MANAGER "$pkg" > /dev/null 2>&1; then
-        printf "${C_GREEN}[ OK ]${RESET}\n"
+        # Overwrite with success state
+        printf "\r${C_CYAN}[%s%s] %3d%%${RESET} | %-30s ${C_GREEN}[ OK ]${RESET}       \n" "$BAR" "$SPACES" "$PERCENT" "$pkg"
     else
-        printf "${C_RED}[ FAILED ]${RESET}\n"
+        # Overwrite with failure state
+        printf "\r${C_CYAN}[%s%s] %3d%%${RESET} | %-30s ${C_RED}[ FAILED ]${RESET}   \n" "$BAR" "$SPACES" "$PERCENT" "$pkg"
         FAILED_PKGS+=("$pkg")
     fi
 done
@@ -400,7 +415,7 @@ done
 if [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
     ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
     mkdir -p "$ENV_TARGET_DIR"
-    echo "OWM_API_KEY=\"$WEATHER_API_KEY\"" > "$ENV_TARGET_DIR/.env"
+    echo "OPENWEATHER_KEY=\"$WEATHER_API_KEY\"" > "$ENV_TARGET_DIR/.env"
     chmod 600 "$ENV_TARGET_DIR/.env"
     printf "  -> Saved Weather API key to .env %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
 fi
