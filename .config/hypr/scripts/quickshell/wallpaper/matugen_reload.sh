@@ -1,8 +1,70 @@
 #!/usr/bin/env bash
 
-# Reload Kitty instances
-killall -USR1 .kitty-wrapped
+# ------------------------------------------------------------------------------
+# 1. Flatten Matugen v4.0 Nested JSON for Quickshell
+# ------------------------------------------------------------------------------
+# Updated to match your config.toml output path
+QS_JSON="/tmp/qs_colors.json"
 
+python3 -c '
+import json
+import sys
+
+def flatten_colors(obj):
+    if isinstance(obj, dict):
+        if "color" in obj and isinstance(obj["color"], str):
+            return obj["color"]
+        return {k: flatten_colors(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [flatten_colors(x) for x in obj]
+    return obj
+
+target_file = sys.argv[1]
+try:
+    with open(target_file, "r") as f:
+        data = json.load(f)
+    
+    flat_data = flatten_colors(data)
+    
+    with open(target_file, "w") as f:
+        json.dump(flat_data, f, indent=4)
+        
+except FileNotFoundError:
+    pass
+except Exception as e:
+    print(f"Error flattening JSON: {e}")
+' "$QS_JSON"
+
+# ------------------------------------------------------------------------------
+# 2. Flatten Matugen v4.0 Output in Standard Text Configs
+# ------------------------------------------------------------------------------
+# If Tera dumped {"color": "#hex"} into your text files, this strips it to #hex.
+TEXT_FILES=(
+    "/tmp/kitty-matugen-colors.conf"
+    "$HOME/.config/nvim/matugen_colors.lua"
+    "$HOME/.config/cava/colors"
+    "$HOME/.config/swayosd/style.css"
+    "$HOME/.config/swaync/style.css"
+    "$HOME/.config/rofi/theme.rasi"
+    "/usr/share/sddm/themes/matugen-minimal/Colors.qml"
+)
+
+for file in "${TEXT_FILES[@]}"; do
+    # Check if file exists and we have write permissions (avoids sudo password hangs on SDDM)
+    if [ -f "$file" ] && [ -w "$file" ]; then
+        # Looks for {"color": "#abcdef"} and replaces it with #abcdef
+        sed -i -E 's/\{[[:space:]]*"color":[[:space:]]*"([^"]+)"[[:space:]]*\}/\1/g' "$file"
+    elif [ -f "$file" ]; then
+        echo "Warning: No write permission for $file (Skipping text clean-up)"
+    fi
+done
+
+# ------------------------------------------------------------------------------
+# 3. Reload System Components
+# ------------------------------------------------------------------------------
+
+# Reload Kitty instances
+killall -USR1 .kitty
 
 # Reload CAVA
 if pgrep -x "cava" > /dev/null; then
