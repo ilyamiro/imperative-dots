@@ -596,11 +596,12 @@ echo -e "${C_CYAN}[ INFO ]${RESET} Requesting sudo privileges for installation..
 sudo -v
 
 # --- 0. Resolve Package Conflicts ---
-echo -e "\n${C_CYAN}[ INFO ]${RESET} Resolving potential package conflicts for git builds..."
-CONFLICTING_PKGS=("swayosd" "quickshell" "matugen")
+echo -e "\n${C_CYAN}[ INFO ]${RESET} Resolving potential package conflicts..."
+# Added 'jack' and 'jack2' here to prevent the pipewire-jack installation from getting hung up
+CONFLICTING_PKGS=("swayosd" "quickshell" "matugen" "jack" "jack2")
 for cpkg in "${CONFLICTING_PKGS[@]}"; do
     if pacman -Qq | grep -qx "$cpkg"; then
-        echo -e "  -> ${C_YELLOW}Removing conflicting non-git package '$cpkg'...${RESET}"
+        echo -e "  -> ${C_YELLOW}Removing conflicting package '$cpkg'...${RESET}"
         # Stop potential running services to prevent file locks
         systemctl --user stop "$cpkg" 2>/dev/null || true
         sudo systemctl stop "$cpkg" 2>/dev/null || true
@@ -874,6 +875,20 @@ else
         mv "$QS_BAT_DIR/BatteryPopupAlt.qml" "$QS_BAT_DIR/BatteryPopup.qml" 2>/dev/null || true
     fi
 fi
+
+# -> Desktop/Ethernet Network Adaptability <-
+QS_NET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/network"
+echo -e "  -> Checking for Wi-Fi interface..."
+if ls /sys/class/net/w* 1> /dev/null 2>&1 || iw dev 2>/dev/null | grep -q Interface; then
+    echo -e "  -> ${C_GREEN}Wi-Fi module detected.${RESET} Keeping standard Network widget."
+else
+    echo -e "  -> ${C_YELLOW}No Wi-Fi module detected (Desktop/Ethernet).${RESET} Swapping to Alternate Network widget."
+    if [ -f "$QS_NET_DIR/NetworkPopupAlt.qml" ]; then
+        mv "$QS_NET_DIR/NetworkPopup.qml" "$QS_NET_DIR/NetworkPopup_wifi_backup.qml" 2>/dev/null || true
+        mv "$QS_NET_DIR/NetworkPopupAlt.qml" "$QS_NET_DIR/NetworkPopup.qml" 2>/dev/null || true
+    fi
+fi
+
 
 if [ -f "$HYPR_CONF" ]; then
     # 1. Inject SwayOSD Autostart (Looking for the new 'awww-daemon' entry)
