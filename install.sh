@@ -708,7 +708,18 @@ mkdir -p "$WALLPAPER_DIR"
 if [ -d "$WALLPAPER_CLONE_DIR" ]; then
     rm -rf "$WALLPAPER_CLONE_DIR"
 fi
-git clone "$WALLPAPER_REPO" "$WALLPAPER_CLONE_DIR" > /dev/null 2>&1
+
+# Clone with a dynamic progress bar
+git clone --progress "$WALLPAPER_REPO" "$WALLPAPER_CLONE_DIR" 2>&1 | tr '\r' '\n' | while read -r line; do
+    if [[ "$line" =~ Receiving\ objects:\ *([0-9]+)% ]]; then
+        pc="${BASH_REMATCH[1]}"
+        fill=$(printf "%*s" $((pc / 2)) "" | tr ' ' '#')
+        empty=$(printf "%*s" $((50 - (pc / 2))) "" | tr ' ' '-')
+        printf "\r\033[K  -> Downloading: [%s%s] %3d%%" "$fill" "$empty" "$pc"
+    fi
+done
+echo "" # Ensure a clean new line after the progress bar finishes
+
 if [ -d "$WALLPAPER_CLONE_DIR/images" ]; then
     cp -r "$WALLPAPER_CLONE_DIR/images/"* "$WALLPAPER_DIR/" 2>/dev/null || true
 else
@@ -716,7 +727,6 @@ else
 fi
 rm -rf "$WALLPAPER_CLONE_DIR"
 printf "  -> Wallpapers installed to %-12s ${C_GREEN}[ OK ]${RESET}\n" "$WALLPAPER_DIR"
-
 # --- 4. Copying Dotfiles & Backups ---
 echo -e "\n${C_CYAN}[ INFO ]${RESET} Applying Configurations & Backing Up Old Ones..."
 TARGET_CONFIG_DIR="$HOME/.config"
