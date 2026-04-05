@@ -601,7 +601,15 @@ CONFLICTING_PKGS=("swayosd" "quickshell" "matugen")
 for cpkg in "${CONFLICTING_PKGS[@]}"; do
     if pacman -Qq | grep -qx "$cpkg"; then
         echo -e "  -> ${C_YELLOW}Removing conflicting non-git package '$cpkg'...${RESET}"
-        sudo pacman -Rdd --noconfirm "$cpkg" > /dev/null 2>&1
+        # Stop potential running services to prevent file locks
+        systemctl --user stop "$cpkg" 2>/dev/null || true
+        sudo systemctl stop "$cpkg" 2>/dev/null || true
+        
+        # Attempt safe removal first, fallback to forcing if dependency locked
+        if ! sudo pacman -Rns --noconfirm "$cpkg" > /dev/null 2>&1; then
+            echo -e "  -> ${DIM}Dependencies blocking clean removal, forcing removal of '$cpkg'...${RESET}"
+            sudo pacman -Rdd --noconfirm "$cpkg" > /dev/null 2>&1
+        fi
     fi
 done
 
@@ -634,42 +642,21 @@ done
 if [ "$HAS_NVIDIA_PROPRIETARY" = true ]; then
     echo -e "\n${C_CYAN}[ INFO ]${RESET} Performing Precise NVIDIA Initialization for Wayland..."
     
-    # 1. Blacklist Nouveau
-    echo -e "  -> Blacklisting Nouveau open-source drivers..."
-    echo -e "blacklist nouveau\noptions nouveau modeset=0" | sudo tee /etc/modprobe.d/nouveau-blacklist.conf > /dev/null
+    # 1. Enable modeset and fbdev via modprobe (safer than hacking bootloaders)
+    echo -e "  -> Injecting kernel parameters via modprobe (nvidia-drm.modeset=1 nvidia-drm.fbdev=1)..."
+    echo -e "options nvidia-drm modeset=1 fbdev=1" | sudo tee /etc/modprobe.d/nvidia.conf > /dev/null
     
-    # 2. Kernel Parameters (modeset=1 fbdev=1 are required to avoid black screens)
-    echo -e "  -> Injecting kernel parameters (nvidia-drm.modeset=1 nvidia-drm.fbdev=1)..."
-
-    # Arch based - Check for GRUB
-    if [ -f /etc/default/grub ]; then
-        if ! grep -q "nvidia-drm.modeset=1" /etc/default/grub; then
-            sudo sed -i 's/\(GRUB_CMDLINE_LINUX_DEFAULT=".*\)"/\1 nvidia-drm.modeset=1 nvidia-drm.fbdev=1"/' /etc/default/grub
-            sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
-            printf "  -> GRUB parameters updated %-15s ${C_GREEN}[ OK ]${RESET}\n" ""
-        fi
-    fi
-    # Arch based - Check for systemd-boot
-    if command -v bootctl &> /dev/null && [ -d /boot/loader/entries ]; then
-        for entry in /boot/loader/entries/*.conf; do
-            if ! grep -q "nvidia-drm.modeset=1" "$entry"; then
-                sudo sed -i '/^options/ s/$/ nvidia-drm.modeset=1 nvidia-drm.fbdev=1/' "$entry"
-            fi
-        done
-        printf "  -> Systemd-boot parameters updated %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
-    fi
-    
-    # 3. Rebuild initramfs to load Nvidia modules early
-    echo -e "  -> Rebuilding initramfs (mkinitcpio) for early module loading..."
-    if [ -f /etc/mkinitcpio.conf ]; then
-        # Inject modules if not present
-        if ! grep -q "nvidia nvidia_modeset nvidia_uvm nvidia_drm" /etc/mkinitcpio.conf; then
-            sudo sed -i 's/^MODULES=(/MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm /' /etc/mkinitcpio.conf
-            # Remove kms from HOOKS if it exists since nvidia does modesetting directly
-            sudo sed -i 's/\b kms\b//g' /etc/mkinitcpio.conf
-        fi
+    # 2. Rebuild initramfs safely
+    if command -v mkinitcpio &> /dev/null; then
+        echo -e "  -> Rebuilding initramfs (mkinitcpio)..."
+        # We avoid aggressive sed replacements on mkinitcpio.conf as it often breaks systems.
+        # The modprobe conf is usually enough for early KMS if the modules are loaded.
         sudo mkinitcpio -P >/dev/null 2>&1
         printf "  -> Mkinitcpio rebuild successful %-9s ${C_GREEN}[ OK ]${RESET}\n" ""
+    elif command -v dracut &> /dev/null; then
+        echo -e "  -> Rebuilding initramfs (dracut)..."
+        sudo dracut --force >/dev/null 2>&1
+        printf "  -> Dracut rebuild successful %-14s ${C_GREEN}[ OK ]${RESET}\n" ""
     fi
 fi
 
