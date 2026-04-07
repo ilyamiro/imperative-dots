@@ -21,6 +21,19 @@ PanelWindow {
 
     visible: isVisible
 
+    // --- THE FIX: WAYLAND MASKING ---
+    // Physically punches a hole in the window's input region at the OS level.
+    // Clicks in this top area will pass completely through to the TopBar below.
+    mask: Region { item: topBarHole; intersection: Intersection.Xor }
+    
+    Item {
+        id: topBarHole
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 65 // Safely covers your TopBar height + margins
+    }
+
     MouseArea {
         anchors.fill: parent
         enabled: masterWindow.isVisible
@@ -268,16 +281,13 @@ PanelWindow {
                     switchWidget("hidden", "");
                 } else if (getLayout(cmd)) {
                     delayedClear.stop();
-                    if (masterWindow.isVisible && masterWindow.currentActive === cmd) {
-                        switchWidget("hidden", "");
-                    } else {
-                        switchWidget(cmd, arg);
-                    }
+                    // Removed the redundant toggle check. 
+                    // qs_manager.sh is now the absolute source of truth.
+                    switchWidget(cmd, arg);
                 }
             }
         }
     }
-
     Timer {
         id: delayedClear
         interval: masterWindow.isWallpaperTransition ? 150 : masterWindow.morphDuration 
