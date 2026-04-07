@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.0.13"
+DOTS_VERSION="1.0.14"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Global Variables & Initial States (Defaults)
@@ -22,6 +22,8 @@ SETUP_SDDM_THEME=false
 DRIVER_CHOICE="None (Skipped)"
 DRIVER_PKGS=()
 HAS_NVIDIA_PROPRIETARY=false
+LAST_COMMIT=""
+KEEP_OLD_ENV=true # Default to preserving existing weather config
 
 # Submenu Completion Tracking
 VISITED_PKGS=false
@@ -519,29 +521,45 @@ set_weather_api() {
     while true; do
         draw_header
         echo -e "${BOLD}${C_CYAN}=== OpenWeatherMap Interactive Setup ===${RESET}"
-        echo -e "${BOLD}${C_YELLOW}Without this, weather widgets WILL NOT WORK.${RESET}\n"
         
-        echo -e "${C_MAGENTA}How to get a free API key:${RESET}"
-        echo -e "  1. Visit ${C_BLUE}https://openweathermap.org/${RESET}"
-        echo -e "  2. Create a free account and log in."
-        echo -e "  3. Click your profile name -> 'My API keys'."
-        echo -e "  4. Generate a new key and paste it below."
-        echo -e "  ${BOLD}${C_YELLOW}Note: New API keys may take a couple of hours to activate. This installer will NOT block you from using a fresh key.${RESET}\n"
+        ENV_FILE="$HOME/.config/hypr/scripts/quickshell/calendar/.env"
         
-        read -p "Enter your OpenWeather API Key (or press Enter to skip): " input_key
+        if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+            echo -e "${C_GREEN}An existing Weather configuration (.env) was detected.${RESET}"
+            echo -e "${BOLD}${C_YELLOW}Press ENTER without typing anything to KEEP your existing configuration.${RESET}\n"
+        else
+            echo -e "${BOLD}${C_YELLOW}Without this, weather widgets WILL NOT WORK.${RESET}\n"
+            echo -e "${C_MAGENTA}How to get a free API key:${RESET}"
+            echo -e "  1. Visit ${C_BLUE}https://openweathermap.org/${RESET}"
+            echo -e "  2. Create a free account and log in."
+            echo -e "  3. Click your profile name -> 'My API keys'."
+            echo -e "  4. Generate a new key and paste it below."
+            echo -e "  ${BOLD}${C_YELLOW}Note: New API keys may take a couple of hours to activate. This installer will NOT block you from using a fresh key.${RESET}\n"
+        fi
+        
+        read -p "Enter your OpenWeather API Key (or press Enter to skip/keep): " input_key
         
         if [[ -z "$input_key" ]]; then
-            echo -e "\n${C_RED}WARNING: You did not enter an API key.${RESET}"
-            echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without it? (y/n): "
-            read -r confirm
-            if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                WEATHER_API_KEY="Skipped"
-                WEATHER_CITY_ID=""
-                WEATHER_UNIT=""
+            if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+                echo -e "\n${C_GREEN}Keeping existing weather configuration.${RESET}"
+                KEEP_OLD_ENV=true
                 VISITED_WEATHER=true
+                sleep 1.5
                 break
+            else
+                echo -e "\n${C_RED}WARNING: You did not enter an API key.${RESET}"
+                echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without it? (y/n): "
+                read -r confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    WEATHER_API_KEY="Skipped"
+                    WEATHER_CITY_ID=""
+                    WEATHER_UNIT=""
+                    KEEP_OLD_ENV=false
+                    VISITED_WEATHER=true
+                    break
+                fi
+                continue
             fi
-            continue
         fi
 
         # Soft validation to ensure it looks like a valid key without querying the API
@@ -588,6 +606,7 @@ set_weather_api() {
         WEATHER_UNIT=$(echo "$unit_choice" | awk '{print $1}')
         [[ -z "$WEATHER_UNIT" ]] && WEATHER_UNIT="metric"
         
+        KEEP_OLD_ENV=false
         echo -e "\n${C_GREEN}Weather configuration complete! Widget will update once your key is activated by OpenWeather.${RESET}"
         sleep 2.5
         VISITED_WEATHER=true
@@ -679,7 +698,12 @@ while true; do
     S_DRV=$( [ "$VISITED_DRIVERS" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_KBD=$( [ "$VISITED_KEYBOARD" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_RED}[ ]${RESET}" )
 
-    if [[ -z "$WEATHER_API_KEY" ]]; then API_DISPLAY="Not Set"
+    if [[ -z "$WEATHER_API_KEY" ]]; then
+        if [ -f "$HOME/.config/hypr/scripts/quickshell/calendar/.env" ]; then
+            API_DISPLAY="Set (from .env file)"
+        else
+            API_DISPLAY="Not Set"
+        fi
     elif [[ "$WEATHER_API_KEY" == "Skipped" ]]; then API_DISPLAY="Skipped"
     else API_DISPLAY="Set ($WEATHER_UNIT, ID: $WEATHER_CITY_ID)"; fi
 
@@ -843,15 +867,24 @@ echo -e "\n${C_CYAN}[ INFO ]${RESET} Setting up Dotfiles Repository..."
 REPO_URL="https://github.com/ilyamiro/imperative-dots.git"
 CLONE_DIR="$HOME/.hyprland-dots"
 
-# Check for a specific unique file so we don't mistake ~/.config for the repo
+# Determine Git versioning states for partial updates
+OLD_COMMIT=""
+NEW_COMMIT=""
+
 if [ -f "$(pwd)/install.sh" ] && [ -d "$(pwd)/.config" ]; then
     REPO_DIR="$(pwd)"
     echo "  -> Running from local repository at $REPO_DIR"
+    NEW_COMMIT=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
+    OLD_COMMIT="$LAST_COMMIT"
 else
     if [ -d "$CLONE_DIR" ]; then
+        OLD_COMMIT="${LAST_COMMIT:-$(git -C "$CLONE_DIR" rev-parse HEAD 2>/dev/null)}"
         git -C "$CLONE_DIR" pull > /dev/null 2>&1
+        NEW_COMMIT=$(git -C "$CLONE_DIR" rev-parse HEAD 2>/dev/null)
     else
+        OLD_COMMIT="$LAST_COMMIT"
         git clone "$REPO_URL" "$CLONE_DIR" > /dev/null 2>&1
+        NEW_COMMIT=$(git -C "$CLONE_DIR" rev-parse HEAD 2>/dev/null)
     fi
     REPO_DIR="$CLONE_DIR"
 fi
@@ -899,31 +932,108 @@ if [ "$INSTALL_NVIM" = true ]; then CONFIG_FOLDERS+=("nvim"); fi
 
 mkdir -p "$TARGET_CONFIG_DIR" "$BACKUP_DIR"
 
-for folder in "${CONFIG_FOLDERS[@]}"; do
-    TARGET_PATH="$TARGET_CONFIG_DIR/$folder"
-    SOURCE_PATH="$REPO_DIR/.config/$folder"
-
-    if [ -d "$SOURCE_PATH" ]; then
-        if [ -e "$TARGET_PATH" ] || [ -L "$TARGET_PATH" ]; then
-            mv "$TARGET_PATH" "$BACKUP_DIR/$folder"
-        fi
-        cp -r "$SOURCE_PATH" "$TARGET_PATH"
-        printf "  -> Copied %-31s ${C_GREEN}[ OK ]${RESET}\n" "$folder"
+DO_FULL_INSTALL=true
+if [ -n "$OLD_COMMIT" ] && [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
+    DO_FULL_INSTALL=false
+    # Verify the OLD_COMMIT exists in git history to safely generate a diff
+    if git -C "$REPO_DIR" cat-file -t "$OLD_COMMIT" >/dev/null 2>&1; then
+        echo -e "  -> Found existing installation. Analyzing updates between ${C_YELLOW}${OLD_COMMIT::7}${RESET} and ${C_YELLOW}${NEW_COMMIT::7}${RESET}..."
+    else
+        DO_FULL_INSTALL=true
     fi
-done
+elif [ "$OLD_COMMIT" == "$NEW_COMMIT" ] && [ -n "$OLD_COMMIT" ]; then
+    DO_FULL_INSTALL=false
+    echo -e "  -> Repository is up to date (${C_YELLOW}${NEW_COMMIT::7}${RESET}). Only applying upstream changes (None found)."
+fi
 
-if [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-    ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
-    mkdir -p "$ENV_TARGET_DIR"
+if [ "$DO_FULL_INSTALL" = true ]; then
+    echo "  -> Performing Full Install / Overwrite..."
+    for folder in "${CONFIG_FOLDERS[@]}"; do
+        TARGET_PATH="$TARGET_CONFIG_DIR/$folder"
+        SOURCE_PATH="$REPO_DIR/.config/$folder"
+
+        if [ -d "$SOURCE_PATH" ]; then
+            if [ -e "$TARGET_PATH" ] || [ -L "$TARGET_PATH" ]; then
+                mv "$TARGET_PATH" "$BACKUP_DIR/$folder"
+            fi
+            cp -r "$SOURCE_PATH" "$TARGET_PATH"
+            printf "  -> Copied %-31s ${C_GREEN}[ OK ]${RESET}\n" "$folder"
+        fi
+    done
+else
+    # Partial Update Logic (Git Diff)
+    CHANGED_FILES=""
+    if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
+        CHANGED_FILES=$(git -C "$REPO_DIR" diff --name-only --diff-filter=AM "$OLD_COMMIT" "$NEW_COMMIT" | grep "^\.config/")
+    fi
     
-    # Write the .env file with all gathered parameters
+    if [ -n "$CHANGED_FILES" ]; then
+        echo -e "  -> Performing ${C_GREEN}Partial Update${RESET} based on upstream changes..."
+        echo "$CHANGED_FILES" | while IFS= read -r file; do
+            FOLDER_NAME=$(echo "$file" | cut -d'/' -f2)
+            
+            # Check if this changed file belongs to the folders we actually manage
+            valid_folder=false
+            for f in "${CONFIG_FOLDERS[@]}"; do
+                if [ "$f" == "$FOLDER_NAME" ]; then
+                    valid_folder=true
+                    break
+                fi
+            done
+            
+            if [ "$valid_folder" = true ]; then
+                SOURCE_FILE="$REPO_DIR/$file"
+                TARGET_FILE="$HOME/$file"
+                REL_PATH="${file#\.config/}"
+                
+                if [ -f "$TARGET_FILE" ]; then
+                    # Backup specifically modified files retaining the folder structure
+                    mkdir -p "$(dirname "$BACKUP_DIR/$REL_PATH")"
+                    cp "$TARGET_FILE" "$BACKUP_DIR/$REL_PATH"
+                fi
+                
+                mkdir -p "$(dirname "$TARGET_FILE")"
+                cp "$SOURCE_FILE" "$TARGET_FILE"
+                echo "    -> Updated: $file"
+            fi
+        done
+        printf "  -> Partial update complete %-21s ${C_GREEN}[ OK ]${RESET}\n" ""
+    else
+        echo "  -> No target config files were changed upstream. Local files kept intact."
+    fi
+fi
+
+# Weather Configuration persistence/handling
+ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
+OLD_ENV_IN_BACKUP="$BACKUP_DIR/hypr/scripts/quickshell/calendar/.env"
+
+if [[ "$KEEP_OLD_ENV" == true ]]; then
+    if [ -f "$OLD_ENV_IN_BACKUP" ]; then
+        mkdir -p "$ENV_TARGET_DIR"
+        cp "$OLD_ENV_IN_BACKUP" "$ENV_TARGET_DIR/.env"
+        printf "  -> Restored existing Weather API config from backup %-3s ${C_GREEN}[ OK ]${RESET}\n" ""
+    elif [ -f "$ENV_TARGET_DIR/.env" ]; then
+        printf "  -> Retained existing Weather API config %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
+    elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+        # Fallback if file doesn't exist but we have the vars loaded from version file
+        mkdir -p "$ENV_TARGET_DIR"
+        cat <<EOF > "$ENV_TARGET_DIR/.env"
+# OpenWeather API Configuration
+OPENWEATHER_KEY=${WEATHER_API_KEY}
+OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
+OPENWEATHER_UNIT=${WEATHER_UNIT}
+EOF
+        chmod 600 "$ENV_TARGET_DIR/.env"
+        printf "  -> Regenerated Weather API config from cache %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
+    fi
+elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+    mkdir -p "$ENV_TARGET_DIR"
     cat <<EOF > "$ENV_TARGET_DIR/.env"
 # OpenWeather API Configuration
 OPENWEATHER_KEY=${WEATHER_API_KEY}
 OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
 OPENWEATHER_UNIT=${WEATHER_UNIT}
 EOF
-    
     chmod 600 "$ENV_TARGET_DIR/.env"
     printf "  -> Saved Weather API config to .env %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
 fi
@@ -939,11 +1049,11 @@ fi
 # Enable Pipewire natively for the user environment
 # Using --global prevents silent failures when testers run this script from a TTY (without an active DBUS session)
 sudo systemctl --global enable pipewire wireplumber pipewire-pulse 2>/dev/null || true
-sudo systemctl enable --now swayosd-libinput-backend.service
 # Attempt to start it locally if DBUS is available (fails silently in TTY, which is fine since --global catches the next login)
 systemctl --user start pipewire wireplumber pipewire-pulse 2>/dev/null || true
 
 # --- Create and enable SwayOSD user service ---
+sudo systemctl enable --now swayosd-libinput-backend.service
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 mkdir -p "$SYSTEMD_USER_DIR"
 cat <<EOF > "$SYSTEMD_USER_DIR/swayosd.service"
@@ -951,11 +1061,14 @@ cat <<EOF > "$SYSTEMD_USER_DIR/swayosd.service"
 Description=SwayOSD Service
 PartOf=graphical-session.target
 After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/env swayosd-server --top-margin 0.9 --style $HOME/.config/swayosd/style.css
+ExecStart=/usr/bin/swayosd-server --top-margin 0.9 --style ${HOME}/.config/swayosd/style.css
 Restart=on-failure
+RestartSec=2
+StartLimitIntervalSec=0
 
 [Install]
 WantedBy=graphical-session.target
@@ -963,7 +1076,8 @@ EOF
 
 systemctl --user daemon-reload 2>/dev/null || true
 systemctl --user enable swayosd.service 2>/dev/null || true
-systemctl --user start swayosd.service 2>/dev/null || true
+# Removed the immediate 'start' command. Systemd will now gracefully 
+# start it on its own once Hyprland/Wayland is actually ready.
 printf "  -> SwayOSD user service configured %-17s ${C_GREEN}[ OK ]${RESET}\n" ""
 
 if [ "$INSTALL_ZSH" = true ] && command -v zsh &> /dev/null; then
@@ -1044,30 +1158,37 @@ WP_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/wallpaper"
 
 # -> Desktop/Laptop Battery Adaptability <-
 QS_BAT_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/battery"
+REPO_BAT_DIR="$REPO_DIR/.config/hypr/scripts/quickshell/battery"
 echo -e "  -> Checking chassis for battery presence..."
 if ls /sys/class/power_supply/BAT* 1> /dev/null 2>&1; then
     echo -e "  -> ${C_GREEN}Battery detected.${RESET} Keeping Laptop Battery widget."
+    # Ensure the standard laptop widget is present
+    if [ -f "$REPO_BAT_DIR/BatteryPopup.qml" ]; then
+        cp -f "$REPO_BAT_DIR/BatteryPopup.qml" "$QS_BAT_DIR/BatteryPopup.qml" 2>/dev/null || true
+    fi
 else
     echo -e "  -> ${C_YELLOW}No battery detected (Desktop system).${RESET} Swapping to System Monitor widget."
-    if [ -f "$QS_BAT_DIR/BatteryPopupAlt.qml" ]; then
-        mv "$QS_BAT_DIR/BatteryPopup.qml" "$QS_BAT_DIR/BatteryPopup_laptop_backup.qml" 2>/dev/null || true
-        mv "$QS_BAT_DIR/BatteryPopupAlt.qml" "$QS_BAT_DIR/BatteryPopup.qml" 2>/dev/null || true
+    # Always overwrite with the Alt widget from the repo to prevent partial update conflicts
+    if [ -f "$REPO_BAT_DIR/BatteryPopupAlt.qml" ]; then
+        cp -f "$REPO_BAT_DIR/BatteryPopupAlt.qml" "$QS_BAT_DIR/BatteryPopup.qml" 2>/dev/null || true
     fi
 fi
 
 # -> Desktop/Ethernet Network Adaptability <-
 QS_NET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/network"
+REPO_NET_DIR="$REPO_DIR/.config/hypr/scripts/quickshell/network"
 echo -e "  -> Checking for Wi-Fi interface..."
 if ls /sys/class/net/w* 1> /dev/null 2>&1 || iw dev 2>/dev/null | grep -q Interface; then
     echo -e "  -> ${C_GREEN}Wi-Fi module detected.${RESET} Keeping standard Network widget."
+    if [ -f "$REPO_NET_DIR/NetworkPopup.qml" ]; then
+        cp -f "$REPO_NET_DIR/NetworkPopup.qml" "$QS_NET_DIR/NetworkPopup.qml" 2>/dev/null || true
+    fi
 else
     echo -e "  -> ${C_YELLOW}No Wi-Fi module detected (Desktop/Ethernet).${RESET} Swapping to Alternate Network widget."
-    if [ -f "$QS_NET_DIR/NetworkPopupAlt.qml" ]; then
-        mv "$QS_NET_DIR/NetworkPopup.qml" "$QS_NET_DIR/NetworkPopup_wifi_backup.qml" 2>/dev/null || true
-        mv "$QS_NET_DIR/NetworkPopupAlt.qml" "$QS_NET_DIR/NetworkPopup.qml" 2>/dev/null || true
+    if [ -f "$REPO_NET_DIR/NetworkPopupAlt.qml" ]; then
+        cp -f "$REPO_NET_DIR/NetworkPopupAlt.qml" "$QS_NET_DIR/NetworkPopup.qml" 2>/dev/null || true
     fi
 fi
-
 
 if [ -f "$HYPR_CONF" ]; then
     
@@ -1093,16 +1214,18 @@ fi
 
 # 4. Patch WallpaperPicker.qml dynamically
 if [ -f "$WP_QML" ]; then
-    # Injecting the properly evaluated bash variable straight into the QML instead of the hardcoded Quickshell.env string
-    sed -i "s|Quickshell.env(\"HOME\") + \"/Images/Wallpapers\"|\"$WALLPAPER_DIR\"|g" "$WP_QML"
+    # 1. Let QML read the WALLPAPER_DIR env variable natively instead of hardcoding the string
+    sed -i 's|Quickshell.env("HOME") + "/Images/Wallpapers"|Quickshell.env("WALLPAPER_DIR")|g' "$WP_QML"
     
-    # Inject --source-color-index 0 to Matugen commands for 4.0 compatibility
+    # 2. Fix the focus bug: Strip absolute directory paths and quotes so tryFocus() correctly matches the base filename
+    sed -i "s|let clean = String(name);|let clean = String(name).replace(/['\"]/g, \"\"); clean = clean.substring(clean.lastIndexOf('/') + 1);|g" "$WP_QML"
+
+    # 3. Inject --source-color-index 0 to Matugen commands for 4.0 compatibility
     sed -i 's/matugen image "[^"]*"/& --source-color-index 0/g' "$WP_QML"
 fi
 
-# 5. Rename all instances of swww to awww in quickshell/wallpaper files
-if [ -d "$WP_DIR" ]; then
-    find "$WP_DIR" -type f -exec sed -i 's/swww/awww/g' {} +
+if [ -d "$TARGET_CONFIG_DIR/hypr/scripts" ]; then
+    find "$TARGET_CONFIG_DIR/hypr/scripts" -type f -exec sed -i 's/swww/awww/g' {} +
 fi
 
 # 6. Zsh Dynamism
@@ -1164,6 +1287,7 @@ fi
 # --- 8. Finalize Version Marker & User State Persistence ---
 cat <<EOF > "$VERSION_FILE"
 LOCAL_VERSION="$DOTS_VERSION"
+LAST_COMMIT="$NEW_COMMIT"
 WEATHER_API_KEY="$WEATHER_API_KEY"
 WEATHER_CITY_ID="$WEATHER_CITY_ID"
 WEATHER_UNIT="$WEATHER_UNIT"

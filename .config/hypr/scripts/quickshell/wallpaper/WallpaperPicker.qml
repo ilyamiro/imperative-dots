@@ -316,24 +316,14 @@ Item {
 
     function getCleanName(name) {
         if (!name) return "";
-        let clean = decodeURIComponent(String(name));
-        
-        // 1. Strip URL protocols
-        clean = clean.replace(/^file:\/\//g, "");
-        // 2. Handle multi-monitor outputs (take the first line) and strip trailing/leading bash artifacts (quotes, spaces)
-        clean = clean.split('\n')[0].replace(/['"\s]+$/g, "").trim();
-        // 3. Extract the purely base filename
-        let baseName = clean.substring(clean.lastIndexOf('/') + 1);
-        
-        // 4. Strip the video prefix
-        return baseName.startsWith("000_") ? baseName.substring(4) : baseName;
+        let clean = String(name);
+        return clean.startsWith("000_") ? clean.substring(4) : clean;
     }
 
     function isDownloaded(name) {
         if (!name) return false;
-        let targetName = window.getCleanName(name);
         for (let i = 0; i < srcModel.count; i++) {
-            if (window.getCleanName(srcModel.get(i, "fileName")) === targetName) return true;
+            if (srcModel.get(i, "fileName") === name) return true;
         }
         return false;
     }
@@ -352,16 +342,12 @@ Item {
         if (targetIndex !== -1 && targetIndex < targetModel.count) {
             window.isModelChanging = true;
             
-            // Snap the logical index immediately
-            view.currentIndex = targetIndex;
-            
             if (requirePositioning) {
-                // Defer visual positioning to ensure QML has calculated the dynamic widths
-                Qt.callLater(() => {
-                    view.forceLayout();
-                    view.positionViewAtIndex(targetIndex, ListView.Center);
-                });
+                view.forceLayout();
+                view.positionViewAtIndex(targetIndex, ListView.Center);
             }
+            
+            view.currentIndex = targetIndex;
             
             if (isSearchRestore) {
                 window.searchIndexRestored = true;
@@ -394,7 +380,8 @@ Item {
             let finalIndex = foundIndex !== -1 ? foundIndex : 0;
             window.executeFocusRestore(finalIndex, false, true);
         }
-    }    
+    }
+    
     function trySearchFocus() {
         if (window.searchIndexRestored || searchProxyModel.count === 0) return;
 

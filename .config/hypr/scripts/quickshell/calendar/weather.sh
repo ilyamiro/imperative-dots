@@ -6,11 +6,13 @@ json_file="${cache_dir}/weather.json"
 view_file="${cache_dir}/view_id"
 daily_cache_file="${cache_dir}/daily_weather_cache.json"
 next_day_cache_file="${cache_dir}/next_day_precache.json"
+env_tracker_file="${cache_dir}/.env_tracker"
+ENV_FILE="$(dirname "$0")/.env"
 
 # API Settings
 # Load environment variables silently
-if [ -f "$(dirname "$0")/.env" ]; then
-    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+if [ -f "$ENV_FILE" ]; then
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
 fi
 
 # API Settings from .env
@@ -47,37 +49,41 @@ get_hex() {
     esac
 }
 
+write_dummy_data() {
+    final_json="["
+    for i in {0..4}; do
+        future_date=$(date -d "+$i days")
+        f_day=$(date -d "$future_date" "+%a")
+        f_full_day=$(date -d "$future_date" "+%A")
+        f_date_num=$(date -d "$future_date" "+%d %b")
+        
+        final_json="${final_json} {
+            \"id\": \"${i}\",
+            \"day\": \"${f_day}\",
+            \"day_full\": \"${f_full_day}\",
+            \"date\": \"${f_date_num}\",
+            \"max\": \"0.0\",
+            \"min\": \"0.0\",
+            \"feels_like\": \"0.0\",
+            \"wind\": \"0\",
+            \"humidity\": \"0\",
+            \"pop\": \"0\",
+            \"icon\": \"\",
+            \"hex\": \"#cdd6f4\",
+            \"desc\": \"No API Key\",
+            \"hourly\": [{\"time\": \"00:00\", \"temp\": \"0.0\", \"icon\": \"\", \"hex\": \"#cdd6f4\"}]
+        },"
+    done
+    final_json="${final_json%,}]"
+    echo "{ \"forecast\": ${final_json} }" > "${json_file}"
+}
+
 get_data() {
     # ---------------------------------------------------------
     # DUMMY DATA FALLBACK (If API key is missing or skipped)
     # ---------------------------------------------------------
     if [[ -z "$KEY" || "$KEY" == "Skipped" || "$KEY" == "OPENWEATHER_KEY" ]]; then
-        final_json="["
-        for i in {0..4}; do
-            future_date=$(date -d "+$i days")
-            f_day=$(date -d "$future_date" "+%a")
-            f_full_day=$(date -d "$future_date" "+%A")
-            f_date_num=$(date -d "$future_date" "+%d %b")
-            
-            final_json="${final_json} {
-                \"id\": \"${i}\",
-                \"day\": \"${f_day}\",
-                \"day_full\": \"${f_full_day}\",
-                \"date\": \"${f_date_num}\",
-                \"max\": \"0.0\",
-                \"min\": \"0.0\",
-                \"feels_like\": \"0.0\",
-                \"wind\": \"0\",
-                \"humidity\": \"0\",
-                \"pop\": \"0\",
-                \"icon\": \"\",
-                \"hex\": \"#cdd6f4\",
-                \"desc\": \"No API Key\",
-                \"hourly\": [{\"time\": \"00:00\", \"temp\": \"0.0\", \"icon\": \"\", \"hex\": \"#cdd6f4\"}]
-            },"
-        done
-        final_json="${final_json%,}]"
-        echo "{ \"forecast\": ${final_json} }" > "${json_file}"
+        write_dummy_data
         return
     fi
 
@@ -87,8 +93,13 @@ get_data() {
     forecast_url="http://api.openweathermap.org/data/2.5/forecast?APPID=${KEY}&id=${ID}&units=${UNIT}"
     raw_api=$(curl -sf "$forecast_url")
     
-    # If API fails, stop
-    if [ -z "$raw_api" ]; then return; fi
+    # Check if curl failed OR if OpenWeather returned an error (like 401 for pending keys)
+    api_cod=$(echo "$raw_api" | jq -r '.cod' 2>/dev/null)
+    
+    if [ -z "$raw_api" ] || [[ "$api_cod" != "200" ]]; then
+        write_dummy_data
+        return
+    fi
 
     current_date=$(date +%Y-%m-%d)
     tomorrow_date=$(date -d "tomorrow" +%Y-%m-%d)
@@ -208,14 +219,42 @@ if [[ "$1" == "--getdata" ]]; then
     get_data
 
 elif [[ "$1" == "--json" ]]; then
-    CACHE_LIMIT=900
+    CACHE_LIMIT=900         # 15 minutes for valid working data
+    PENDING_RETRY_LIMIT=3600 # 1 hour for invalid/activating keys
+
+    # Check if .env file has been modified since we last checked
+    env_changed=0
+    if [ -f "$ENV_FILE" ]; then
+        env_mtime=$(stat -c %Y "$ENV_FILE")
+        last_env_mtime=$(cat "$env_tracker_file" 2>/dev/null || echo "0")
+        
+        if [ "$env_mtime" -gt "$last_env_mtime" ]; then
+            env_changed=1
+            echo "$env_mtime" > "$env_tracker_file"
+        fi
+    fi
+
     if [ -f "$json_file" ]; then
         file_time=$(stat -c %Y "$json_file")
         current_time=$(date +%s)
         diff=$((current_time - file_time))
         
-        if [ $diff -gt $CACHE_LIMIT ]; then
+        if [ "$env_changed" -eq 1 ]; then
+            # The user just modified the .env file. Bypass cache entirely.
+            touch "$json_file" 
             get_data &
+        elif grep -q '"desc": "No API Key"' "$json_file"; then
+            # Key is pending/invalid. Check once an hour.
+            if [ $diff -gt $PENDING_RETRY_LIMIT ]; then
+                touch "$json_file" # Bump file timestamp slightly to avoid spamming processes
+                get_data &
+            fi
+        else
+            # Normal working API key. Check every 15 mins.
+            if [ $diff -gt $CACHE_LIMIT ]; then
+                touch "$json_file"
+                get_data &
+            fi
         fi
         cat "$json_file"
     else

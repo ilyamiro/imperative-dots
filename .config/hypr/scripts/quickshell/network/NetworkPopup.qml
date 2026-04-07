@@ -27,6 +27,10 @@ Item {
     Shortcut {
         sequence: "Tab"
         onActivated: {
+            if (window.pendingWifiId !== "") {
+                window.pendingWifiId = ""; window.pendingWifiSsid = "";
+                return;
+            }
             window.playSfx("switch.wav");
             window.activeMode = window.activeMode === "wifi" ? "bt" : "wifi";
         }
@@ -68,19 +72,18 @@ Item {
     Component.onCompleted: {
         Quickshell.execDetached(["bash", "-c", "if [ ! -f /tmp/qs_network_mode ]; then echo '" + activeMode + "' > /tmp/qs_network_mode; fi"]);
 
-        // Process cached JSON FIRST so the arrays populate before animations trigger
         if (cache.lastWifiJson !== "") processWifiJson(cache.lastWifiJson);
         if (cache.lastBtJson !== "") processBtJson(cache.lastBtJson);
         introState = 1.0;
+        
+        if (window.activeMode === "wifi") savedNetworksFetcher.running = true;
     }
 
     function playSfx(filename) {
         try {
             let rawUrl = Qt.resolvedUrl("sounds/" + filename).toString();
             let cleanPath = rawUrl;
-            if (cleanPath.indexOf("file://") === 0) {
-                cleanPath = cleanPath.substring(7); 
-            }
+            if (cleanPath.indexOf("file://") === 0) cleanPath = cleanPath.substring(7); 
             let cmd = "pw-play '" + cleanPath + "' 2>/dev/null || paplay '" + cleanPath + "' 2>/dev/null";
             Quickshell.execDetached(["sh", "-c", cmd]);
         } catch(e) {}
@@ -109,31 +112,110 @@ Item {
 
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     
-    // Abstracted accents. Dialed down from 1.4 to 1.15 to prevent the RGB channels 
-    // from blowing out to pure #FFFFFF while still staying distinct and bright.
     readonly property color wifiAccent: Qt.lighter(window.sapphire, 1.15) 
     readonly property color btAccent: window.mauve
 
     property string activeMode: "bt"
     readonly property color activeColor: activeMode === "wifi" ? window.wifiAccent : window.btAccent
-    // Calculate a subtle, pure one-color gradient rather than mixing two distinct palette colors
     readonly property color activeGradientSecondary: Qt.darker(window.activeColor, 1.25)
 
-    // Dictionary objects to allow multi-device simultaneous connects/disconnects without globally locking
+    // Interaction & Device States
     property var busyTasks: ({})
     property var disconnectingDevices: ({})
+    property string connectingId: ""
+    property string failedId: ""
     
     Timer { 
         id: busyTimeout; interval: 15000; 
-        onTriggered: { window.busyTasks = ({}); window.disconnectingDevices = ({}); } 
+        onTriggered: { window.busyTasks = ({}); window.disconnectingDevices = ({}); window.connectingId = ""; } 
     }
+    Timer { id: failClearTimer; interval: 4000; onTriggered: window.failedId = "" }
 
     Timer { id: wifiPendingReset; interval: 8000; onTriggered: { window.wifiPowerPending = false; window.expectedWifiPower = ""; } }
     Timer { id: btPendingReset; interval: 8000; onTriggered: { window.btPowerPending = false; window.expectedBtPower = ""; } }
 
     property bool showInfoView: false
 
-    // Supports up to 5 simultaneous connected cores
+    // Authentication Properties & Saved Networks
+    property string pendingWifiSsid: ""
+    property string pendingWifiId: ""
+    property var savedWifiNetworks: []
+
+    // Efficient, single-fire check for saved networks to avoid polling overhead
+    Process {
+        id: savedNetworksFetcher
+        command: ["bash", "-c", "nmcli -t -f NAME connection show | grep -v 'lo'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let text = this.text.trim();
+                window.savedWifiNetworks = text ? text.split('\n') : [];
+            }
+        }
+    }
+
+    // Dedicated connection process to reliably catch successes/failures
+    Process {
+        id: connectProcess
+        property string targetId: ""
+        property string targetSsid: "" // Tracks the network name to handle failures
+
+        onExited: {
+            let code = exitCode;
+            let bt = window.busyTasks;
+            delete bt[targetId];
+            window.busyTasks = Object.assign({}, bt);
+            
+            if (code !== 0) {
+                window.failedId = targetId;
+                failClearTimer.restart();
+                window.playSfx("error.wav"); 
+                
+                // --- FORGET FAILED NETWORKS ---
+                // NetworkManager saves the profile instantly, even if the password is wrong.
+                // We delete the dead profile so the UI forces a password prompt next time.
+                if (window.activeMode === "wifi" && targetSsid !== "") {
+                    Quickshell.execDetached(["bash", "-c", "nmcli connection delete '" + targetSsid + "' 2>/dev/null"]);
+                    
+                    // Scrub it from the internal state instantly to avoid waiting for a fetcher poll
+                    let newSaved = [];
+                    for(let i = 0; i < window.savedWifiNetworks.length; i++) {
+                        if(window.savedWifiNetworks[i] !== targetSsid) {
+                            newSaved.push(window.savedWifiNetworks[i]);
+                        }
+                    }
+                    window.savedWifiNetworks = newSaved;
+                }
+            }
+            
+            window.connectingId = "";
+            if (window.activeMode === "wifi") wifiPoller.running = true; else btPoller.running = true;
+        }
+    }
+
+    function connectDevice(mode, id, macOrSsid, password) {
+        window.connectingId = id;
+        window.failedId = "";
+        let bt = window.busyTasks;
+        bt[id] = true;
+        window.busyTasks = Object.assign({}, bt);
+        busyTimeout.restart();
+
+        connectProcess.targetId = id;
+        connectProcess.targetSsid = (mode === "wifi") ? macOrSsid : ""; // Store the SSID for cleanup
+        
+        if (mode === "wifi") {
+            if (password !== "") {
+                connectProcess.command = ["bash", "-c", "nmcli device wifi connect '" + macOrSsid + "' password '" + password + "'"];
+            } else {
+                connectProcess.command = ["bash", "-c", "nmcli device wifi connect '" + macOrSsid + "'"];
+            }
+        } else {
+            connectProcess.command = ["bash", "-c", window.scriptsDir + "/bluetooth_panel_logic.sh --connect '" + macOrSsid + "'"];
+        }
+        connectProcess.running = true;
+    }
+
+    // Dynamic Cores
     property var currentCores: [null, null, null, null, null]
     property var coreVisualIndices: [0, 0, 0, 0, 0]
     property int activeCoreCount: 0
@@ -141,7 +223,8 @@ Item {
     Behavior on smoothedActiveCoreCount { NumberAnimation { duration: 1000; easing.type: Easing.InOutExpo } }
 
     function syncCores() {
-        let list = activeMode === "wifi" ? (isWifiConn && wifiConnected ? [window.wifiConnected] : []) : window.btConnected;
+        let wValid = !!window.wifiConnected && window.wifiConnected.ssid !== undefined;
+        let list = activeMode === "wifi" ? (wValid ? [window.wifiConnected] : []) : window.btConnected;
         if (!currentPower) list = [];
         else {
             if (!Array.isArray(list)) list = [list];
@@ -150,7 +233,6 @@ Item {
         let newCores = [window.currentCores[0], window.currentCores[1], window.currentCores[2], window.currentCores[3], window.currentCores[4]];
         let found = [false, false, false, false, false];
 
-        // 1. Maintain existing devices in their current visual slots
         for (let i = 0; i < list.length && i < 5; i++) {
             let dev = list[i];
             let id = window.activeMode === "wifi" ? dev.ssid : dev.mac;
@@ -161,10 +243,8 @@ Item {
             }
         }
 
-        // Wipe missing devices
         for (let c = 0; c < 5; c++) { if (!found[c]) newCores[c] = null; }
 
-        // 2. Map newcomer devices to any empty slots
         for (let i = 0; i < list.length && i < 5; i++) {
             let dev = list[i];
             let id = window.activeMode === "wifi" ? dev.ssid : dev.mac;
@@ -179,9 +259,9 @@ Item {
             }
         }
 
-        window.currentCores = newCores;
+        // Force QML reactive binding refresh using spread syntax to prevent blank icons
+        window.currentCores = [...newCores];
 
-        // 3. Assign continuous visual indexes for elegant ring spacing
         let activeCount = 0;
         let newVis = [0, 0, 0, 0, 0];
         for (let c = 0; c < 5; c++) {
@@ -204,8 +284,10 @@ Item {
             Quickshell.execDetached(["bash", "-c", "echo '" + window.activeMode + "' > /tmp/qs_network_mode"]);
         }
         window.ignoreNextModeFileUpdate = false;
+        
+        window.pendingWifiId = ""; window.pendingWifiSsid = "";
+        if (window.activeMode === "wifi") savedNetworksFetcher.running = true;
 
-        // Complete wipe of nodes to prevent any ghost artifacts between modes
         infoListModel.clear();
         window.busyTasks = ({});
         window.disconnectingDevices = ({});
@@ -318,7 +400,6 @@ Item {
     
     readonly property bool isLogicMultiState: window.activeMode === "bt" && window.activeCoreCount > 1
     
-    // Smooth transition properties. Drops to 0.0 immediately if power is cut.
     property real multiTransitionState: (isLogicMultiState && window.currentPower) ? 1.0 : 0.0
     Behavior on multiTransitionState { NumberAnimation { duration: 1200; easing.type: Easing.InOutExpo } }
 
@@ -327,9 +408,11 @@ Item {
         
         let wConn = window.wifiConnected;
         if (Array.isArray(wConn)) wConn = wConn[0]; 
-        let cList = window.activeMode === "wifi" ? (window.isWifiConn && wConn ? [wConn] : []) : window.btConnected;
+        let wValid = !!wConn && wConn.ssid !== undefined;
+        let isActConn = window.activeMode === "wifi" ? wValid : window.btConnected.length > 0;
+        let cList = window.activeMode === "wifi" ? (wValid ? [wConn] : []) : window.btConnected;
         
-        if (window.currentConn && cList.length > 0) {
+        if (isActConn && cList.length > 0) {
             for (let i = 0; i < cList.length; i++) {
                 let obj = cList[i];
                 let cIndex = 0;
@@ -354,7 +437,6 @@ Item {
                     nodes.push({ id: "mac_" + obj.mac, name: obj.mac || "Unknown", icon: "󰒋", action: "MAC Address", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                 }
             }
-            // Always bind to -1 to prevent index jump 'pops'. We'll control its layout via pure math.
             nodes.push({ id: "action_scan", name: "Scan Devices", icon: "󰍉", action: "Switch View", isInfoNode: true, isActionable: true, cmdStr: "TOGGLE_VIEW", parentIndex: -1 });
         }
         
@@ -379,13 +461,29 @@ Item {
                 window.expectedWifiPower = "";
             }
 
-            let wasWifiConn = window.isWifiConn;
+            let wasWifiConn = !!window.wifiConnected && window.wifiConnected.ssid !== undefined;
             let newConnected = data.connected;
+            let newNetworks = data.networks ? data.networks : [];
+
+            // Enrich the newly connected network with full details to prevent missing icons/names
+            if (newConnected && newConnected.ssid) {
+                let match = newNetworks.find(n => n.id === newConnected.ssid || n.ssid === newConnected.ssid);
+                if (match) {
+                    newConnected.icon = match.icon || newConnected.icon;
+                    newConnected.name = match.name || newConnected.name;
+                    newConnected.security = match.security || newConnected.security;
+                    newConnected.signal = match.signal || newConnected.signal;
+                    newConnected.freq = match.freq || newConnected.freq;
+                    newConnected.ip = match.ip || newConnected.ip;
+                }
+            }
+
+            let isNowWifiConn = !!newConnected && newConnected.ssid !== undefined;
+
             if (JSON.stringify(window.wifiConnected) !== JSON.stringify(newConnected)) {
                 window.wifiConnected = newConnected;
             }
             
-            let newNetworks = data.networks ? data.networks : [];
             if (newNetworks.length > 0) {
                 let maxSig = -1; let bestSsid = newNetworks[0].id;
                 for (let i = 0; i < newNetworks.length; i++) {
@@ -397,7 +495,7 @@ Item {
 
             newNetworks.sort((a, b) => a.id.localeCompare(b.id));
 
-            if (window.isWifiConn && window.activeMode === "wifi") {
+            if (isNowWifiConn && window.activeMode === "wifi") {
                 newNetworks.push({ id: "action_settings", ssid: "Current Device", mac: "", name: "Current Device", icon: "󰒓", security: "", action: "View Info", isInfoNode: false, isActionable: true, cmdStr: "TOGGLE_VIEW", parentIndex: -1 });
             }
 
@@ -407,14 +505,14 @@ Item {
             }
 
             if (window.activeMode === "wifi") {
-                if (!wasWifiConn && window.isWifiConn) {
+                if (!wasWifiConn && isNowWifiConn) {
                     window.showInfoView = true;
                 }
                 
                 let dd = window.disconnectingDevices;
                 let ddChanged = false;
                 for (let ssid in dd) {
-                    if (!window.isWifiConn || (window.wifiConnected && window.wifiConnected.ssid !== ssid)) {
+                    if (!isNowWifiConn || (newConnected && newConnected.ssid !== ssid)) {
                         delete dd[ssid];
                         ddChanged = true;
                     }
@@ -426,9 +524,10 @@ Item {
                 
                 let newlyConnected = false;
                 let bt = window.busyTasks;
-                if (window.isWifiConn && window.wifiConnected && bt[window.wifiConnected.ssid]) {
+                if (isNowWifiConn && newConnected && bt[newConnected.ssid]) {
                     newlyConnected = true;
-                    delete bt[window.wifiConnected.ssid];
+                    delete bt[newConnected.ssid];
+                    window.connectingId = "";
                 }
                 if (newlyConnected) {
                     window.playSfx("connect.wav");
@@ -436,7 +535,7 @@ Item {
                     if (Object.keys(window.busyTasks).length === 0 && Object.keys(window.disconnectingDevices).length === 0) busyTimeout.stop();
                 }
 
-                if (window.currentConn) window.updateInfoNodes();
+                if (isNowWifiConn || window.isBtConn) window.updateInfoNodes();
             }
         } catch(e) {}
     }
@@ -461,6 +560,7 @@ Item {
             let oldBtLen = window.btConnected.length;
             let newBtConnected = data.connected || [];
             if (!Array.isArray(newBtConnected)) newBtConnected = [newBtConnected];
+            let isNowBtConn = newBtConnected.length > 0;
 
             if (JSON.stringify(window.btConnected) !== JSON.stringify(newBtConnected)) {
                 window.btConnected = newBtConnected;
@@ -469,7 +569,7 @@ Item {
             let newDevices = data.devices ? data.devices : [];
             newDevices.sort((a, b) => a.id.localeCompare(b.id));
 
-            if (window.isBtConn && window.activeMode === "bt") {
+            if (isNowBtConn && window.activeMode === "bt") {
                 newDevices.push({ id: "action_settings", ssid: "", mac: "action_settings", name: "Current Device", icon: "󰒓", action: "View Info", isInfoNode: false, isActionable: true, cmdStr: "TOGGLE_VIEW", parentIndex: -1 });
             }
 
@@ -479,7 +579,7 @@ Item {
             }
 
             if (window.activeMode === "bt") {
-                if (window.btConnected.length > oldBtLen) {
+                if (newBtConnected.length > oldBtLen) {
                     window.showInfoView = true;
                 }
 
@@ -487,8 +587,8 @@ Item {
                 let ddChanged = false;
                 for (let mac in dd) {
                     let stillConnected = false;
-                    for (let i = 0; i < window.btConnected.length; i++) {
-                        if (window.btConnected[i].mac === mac) { stillConnected = true; break; }
+                    for (let i = 0; i < newBtConnected.length; i++) {
+                        if (newBtConnected[i].mac === mac) { stillConnected = true; break; }
                     }
                     if (!stillConnected) {
                         delete dd[mac];
@@ -502,11 +602,12 @@ Item {
                 
                 let newlyConnected = false;
                 let bt = window.busyTasks;
-                for (let i = 0; i < window.btConnected.length; i++) {
-                    let mac = window.btConnected[i].mac;
+                for (let i = 0; i < newBtConnected.length; i++) {
+                    let mac = newBtConnected[i].mac;
                     if (bt[mac]) {
                         newlyConnected = true;
                         delete bt[mac];
+                        window.connectingId = "";
                     }
                 }
                 if (newlyConnected) {
@@ -515,7 +616,7 @@ Item {
                     if (Object.keys(window.busyTasks).length === 0 && Object.keys(window.disconnectingDevices).length === 0) busyTimeout.stop();
                 }
 
-                if (window.currentConn) window.updateInfoNodes();
+                if (isNowBtConn || window.isWifiConn) window.updateInfoNodes();
             }
         } catch(e) {}
     }
@@ -589,6 +690,7 @@ Item {
             border.color: window.surface0
             border.width: 1
             clip: true
+            
             Rectangle {
                 width: parent.width * 0.8; height: width; radius: width / 2
                 x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * window.s(150)
@@ -797,7 +899,7 @@ Item {
 
                         property real multiShift: window.activeMode === "wifi" ? 0.0 : window.multiTransitionState
 
-                        // Automatically scales down core sizes as more devices fill the ring
+                        // Auto scale down cores as devices fill ring
                         width: window.currentPower ? (window.s(200) - (window.s(30) * multiShift) - (window.s(15) * Math.max(0, window.smoothedActiveCoreCount - 2))) : window.s(160)
                         height: width
                         
@@ -814,11 +916,17 @@ Item {
                         y: (orbitContainer.height / 2 - height / 2) + (Math.sin(coreOrbitAngle) * myOrbitRadiusY * multiShift * activeTransition)
                         
                         opacity: activeTransition
-                        scale: bumpScale * (0.8 + 0.2 * activeTransition)
+                        scale: centralCore.bumpScale * (0.8 + 0.2 * activeTransition)
                         visible: opacity > 0.01
 
                         property string myId: myDevice ? (window.activeMode === "wifi" ? myDevice.ssid : myDevice.mac) : "unknown"
                         property bool isMyDisconnecting: !!window.disconnectingDevices[myId]
+
+                        // Distinct visual layer states for Primary core
+                        property bool showOffline: isPrimary && !window.currentPower
+                        property bool showScanning: isPrimary && window.currentPower && !window.currentConn && window.pendingWifiId === ""
+                        property bool showConnected: window.currentConn && hasDevice && window.pendingWifiId === ""
+                        property bool showPassword: isPrimary && window.pendingWifiId !== ""
 
                         MultiEffect {
                             source: centralCore
@@ -842,8 +950,6 @@ Item {
                             property real flashOpacity: 0.0
                             property real bumpScale: 1.0
                             property bool isDangerState: coreMa.containsMouse || disconnectFill > 0 || isMyDisconnecting
-                            
-                            scale: bumpScale
 
                             SequentialAnimation on bumpScale {
                                 id: coreBumpAnim
@@ -852,7 +958,6 @@ Item {
                                 NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.OutQuint }
                             }
 
-                            // A pure, mathematically subtle gradient rather than a dual-color mash
                             gradient: Gradient {
                                 orientation: Gradient.Vertical
                                 GradientStop {
@@ -860,8 +965,8 @@ Item {
                                     color: {
                                         if (!window.currentPower) return window.mantle;
                                         if (isMyDisconnecting) return window.surface0; 
-                                        if (centralCore.isDangerState && window.currentConn) return Qt.lighter(window.red, 1.15);
-                                        return window.currentConn ? Qt.lighter(window.activeColor, 1.15) : window.surface0;
+                                        if (centralCore.isDangerState && window.currentConn && !showPassword) return Qt.lighter(window.red, 1.15);
+                                        return window.currentConn || showPassword ? Qt.lighter(window.activeColor, 1.15) : window.surface0;
                                     }
                                     Behavior on color { ColorAnimation { duration: 300 } }
                                 }
@@ -870,8 +975,8 @@ Item {
                                     color: {
                                         if (!window.currentPower) return window.crust;
                                         if (isMyDisconnecting) return window.base; 
-                                        if (centralCore.isDangerState && window.currentConn) return window.red;
-                                        return window.currentConn ? window.activeColor : window.base;
+                                        if (centralCore.isDangerState && window.currentConn && !showPassword) return window.red;
+                                        return window.currentConn || showPassword ? window.activeColor : window.base;
                                     }
                                     Behavior on color { ColorAnimation { duration: 300 } }
                                 }
@@ -880,8 +985,8 @@ Item {
                             border.color: {
                                 if (!window.currentPower) return window.crust;
                                 if (isMyDisconnecting) return window.surface0;
-                                if (centralCore.isDangerState && window.currentConn) return window.maroon;
-                                return window.currentConn ? Qt.lighter(window.activeColor, 1.1) : window.surface1;
+                                if (centralCore.isDangerState && window.currentConn && !showPassword) return window.maroon;
+                                return window.currentConn || showPassword ? Qt.lighter(window.activeColor, 1.1) : window.surface1;
                             }
                             border.width: window.s(2)
                             Behavior on border.color { ColorAnimation { duration: 300 } }
@@ -942,7 +1047,6 @@ Item {
                                     }
                                     ctx.closePath();
                                     
-                                    // Matugen wash-out drain effect against the red danger orb
                                     var grad = ctx.createLinearGradient(0, 0, 0, height);
                                     grad.addColorStop(0, window.surface1.toString()); 
                                     grad.addColorStop(1, window.crust.toString());
@@ -957,16 +1061,17 @@ Item {
                                 width: parent.width + window.s(40)
                                 height: width
                                 radius: width / 2
-                                color: centralCore.isDangerState && window.currentConn ? window.red : window.activeColor
-                                opacity: window.currentConn && !isMyDisconnecting ? (centralCore.isDangerState ? 0.3 : 0.15) : 0.0
+                                color: centralCore.isDangerState && window.currentConn && !showPassword ? window.red : window.activeColor
+                                opacity: (window.currentConn || showPassword) && !isMyDisconnecting ? (centralCore.isDangerState && !showPassword ? 0.3 : 0.15) : 0.0
                                 z: -1
                                 Behavior on color { ColorAnimation { duration: 200 } }
                                 Behavior on opacity { NumberAnimation { duration: 300 } }
                                 
+                                // Fixed duration breathing to prevent lag spikes
                                 SequentialAnimation on scale {
-                                    loops: Animation.Infinite; running: window.currentConn
-                                    NumberAnimation { to: coreMa.containsMouse ? 1.15 : 1.1; duration: coreMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 1.0; duration: coreMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
+                                    loops: Animation.Infinite; running: window.currentConn || showPassword
+                                    NumberAnimation { to: 1.1; duration: 2000; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 1.0; duration: 2000; easing.type: Easing.InOutSine }
                                 }
                             }
                             
@@ -976,13 +1081,13 @@ Item {
                                 height: width
                                 radius: width / 2
                                 color: "transparent"
-                                border.color: centralCore.isDangerState ? window.red : window.activeColor
+                                border.color: centralCore.isDangerState && !showPassword ? window.red : window.activeColor
                                 border.width: window.s(3)
                                 z: -2
                                 
                                 property real pulseOp: 0.0
                                 property real pulseSc: 1.0
-                                opacity: (window.currentConn && window.showInfoView && window.currentPower && !isMyDisconnecting) ? pulseOp : 0.0
+                                opacity: ((window.currentConn || showPassword) && window.showInfoView && window.currentPower && !isMyDisconnecting) ? pulseOp : 0.0
                                 scale: pulseSc
                                 
                                 Timer {
@@ -997,40 +1102,144 @@ Item {
                                 }
                             }
 
-                            // OFFLINE TEXT
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: window.s(10)
-                                visible: !window.currentConn || !window.currentPower
-                                opacity: visible ? 1.0 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: 300 } }
-
-                                Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Iosevka Nerd Font"
-                                    font.pixelSize: window.s(48) - (window.s(16) * coreContainer.multiShift)
-                                    color: window.currentPower ? window.overlay0 : window.surface2
-                                    text: window.activeMode === "wifi" ? "󰤮" : "󰂲"
+                            // -- LAYER: OFFLINE AURA --
+                            Item {
+                                anchors.fill: parent
+                                opacity: showOffline ? 1.0 : 0.0
+                                visible: opacity > 0.01
+                                Behavior on opacity { NumberAnimation { duration: 400 } }
+                                
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7; height: width; radius: width/2
+                                    color: window.surface0
+                                    SequentialAnimation on scale {
+                                        running: showOffline; loops: Animation.Infinite
+                                        NumberAnimation { to: 1.05; duration: 2000; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 1.0; duration: 2000; easing.type: Easing.InOutSine }
+                                    }
                                 }
                                 Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    font.family: "JetBrains Mono"; font.weight: Font.Bold
-                                    font.pixelSize: window.s(14) - (window.s(3) * coreContainer.multiShift)
-                                    color: window.overlay0
-                                    text: window.currentPowerPending 
-                                        ? ((window.activeMode === "wifi" ? window.expectedWifiPower : window.expectedBtPower) === "on" ? "Powering On..." : "Powering Off...") 
-                                        : (!window.currentPower ? "Radio Offline" : "Scanning...")
+                                    anchors.centerIn: parent
+                                    font.family: "Iosevka Nerd Font"
+                                    font.pixelSize: window.s(48) - (window.s(16) * coreContainer.multiShift)
+                                    color: window.surface2
+                                    text: window.activeMode === "wifi" ? "󰤮" : "󰂲"
                                 }
                             }
 
-                            // ONLINE TEXT (Base + Clipped Mask)
+                            // -- LAYER: SCANNING AURA --
                             Item {
                                 anchors.fill: parent
-                                visible: window.currentConn && window.currentPower
-                                opacity: visible ? 1.0 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: 300 } }
+                                opacity: showScanning ? 1.0 : 0.0
+                                visible: opacity > 0.01
+                                Behavior on opacity { NumberAnimation { duration: 400 } }
 
-                                // 1. Base Uncovered Text
+                                Repeater {
+                                    model: 3
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width * 0.4; height: width; radius: width / 2
+                                        color: "transparent"
+                                        border.color: window.activeColor; border.width: window.s(2)
+                                        SequentialAnimation on scale {
+                                            running: showScanning; loops: Animation.Infinite
+                                            PauseAnimation { duration: index * 400 }
+                                            NumberAnimation { from: 1.0; to: 2.5; duration: 2000; easing.type: Easing.OutSine }
+                                        }
+                                        SequentialAnimation on opacity {
+                                            running: showScanning; loops: Animation.Infinite
+                                            PauseAnimation { duration: index * 400 }
+                                            NumberAnimation { from: 0.8; to: 0.0; duration: 2000; easing.type: Easing.OutSine }
+                                        }
+                                    }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    font.family: "Iosevka Nerd Font"
+                                    font.pixelSize: window.s(48) - (window.s(16) * coreContainer.multiShift)
+                                    color: window.activeColor
+                                    text: window.activeMode === "wifi" ? "󰤨" : "󰂯"
+                                    SequentialAnimation on opacity {
+                                        running: showScanning; loops: Animation.Infinite
+                                        NumberAnimation { to: 0.5; duration: 1000; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                                    }
+                                }
+                            }
+
+                            // -- LAYER: PASSWORD INPUT --
+                            Item {
+                                id: pwdLayer
+                                anchors.fill: parent
+                                opacity: showPassword ? 1.0 : 0.0
+                                visible: opacity > 0.01
+                                scale: showPassword ? 1.0 : 0.8
+                                Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
+                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutSine } }
+                                
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    spacing: window.s(8)
+                                    
+                                    Text { Layout.alignment: Qt.AlignHCenter; font.family: "Iosevka Nerd Font"; font.pixelSize: window.s(32); color: window.crust; text: "󰤨" }
+                                    
+                                    Text { 
+                                        Layout.alignment: Qt.AlignHCenter; Layout.maximumWidth: pwdLayer.width - window.s(40)
+                                        font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: window.s(13)
+                                        color: window.crust; text: window.pendingWifiSsid; elide: Text.ElideRight 
+                                    }
+                                    
+                                    Rectangle {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        Layout.preferredWidth: pwdLayer.width - window.s(40); height: window.s(36)
+                                        radius: window.s(18)
+                                        color: window.surface0
+                                        border.color: wifiPasswordField.activeFocus ? window.crust : "transparent"
+                                        border.width: 1
+                                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                                        
+                                        TextInput {
+                                            id: wifiPasswordField
+                                            anchors.fill: parent
+                                            anchors.leftMargin: window.s(15); anchors.rightMargin: window.s(15)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            font.family: "JetBrains Mono"; font.pixelSize: window.s(13); color: window.text
+                                            echoMode: TextInput.Password; clip: true
+                                            onAccepted: {
+                                                if (text.trim() !== "") {
+                                                    window.connectDevice("wifi", window.pendingWifiId, window.pendingWifiSsid, text);
+                                                    window.pendingWifiId = ""; window.pendingWifiSsid = ""; text = "";
+                                                    window.forceActiveFocus();
+                                                }
+                                            }
+                                            Keys.onEscapePressed: { window.pendingWifiId = ""; window.pendingWifiSsid = ""; text = ""; window.forceActiveFocus(); }
+                                        }
+                                    }
+                                }
+                                
+                                Timer {
+                                    id: deferFocusTimer
+                                    interval: 50
+                                    onTriggered: wifiPasswordField.forceActiveFocus()
+                                }
+                                onVisibleChanged: { 
+                                    if (visible) { 
+                                        wifiPasswordField.text = ""; 
+                                        deferFocusTimer.start(); 
+                                    } 
+                                }
+                            }
+
+                            // -- LAYER: CONNECTED TEXT (Base + Clipped Mask) --
+                            Item {
+                                anchors.fill: parent
+                                visible: opacity > 0.01
+                                opacity: showConnected ? 1.0 : 0.0
+                                scale: showConnected ? 1.0 : 0.95
+                                Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+                                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutSine } }
+
                                 ColumnLayout {
                                     id: baseCoreText
                                     anchors.centerIn: parent
@@ -1041,7 +1250,7 @@ Item {
                                         font.family: "Iosevka Nerd Font"
                                         font.pixelSize: window.s(48) - (window.s(16) * coreContainer.multiShift)
                                         color: isMyDisconnecting ? window.overlay1 : window.crust
-                                        text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
+                                        text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? (coreContainer.myDevice.icon || (window.activeMode === "wifi" ? "󰤨" : "󰂯")) : ""))
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                     LoadingDots { Layout.alignment: Qt.AlignHCenter; visible: isMyDisconnecting; dotCol: window.overlay1 }
@@ -1065,7 +1274,6 @@ Item {
                                     }
                                 }
 
-                                // 2. Covered Clipped Text (Dynamically masks the text over the filling wave)
                                 Item {
                                     id: waveClipItem
                                     anchors.bottom: parent.bottom
@@ -1085,7 +1293,7 @@ Item {
                                             font.family: "Iosevka Nerd Font"
                                             font.pixelSize: window.s(48) - (window.s(16) * coreContainer.multiShift)
                                             color: window.text
-                                            text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
+                                            text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? (coreContainer.myDevice.icon || (window.activeMode === "wifi" ? "󰤨" : "󰂯")) : ""))
                                         }
                                         LoadingDots { Layout.alignment: Qt.AlignHCenter; visible: isMyDisconnecting; dotCol: window.text }
                                         Text {
@@ -1112,16 +1320,16 @@ Item {
                                 id: coreMa
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: window.currentConn && !isMyDisconnecting ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                cursorShape: window.currentConn && !isMyDisconnecting && !showPassword ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 
                                 onPressed: {
-                                    if (window.currentConn && !isMyDisconnecting && !centralCore.disconnectTriggered) {
+                                    if (window.currentConn && !isMyDisconnecting && !centralCore.disconnectTriggered && !showPassword) {
                                         coreDrainAnim.stop();
                                         coreFillAnim.start();
                                     }
                                 }
                                 onReleased: {
-                                    if (!centralCore.disconnectTriggered && !isMyDisconnecting) {
+                                    if (!centralCore.disconnectTriggered && !isMyDisconnecting && !showPassword) {
                                         coreFillAnim.stop();
                                         coreDrainAnim.start();
                                     }
@@ -1239,7 +1447,6 @@ Item {
 
                             property real parentBaseAngle: pItem ? pItem.animatedBaseAngle : 0
                             
-                            // To prevent list updating "jumps", we smoothly interpolate the layout properties while leaving the global rotation constant
                             property real targetSingleBaseAngle: (index / Math.max(1, orbitRepeater.count)) * Math.PI * 2
                             property real singleBaseAngle: targetSingleBaseAngle
                             Behavior on singleBaseAngle { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
@@ -1262,7 +1469,6 @@ Item {
                             property real singleRadX: isInfoNode ? window.s(280) : window.s(320) + ringOffset
                             property real singleRadY: isInfoNode ? window.s(180) : window.s(200) + ringOffset
                             
-                            // Scan node (-1) perfectly snaps to dead center (0,0) so it avoids crossing paths with Cores
                             property real multiRadX: isInfoNode ? (myParentIdx === -1 ? 0 : (window.activeCoreCount > 2 ? window.s(180) : window.s(160))) : window.s(340) + ringOffset
                             property real multiRadY: isInfoNode ? (myParentIdx === -1 ? 0 : (window.activeCoreCount > 2 ? window.s(180) : window.s(160))) : window.s(240) + ringOffset
 
@@ -1273,7 +1479,6 @@ Item {
                             property real pwrDrift: window.currentPower ? 0 : window.s(40)
                             Behavior on pwrDrift { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
 
-                            // Make the pop out start from 25% of the radius (outside the core) so it floats nicely
                             property real animRadX: (currentRadX + pwrDrift) * (0.25 + 0.75 * entryAnim)
                             property real animRadY: (currentRadY + pwrDrift) * (0.25 + 0.75 * entryAnim)
 
@@ -1315,7 +1520,8 @@ Item {
                                 property string itemId: id
                                 property string itemName: name
                                 
-                                property bool isMyBusy: !!window.busyTasks[itemId]
+                                property bool isMyBusy: window.connectingId === itemId || !!window.busyTasks[itemId]
+                                property bool isFailed: window.failedId === itemId
                                 
                                 property bool isPairedBT: window.activeMode === "bt" && action === "Connect"
                                 property bool isTargetWifi: window.activeMode === "wifi" && !window.isWifiConn && itemId === window.targetWifiSsid
@@ -1366,27 +1572,43 @@ Item {
                                 
                                 property real renderFill: (isCurrentlyConnected) ? 1.0 : fillLevel
                                 
-                                onIsMyBusyChanged: {
-                                    if (!isMyBusy && triggered) {
+                                onIsFailedChanged: {
+                                    if (isFailed) {
                                         triggered = false;
-                                        if (!floatCard.isCurrentlyConnected) drainAnim.start();
+                                        drainAnim.start();
                                     }
                                 }
-                                
-                                onIsCurrentlyConnectedChanged: {
-                                    if (!isCurrentlyConnected && fillLevel > 0) drainAnim.start();
+
+                                Connections {
+                                    target: window
+                                    function onPendingWifiIdChanged() {
+                                        if (window.pendingWifiId === "" && floatCard.fillLevel > 0 && !floatCard.isMyBusy && !floatCard.isCurrentlyConnected) {
+                                            floatCard.triggered = false;
+                                            drainAnim.start();
+                                        }
+                                    }
                                 }
 
                                 color: locksList ? "#2affffff" : "#0effffff"
                                 Behavior on color { ColorAnimation { duration: 200 } }
+                                
+                                // Fail flash background
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    color: window.red
+                                    opacity: floatCard.isFailed ? 0.3 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 300 } }
+                                }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: window.s(14)
                                     color: "transparent"
                                     border.width: 1
-                                    border.color: window.surface2
+                                    border.color: floatCard.isFailed ? window.red : window.surface2
                                     visible: !isHighlighted && !locksList
+                                    Behavior on border.color { ColorAnimation { duration: 300 } }
                                 }
 
                                 Rectangle {
@@ -1395,6 +1617,7 @@ Item {
                                     opacity: locksList || isHighlighted ? 1.0 : 0.0
                                     color: "transparent"
                                     border.width: isHighlighted && !locksList ? 1 : window.s(2)
+                                    border.color: floatCard.isFailed ? window.red : "transparent"
                                     Behavior on opacity { NumberAnimation { duration: 250 } }
                                     
                                     Rectangle {
@@ -1407,8 +1630,8 @@ Item {
                                     
                                     gradient: Gradient {
                                         orientation: Gradient.Horizontal
-                                        GradientStop { position: 0.0; color: Qt.lighter(window.activeColor, 1.15) }
-                                        GradientStop { position: 1.0; color: window.activeColor }
+                                        GradientStop { position: 0.0; color: floatCard.isFailed ? Qt.lighter(window.red, 1.15) : Qt.lighter(window.activeColor, 1.15) }
+                                        GradientStop { position: 1.0; color: floatCard.isFailed ? window.red : window.activeColor }
                                     }
                                     z: -1
                                 }
@@ -1499,7 +1722,7 @@ Item {
                                     color: "transparent"
                                     border.color: window.activeColor
                                     border.width: window.s(2)
-                                    visible: parent.isHighlighted && !parent.isMyBusy && !parent.isCurrentlyConnected
+                                    visible: parent.isHighlighted && !parent.isMyBusy && !parent.isCurrentlyConnected && !parent.isFailed
                                     
                                     SequentialAnimation on scale {
                                         loops: Animation.Infinite; running: parent.visible
@@ -1522,7 +1745,7 @@ Item {
                                     Text {
                                         font.family: "Iosevka Nerd Font"
                                         font.pixelSize: window.s(20)
-                                        color: floatCard.isMyBusy ? window.text : window.activeColor
+                                        color: floatCard.isFailed ? window.red : (floatCard.isMyBusy ? window.text : window.activeColor)
                                         text: icon
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -1546,7 +1769,8 @@ Item {
                                                 font.family: "JetBrains Mono"
                                                 font.weight: Font.Bold
                                                 font.pixelSize: window.s(13)
-                                                color: floatCard.isHighlighted ? window.activeColor : window.text
+                                                color: floatCard.isFailed ? window.red : (floatCard.isHighlighted ? window.activeColor : window.text)
+                                                Behavior on color { ColorAnimation { duration: 200 } }
                                             }
                                             Text {
                                                 anchors.left: baseNameText.right
@@ -1557,15 +1781,15 @@ Item {
                                                 font.family: "JetBrains Mono"
                                                 font.weight: Font.Bold
                                                 font.pixelSize: window.s(13)
-                                                color: floatCard.isHighlighted ? window.activeColor : window.text
+                                                color: floatCard.isFailed ? window.red : (floatCard.isHighlighted ? window.activeColor : window.text)
                                             }
                                         }
                                         
                                         Text {
                                             font.family: "JetBrains Mono"
                                             font.pixelSize: window.s(10)
-                                            color: floatCard.isMyBusy ? window.activeColor : window.overlay0
-                                            text: floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action)
+                                            color: floatCard.isFailed ? window.maroon : (floatCard.isMyBusy ? window.activeColor : window.overlay0)
+                                            text: floatCard.isFailed ? "Connection Failed" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
                                     }
@@ -1628,6 +1852,9 @@ Item {
                                     
                                     onPressed: { 
                                         if (floatCard.isInteractable && !floatCard.triggered && !floatCard.isMyBusy && floatCard.fillLevel === 0.0) {
+                                            if (window.pendingWifiId !== "") {
+                                                window.pendingWifiId = ""; window.pendingWifiSsid = "";
+                                            }
                                             drainAnim.stop()
                                             fillAnim.start()
                                         }
@@ -1664,17 +1891,21 @@ Item {
                                             floatCard.triggered = false;
                                             drainAnim.start(); 
                                         } else {
-                                            let bt = window.busyTasks;
-                                            bt[floatCard.itemId] = true;
-                                            window.busyTasks = Object.assign({}, bt);
-                                            busyTimeout.restart();
-                                            
-                                            let cmd = window.activeMode === "wifi"
-                                                ? "nmcli device wifi connect '" + ssid + "'"
-                                                : "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --connect " + mac
-                                            
-                                            Quickshell.execDetached(["sh", "-c", cmd]);
-                                            if (window.activeMode === "wifi") wifiPoller.running = true; else btPoller.running = true;
+                                            let sec = typeof security !== "undefined" && security ? security.trim().toLowerCase() : "";
+                                            let isSecure = sec !== "" && sec !== "open" && sec !== "--" && sec !== "none";
+                                            let isSaved = false;
+                                            for (let i = 0; i < window.savedWifiNetworks.length; i++) {
+                                                if (window.savedWifiNetworks[i] === ssid) { isSaved = true; break; }
+                                            }
+
+                                            if (window.activeMode === "wifi" && isSecure && !isSaved) {
+                                                window.pendingWifiSsid = ssid;
+                                                window.pendingWifiId = floatCard.itemId;
+                                                // Retain full state, DO NOT start drainAnim
+                                            } else {
+                                                window.connectDevice(window.activeMode, floatCard.itemId, window.activeMode === "wifi" ? ssid : mac, "");
+                                                // Retain full state while connecting
+                                            }
                                         }
                                     }
                                 }
@@ -1742,6 +1973,7 @@ Item {
                         MouseArea {
                             id: wifiTabMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
+                                if (window.pendingWifiId !== "") { window.pendingWifiId = ""; window.pendingWifiSsid = ""; }
                                 if (window.activeMode !== "wifi") window.playSfx("switch.wav");
                                 window.activeMode = "wifi";
                             }
@@ -1779,6 +2011,7 @@ Item {
                         MouseArea {
                             id: btTabMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
+                                if (window.pendingWifiId !== "") { window.pendingWifiId = ""; window.pendingWifiSsid = ""; }
                                 if (window.activeMode !== "bt") window.playSfx("switch.wav");
                                 window.activeMode = "bt";
                             }
@@ -1842,6 +2075,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
+                        if (window.pendingWifiId !== "") { window.pendingWifiId = ""; window.pendingWifiSsid = ""; }
                         if (window.activeMode === "wifi") {
                             if (window.wifiPowerPending) return;
                             window.expectedWifiPower = window.wifiPower === "on" ? "off" : "on";

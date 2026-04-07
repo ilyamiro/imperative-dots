@@ -1,13 +1,15 @@
 /* SwayOSD Matugen Theme 
-   Dynamic Colors
 */
 
 window#osd-container {
     background-color: {{colors.surface.default.hex}}; 
     border: 2px solid {{colors.primary.default.hex}}; 
     border-radius: 32px; 
-    padding: 24px;
-    margin: 24px;
+    /* Slightly reduced padding/margin to prevent negative box math */
+    padding: 16px;
+    margin: 16px;
+    /* Explicitly tell GTK how wide the box should be at minimum */
+    min-width: 250px; 
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); 
 }
 
@@ -17,6 +19,8 @@ trough {
     border-radius: 99px;
     border: none;
     min-height: 12px;
+    /* Guarantee the inner progress bar has a physical width */
+    min-width: 200px; 
 }
 
 /* The filled part of the progress bar */
