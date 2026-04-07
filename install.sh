@@ -353,11 +353,31 @@ manage_drivers() {
 
 manage_keyboard() {
     local available_layouts=(
-        "us - English (US)" "gb - English (UK)" "ru - Russian" "ua - Ukrainian"
-        "de - German" "fr - French" "es - Spanish" "it - Italian" "pl - Polish"
-        "pt - Portuguese" "br - Portuguese (Brazil)" "se - Swedish" "no - Norwegian"
-        "dk - Danish" "fi - Finnish" "nl - Dutch" "tr - Turkish" "cz - Czech"
-        "hu - Hungarian" "ro - Romanian" "jp - Japanese" "kr - Korean" "cn - Chinese"
+        "us - English (US)" "gb - English (UK)" "au - English (Australia)"
+        "ca - English/French (Canada)" "ie - English (Ireland)"
+        "nz - English (New Zealand)" "za - English (South Africa)"
+        "fr - French" "be - Belgian" "ch - Swiss"
+        "de - German" "at - Austrian" "nl - Dutch" "lu - Luxembourgish"
+        "es - Spanish" "pt - Portuguese" "br - Portuguese (Brazil)"
+        "it - Italian" "gr - Greek" "mt - Maltese"
+        "se - Swedish" "no - Norwegian" "dk - Danish"
+        "fi - Finnish" "is - Icelandic"
+        "pl - Polish" "cz - Czech" "sk - Slovak" "hu - Hungarian"
+        "ro - Romanian" "bg - Bulgarian" "ru - Russian" "ua - Ukrainian"
+        "by - Belarusian" "rs - Serbian" "hr - Croatian" "si - Slovenian"
+        "mk - Macedonian" "ba - Bosnian" "me - Montenegrin"
+        "lt - Lithuanian" "lv - Latvian" "ee - Estonian"
+        "am - Armenian" "ge - Georgian" "kz - Kazakh" "kg - Kyrgyz"
+        "tj - Tajik" "tm - Turkmen" "uz - Uzbek" "mn - Mongolian"
+        "il - Hebrew" "ara - Arabic" "ir - Persian (Farsi)"
+        "iq - Iraqi" "sy - Syrian"
+        "in - Indian" "pk - Pakistani" "bd - Bangla"
+        "th - Thai" "vn - Vietnamese" "la - Lao"
+        "mm - Burmese" "kh - Khmer"
+        "cn - Chinese" "jp - Japanese" "kr - Korean" "tw - Taiwanese"
+        "ng - Nigerian" "ma - Moroccan" "dz - Algerian" "et - Ethiopian"
+        "latam - Spanish (Latin America)"
+        "al - Albanian" "fo - Faroese"
     )
     local selected_codes=()
     local selected_names=()
