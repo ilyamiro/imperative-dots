@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.0.13"
+DOTS_VERSION="1.0.14"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Global Variables & Initial States (Defaults)
@@ -23,6 +23,7 @@ DRIVER_CHOICE="None (Skipped)"
 DRIVER_PKGS=()
 HAS_NVIDIA_PROPRIETARY=false
 LAST_COMMIT=""
+KEEP_OLD_ENV=true # Default to preserving existing weather config
 
 # Submenu Completion Tracking
 VISITED_PKGS=false
@@ -520,29 +521,45 @@ set_weather_api() {
     while true; do
         draw_header
         echo -e "${BOLD}${C_CYAN}=== OpenWeatherMap Interactive Setup ===${RESET}"
-        echo -e "${BOLD}${C_YELLOW}Without this, weather widgets WILL NOT WORK.${RESET}\n"
         
-        echo -e "${C_MAGENTA}How to get a free API key:${RESET}"
-        echo -e "  1. Visit ${C_BLUE}https://openweathermap.org/${RESET}"
-        echo -e "  2. Create a free account and log in."
-        echo -e "  3. Click your profile name -> 'My API keys'."
-        echo -e "  4. Generate a new key and paste it below."
-        echo -e "  ${BOLD}${C_YELLOW}Note: New API keys may take a couple of hours to activate. This installer will NOT block you from using a fresh key.${RESET}\n"
+        ENV_FILE="$HOME/.config/hypr/scripts/quickshell/calendar/.env"
         
-        read -p "Enter your OpenWeather API Key (or press Enter to skip): " input_key
+        if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+            echo -e "${C_GREEN}An existing Weather configuration (.env) was detected.${RESET}"
+            echo -e "${BOLD}${C_YELLOW}Press ENTER without typing anything to KEEP your existing configuration.${RESET}\n"
+        else
+            echo -e "${BOLD}${C_YELLOW}Without this, weather widgets WILL NOT WORK.${RESET}\n"
+            echo -e "${C_MAGENTA}How to get a free API key:${RESET}"
+            echo -e "  1. Visit ${C_BLUE}https://openweathermap.org/${RESET}"
+            echo -e "  2. Create a free account and log in."
+            echo -e "  3. Click your profile name -> 'My API keys'."
+            echo -e "  4. Generate a new key and paste it below."
+            echo -e "  ${BOLD}${C_YELLOW}Note: New API keys may take a couple of hours to activate. This installer will NOT block you from using a fresh key.${RESET}\n"
+        fi
+        
+        read -p "Enter your OpenWeather API Key (or press Enter to skip/keep): " input_key
         
         if [[ -z "$input_key" ]]; then
-            echo -e "\n${C_RED}WARNING: You did not enter an API key.${RESET}"
-            echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without it? (y/n): "
-            read -r confirm
-            if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                WEATHER_API_KEY="Skipped"
-                WEATHER_CITY_ID=""
-                WEATHER_UNIT=""
+            if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+                echo -e "\n${C_GREEN}Keeping existing weather configuration.${RESET}"
+                KEEP_OLD_ENV=true
                 VISITED_WEATHER=true
+                sleep 1.5
                 break
+            else
+                echo -e "\n${C_RED}WARNING: You did not enter an API key.${RESET}"
+                echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without it? (y/n): "
+                read -r confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    WEATHER_API_KEY="Skipped"
+                    WEATHER_CITY_ID=""
+                    WEATHER_UNIT=""
+                    KEEP_OLD_ENV=false
+                    VISITED_WEATHER=true
+                    break
+                fi
+                continue
             fi
-            continue
         fi
 
         # Soft validation to ensure it looks like a valid key without querying the API
@@ -589,6 +606,7 @@ set_weather_api() {
         WEATHER_UNIT=$(echo "$unit_choice" | awk '{print $1}')
         [[ -z "$WEATHER_UNIT" ]] && WEATHER_UNIT="metric"
         
+        KEEP_OLD_ENV=false
         echo -e "\n${C_GREEN}Weather configuration complete! Widget will update once your key is activated by OpenWeather.${RESET}"
         sleep 2.5
         VISITED_WEATHER=true
@@ -680,7 +698,12 @@ while true; do
     S_DRV=$( [ "$VISITED_DRIVERS" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_KBD=$( [ "$VISITED_KEYBOARD" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_RED}[ ]${RESET}" )
 
-    if [[ -z "$WEATHER_API_KEY" ]]; then API_DISPLAY="Not Set"
+    if [[ -z "$WEATHER_API_KEY" ]]; then
+        if [ -f "$HOME/.config/hypr/scripts/quickshell/calendar/.env" ]; then
+            API_DISPLAY="Set (from .env file)"
+        else
+            API_DISPLAY="Not Set"
+        fi
     elif [[ "$WEATHER_API_KEY" == "Skipped" ]]; then API_DISPLAY="Skipped"
     else API_DISPLAY="Set ($WEATHER_UNIT, ID: $WEATHER_CITY_ID)"; fi
 
@@ -980,21 +1003,41 @@ else
     fi
 fi
 
-if [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-    ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
+# Weather Configuration persistence/handling
+ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
+OLD_ENV_IN_BACKUP="$BACKUP_DIR/hypr/scripts/quickshell/calendar/.env"
+
+if [[ "$KEEP_OLD_ENV" == true ]]; then
+    if [ -f "$OLD_ENV_IN_BACKUP" ]; then
+        mkdir -p "$ENV_TARGET_DIR"
+        cp "$OLD_ENV_IN_BACKUP" "$ENV_TARGET_DIR/.env"
+        printf "  -> Restored existing Weather API config from backup %-3s ${C_GREEN}[ OK ]${RESET}\n" ""
+    elif [ -f "$ENV_TARGET_DIR/.env" ]; then
+        printf "  -> Retained existing Weather API config %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
+    elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
+        # Fallback if file doesn't exist but we have the vars loaded from version file
+        mkdir -p "$ENV_TARGET_DIR"
+        cat <<EOF > "$ENV_TARGET_DIR/.env"
+# OpenWeather API Configuration
+OPENWEATHER_KEY=${WEATHER_API_KEY}
+OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
+OPENWEATHER_UNIT=${WEATHER_UNIT}
+EOF
+        chmod 600 "$ENV_TARGET_DIR/.env"
+        printf "  -> Regenerated Weather API config from cache %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
+    fi
+elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
     mkdir -p "$ENV_TARGET_DIR"
-    
-    # Write the .env file with all gathered parameters
     cat <<EOF > "$ENV_TARGET_DIR/.env"
 # OpenWeather API Configuration
 OPENWEATHER_KEY=${WEATHER_API_KEY}
 OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
 OPENWEATHER_UNIT=${WEATHER_UNIT}
 EOF
-    
     chmod 600 "$ENV_TARGET_DIR/.env"
     printf "  -> Saved Weather API config to .env %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
 fi
+
 
 # Deploy Cava Wrapper
 mkdir -p "$HOME/.local/bin"

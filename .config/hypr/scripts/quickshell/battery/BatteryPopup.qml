@@ -117,8 +117,8 @@ Item {
     Process {
         id: sysPoller
         command: ["bash", "-c", 
-            "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo '0'; " +
-            "cat /sys/class/power_supply/BAT0/status 2>/dev/null || echo 'Unknown'; " +
+            "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -n1 || echo '0'; " +
+            "cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -n1 || echo 'Unknown'; " +
             "powerprofilesctl get 2>/dev/null || echo 'balanced'; " +
             "awk '{print int($1/3600)\"h \"int(($1%3600)/60)\"m\"}' /proc/uptime 2>/dev/null || echo '0h 0m'; " +
             "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print int($2*100), ($3==\"[MUTED]\"?\"off\":\"on\")}' || echo '0 on'; " +
@@ -155,7 +155,6 @@ Item {
             }
         }
     }
-
     Timer {
         interval: 1500; running: true; repeat: true; triggeredOnStart: true;
         onTriggered: sysPoller.running = true
