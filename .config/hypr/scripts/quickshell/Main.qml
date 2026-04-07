@@ -13,15 +13,9 @@ PanelWindow {
     WlrLayershell.namespace: "qs-master"
     WlrLayershell.layer: WlrLayer.Overlay
     
-    // --- THE FIXES ---
-    // 1. Force Quickshell to ignore the topbar's reserved space
     exclusionMode: ExclusionMode.Ignore 
     focusable: true
 
-    // 2. Ditch the edge anchors and force absolute physical screen bounds.
-    // Hyprland defines "edges" as the space UNDER the topbar. 
-    // By using absolute width/height without anchors, Hyprland centers the window,
-    // perfectly filling the entire physical monitor and bypassing the 50px shift.
     width: Screen.width
     height: Screen.height
 
@@ -52,6 +46,29 @@ PanelWindow {
     function getLayout(name) {
         return Registry.getLayout(name, 0, 0, Screen.width, Screen.height);
     }
+
+    // --- RESTORED: SELF-HEALING GEOMETRY ---
+    // Automatically recalculates position and scale if the OS resolution changes
+    Connections {
+        target: Screen
+        function onWidthChanged() { handleNativeScreenChange(); }
+        function onHeightChanged() { handleNativeScreenChange(); }
+    }
+
+    function handleNativeScreenChange() {
+        if (masterWindow.currentActive === "hidden") return;
+        
+        let t = getLayout(masterWindow.currentActive);
+        if (t) {
+            // Update the animation targets. The Behaviors below will 
+            // glide the widget to the new layout perfectly.
+            masterWindow.animX = t.rx;
+            masterWindow.animY = t.ry;
+            masterWindow.animW = t.w;
+            masterWindow.animH = t.h;
+        }
+    }
+    // ---------------------------------------
 
     onIsVisibleChanged: {
         if (isVisible) masterWindow.requestActivate();
