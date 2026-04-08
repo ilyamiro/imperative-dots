@@ -105,6 +105,7 @@ ShellRoot {
 
                 property string batPct: "100"
                 property string batStatus: "AC"
+                property bool batPresent: true
                 property string currentUser: "User"
                 property string faceIconPath: ""
                 property string kbLayout: "US"
@@ -175,13 +176,14 @@ ShellRoot {
 
                 Process {
                     id: batPoller
-                    command: ["bash", "-c", "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -n1 || echo '100'; cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -n1 || echo 'AC'"]
+                    command: ["bash", "-c", "if ls /sys/class/power_supply/BAT* 2>/dev/null | grep -q .; then echo 'true'; else echo 'false'; fi; cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -n1 || echo 100; cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -n1 || echo AC"]
                     stdout: StdioCollector {
                         onStreamFinished: {
                             let lines = this.text.trim().split("\n");
-                            if (lines.length >= 2) {
-                                screenRoot.batPct = lines[0] || "100";
-                                screenRoot.batStatus = lines[1] || "Unknown";
+                            screenRoot.batPresent = lines[0] === "true";
+                            if (screenRoot.batPresent && lines.length >= 3) {
+                                screenRoot.batPct = lines[1] || "100";
+                                screenRoot.batStatus = lines[2] || "Unknown";
                             }
                         }
                     }
@@ -709,6 +711,7 @@ ShellRoot {
 
                     // Battery Pill
                     Rectangle {
+                        visible: screenRoot.batPresent
                         property bool isHovered: batMouse.containsMouse
                         Layout.preferredHeight: 48 * screenRoot.sc
                         Layout.preferredWidth: batLayoutRow.implicitWidth + (36 * screenRoot.sc)
