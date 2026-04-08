@@ -96,9 +96,14 @@ Variants {
             property string batPercent: "100%"
             property string batIcon: "󰁹"
             property string batStatus: "Unknown"
-            
+
             property string kbLayout: "us"
             
+            property string ethStatus: "disconnected"
+            property string ethName: ""
+            property bool isBtAvailable: true
+            property bool hasBattery: true
+
             ListModel { id: workspacesModel }
             
             property var musicData: { "status": "Stopped", "title": "", "artUrl": "", "timeStr": "" }
@@ -108,6 +113,9 @@ Variants {
             property bool isWifiOn: barWindow.wifiStatus.toLowerCase() === "enabled" || barWindow.wifiStatus.toLowerCase() === "on"
             property bool isBtOn: barWindow.btStatus.toLowerCase() === "enabled" || barWindow.btStatus.toLowerCase() === "on"
             
+            property bool isEthConnected: barWindow.ethStatus === "connected"
+            property bool isNetworkActive: barWindow.isEthConnected || barWindow.isWifiOn
+
             property bool isSoundActive: !barWindow.isMuted && parseInt(barWindow.volPercent) > 0
             property int batCap: parseInt(barWindow.batPercent) || 0
             property bool isCharging: barWindow.batStatus === "Charging" || barWindow.batStatus === "Full"
@@ -225,9 +233,15 @@ Variants {
                                 if (barWindow.wifiIcon !== data.wifi.icon) barWindow.wifiIcon = data.wifi.icon;
                                 if (barWindow.wifiSsid !== data.wifi.ssid) barWindow.wifiSsid = data.wifi.ssid;
 
+                                if (barWindow.ethStatus !== data.ethernet.status) barWindow.ethStatus = data.ethernet.status;
+                                if (barWindow.ethName  !== data.ethernet.name)   barWindow.ethName   = data.ethernet.name;
+
                                 if (barWindow.btStatus !== data.bt.status) barWindow.btStatus = data.bt.status;
                                 if (barWindow.btIcon !== data.bt.icon) barWindow.btIcon = data.bt.icon;
                                 if (barWindow.btDevice !== data.bt.connected) barWindow.btDevice = data.bt.connected;
+
+                                let newBtAvail = (data.bt.available === true || data.bt.available === "true");
+                                if (barWindow.isBtAvailable !== newBtAvail) barWindow.isBtAvailable = newBtAvail;
 
                                 let newVol = data.audio.volume.toString() + "%";
                                 if (barWindow.volPercent !== newVol) barWindow.volPercent = newVol;
@@ -240,6 +254,9 @@ Variants {
                                 if (barWindow.batPercent !== newBat) barWindow.batPercent = newBat;
                                 if (barWindow.batIcon !== data.battery.icon) barWindow.batIcon = data.battery.icon;
                                 if (barWindow.batStatus !== data.battery.status) barWindow.batStatus = data.battery.status;
+
+                                let newHasBat = (data.battery.present === true || data.battery.present === "true");
+                                if (barWindow.hasBattery !== newHasBat) barWindow.hasBattery = newHasBat;
 
                                 if (barWindow.kbLayout !== data.keyboard.layout) barWindow.kbLayout = data.keyboard.layout;
 
@@ -875,18 +892,19 @@ Variants {
                                 MouseArea { id: kbMouse; anchors.fill: parent; hoverEnabled: true }
                             }
 
-                            // WiFi 
+                            // WiFi
                             Rectangle {
                                 id: wifiPill
                                 property bool isHovered: wifiMouse.containsMouse
-                                radius: barWindow.s(10); height: sysLayout.pillHeight; 
-                                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
+                                radius: barWindow.s(10); height: sysLayout.pillHeight;
+                                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6)
+                                                : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                                 clip: true
-                                
+
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: barWindow.s(10)
-                                    opacity: barWindow.isWifiOn ? 1.0 : 0.0
+                                    opacity: barWindow.isNetworkActive ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 300 } }
                                     gradient: Gradient {
                                         orientation: Gradient.Horizontal
@@ -898,7 +916,7 @@ Variants {
                                 property real targetWidth: wifiLayoutRow.width + barWindow.s(24)
                                 width: targetWidth
                                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
-                                
+
                                 scale: isHovered ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -909,30 +927,50 @@ Variants {
                                 transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
-                                Row { 
+                                Row {
                                     id: wifiLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
-                                    Text { anchors.verticalCenter: parent.verticalCenter; text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(16); color: barWindow.isWifiOn ? mocha.base : mocha.subtext0 }
-                                    Text { 
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: barWindow.isEthConnected
+                                                ? "󰈀"
+                                                : (barWindow.isWifiOn ? barWindow.wifiIcon : "󰈂")
+                                        font.family: "Iosevka Nerd Font"
+                                        font.pixelSize: barWindow.s(16)
+                                        color: barWindow.isNetworkActive ? mocha.base : mocha.subtext0
+                                    }
+
+                                    Text {
                                         id: wifiText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.sysPollerLoaded ? (barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off") : ""
+                                        text: barWindow.sysPollerLoaded
+                                                ? (barWindow.isEthConnected
+                                                    ? (barWindow.ethName !== "" ? barWindow.ethName : "Wired")
+                                                    : (barWindow.isWifiOn
+                                                        ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On")
+                                                        : ""))
+                                                : ""
                                         visible: text !== ""
-                                        font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
-                                        color: barWindow.isWifiOn ? mocha.base : mocha.text; 
-                                        width: Math.min(implicitWidth, barWindow.s(100)); elide: Text.ElideRight 
+                                        font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black
+                                        color: barWindow.isNetworkActive ? mocha.base : mocha.text
+                                        width: Math.min(implicitWidth, barWindow.s(120)); elide: Text.ElideRight
                                     }
                                 }
-                                MouseArea { id: wifiMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network wifi"]) }
+                                MouseArea {
+                                    id: wifiMouse; hoverEnabled: true; anchors.fill: parent
+                                    onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network wifi"])
+                                }
                             }
 
                             // Bluetooth 
                             Rectangle {
                                 id: btPill
+                                visible: barWindow.isBtAvailable
                                 property bool isHovered: btMouse.containsMouse
                                 radius: barWindow.s(10); height: sysLayout.pillHeight
                                 clip: true
                                 color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
-                                
+
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: barWindow.s(10)
@@ -1028,26 +1066,36 @@ Variants {
                             // Battery
                             Rectangle {
                                 property bool isHovered: batMouse.containsMouse
-                                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4); 
+                                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6)
+                                                : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                                 radius: barWindow.s(10); height: sysLayout.pillHeight;
                                 clip: true
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: barWindow.s(10)
-                                    opacity: (barWindow.isCharging || barWindow.batCap <= 20) ? 1.0 : 0.0
+                                    opacity: !barWindow.hasBattery ? 1.0
+                                            : (barWindow.isCharging || barWindow.batCap <= 20) ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 300 } }
                                     gradient: Gradient {
                                         orientation: Gradient.Horizontal
-                                        GradientStop { position: 0.0; color: barWindow.batDynamicColor; Behavior on color { ColorAnimation { duration: 300 } } }
-                                        GradientStop { position: 1.0; color: Qt.lighter(barWindow.batDynamicColor, 1.3); Behavior on color { ColorAnimation { duration: 300 } } }
+                                        GradientStop {
+                                            position: 0.0
+                                            color: barWindow.hasBattery ? barWindow.batDynamicColor : mocha.red
+                                            Behavior on color { ColorAnimation { duration: 300 } }
+                                        }
+                                        GradientStop {
+                                            position: 1.0
+                                            color: barWindow.hasBattery ? Qt.lighter(barWindow.batDynamicColor, 1.3) : Qt.lighter(mocha.red, 1.3)
+                                            Behavior on color { ColorAnimation { duration: 300 } }
+                                        }
                                     }
                                 }
-                                
+
                                 property real targetWidth: batLayoutRow.width + barWindow.s(24)
                                 width: targetWidth
                                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
-                                
+
                                 scale: isHovered ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -1058,22 +1106,32 @@ Variants {
                                 transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
-                                Row { 
+                                Row {
                                     id: batLayoutRow; anchors.centerIn: parent; spacing: barWindow.s(8)
-                                    Text { 
+
+                                    Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.batIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(16); 
-                                        color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.base : barWindow.batDynamicColor
+                                        text: barWindow.hasBattery ? barWindow.batIcon : ""
+                                        font.family: barWindow.hasBattery ? "Iosevka Nerd Font" : "JetBrains Mono"
+                                        font.pixelSize: barWindow.s(16)
+                                        color: (!barWindow.hasBattery || barWindow.isCharging || barWindow.batCap <= 20)
+                                                ? mocha.base : barWindow.batDynamicColor
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                     }
-                                    Text { 
+
+                                    Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.batPercent; font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
+                                        visible: barWindow.hasBattery
+                                        text: barWindow.batPercent
+                                        font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black
                                         color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.base : barWindow.batDynamicColor
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                     }
                                 }
-                                MouseArea { id: batMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle battery"]) }
+                                MouseArea {
+                                    id: batMouse; hoverEnabled: true; anchors.fill: parent
+                                    onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle battery"])
+                                }
                             }
                         }
                     }

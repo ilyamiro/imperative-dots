@@ -51,7 +51,33 @@ toggle_wifi() {
     fi
 }
 
+## ETHERNET
+get_eth_status() {
+    local iface=$(ls /sys/class/net/ 2>/dev/null | grep -E "^e" | head -1)
+    if [ -n "$iface" ] && [ "$(cat /sys/class/net/$iface/operstate 2>/dev/null)" = "up" ]; then
+        echo "connected"
+    else
+        echo "disconnected"
+    fi
+}
+get_eth_name() {
+    local iface=$(ls /sys/class/net/ 2>/dev/null | grep -E "^e" | head -1)
+    if [ -n "$iface" ] && [ "$(cat /sys/class/net/$iface/operstate 2>/dev/null)" = "up" ]; then
+        local name=$(timeout 1 nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | grep ":${iface}$" | cut -d: -f1 | head -1)
+        echo "${name:-Wired}"
+    else
+        echo ""
+    fi
+}
+
 ## BLUETOOTH
+get_bt_available() {
+    if timeout 1 bluetoothctl show 2>/dev/null | grep -q "Controller"; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
 get_bt_status() {
     if timeout 1 bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then echo "on"
     else echo "off"; fi
@@ -119,6 +145,13 @@ get_volume_icon() {
 }
 
 ## BATTERY
+get_battery_present() {
+    if ls /sys/class/power_supply/BAT* 2>/dev/null | grep -q .; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
 get_battery_percent() {
     if [ -f /sys/class/power_supply/BAT*/capacity ]; then 
         local bat=$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -n1)
@@ -171,21 +204,26 @@ case $1 in
           --arg wifi_status "$(get_wifi_status)" \
           --arg wifi_ssid "$(get_wifi_ssid)" \
           --arg wifi_icon "$(get_wifi_icon)" \
+          --arg eth_status "$(get_eth_status)" \
+          --arg eth_name "$(get_eth_name)" \
+          --arg bt_available "$(get_bt_available)" \
           --arg bt_status "$(get_bt_status)" \
           --arg bt_icon "$(get_bt_icon)" \
           --arg bt_connected "$(get_bt_connected_device)" \
           --arg volume "$(get_volume)" \
           --arg volume_icon "$(get_volume_icon)" \
           --arg is_muted "$(is_muted)" \
+          --arg bat_present "$(get_battery_present)" \
           --arg bat_percent "$(get_battery_percent)" \
           --arg bat_status "$(get_battery_status)" \
           --arg bat_icon "$(get_battery_icon)" \
           --arg kb_layout "$(get_kb_layout)" \
           '{
              wifi: { status: $wifi_status, ssid: $wifi_ssid, icon: $wifi_icon },
-             bt: { status: $bt_status, icon: $bt_icon, connected: $bt_connected },
+             ethernet: { status: $eth_status,  name: $eth_name },
+             bt: { available: $bt_available, status: $bt_status, icon: $bt_icon, connected: $bt_connected },
              audio: { volume: $volume, icon: $volume_icon, is_muted: $is_muted },
-             battery: { percent: $bat_percent, status: $bat_status, icon: $bat_icon },
+             battery: { present: $bat_present, percent: $bat_percent, status: $bat_status, icon: $bat_icon },
              keyboard: { layout: $kb_layout }
            }'
     ;;
