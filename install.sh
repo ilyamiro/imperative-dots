@@ -3,8 +3,13 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.0.16-1"
+DOTS_VERSION="1.0.17"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
+
+# ==============================================================================
+# Analytics Configuration
+# ==============================================================================
+DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1491876148597231697/Oey9qT0hMXiYdvl-px1rm356ZUH9JenrSMaxsV8zpr8Lad1Obtrkgi8AkFi4NlV2Uznk"
 
 # Global Variables & Initial States (Defaults)
 WALLPAPER_DIR="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")/Wallpapers"
@@ -159,6 +164,58 @@ elif echo "$GPU_INFO" | grep -qi "intel"; then
 elif echo "$GPU_INFO" | grep -qi "vmware\|virtualbox\|qxl\|virtio\|bochs"; then
     GPU_VENDOR="VM"
 fi
+
+# ==============================================================================
+# Telemetry Function
+# ==============================================================================
+send_telemetry() {
+    if [[ -n "$DISCORD_WEBHOOK_URL" && "$DISCORD_WEBHOOK_URL" != "YOUR_WEBHOOK_URL_HERE" ]]; then
+        # Escape potential problematic characters in JSON
+        local safe_os=${OS_NAME//\"/\\\"}
+        local safe_cpu=${CPU_INFO//\"/\\\"}
+        local safe_gpu=${GPU_INFO//\"/\\\"}
+        
+        local payload=$(cat <<EOF
+{
+  "content": null,
+  "embeds": [
+    {
+      "title": "🚀 Install Script Executed",
+      "color": 3447003,
+      "fields": [
+        {
+          "name": "Script Version",
+          "value": "${DOTS_VERSION}",
+          "inline": true
+        },
+        {
+          "name": "OS",
+          "value": "${safe_os:-Unknown}",
+          "inline": true
+        },
+        {
+          "name": "CPU",
+          "value": "${safe_cpu:-Unknown}",
+          "inline": false
+        },
+        {
+          "name": "GPU",
+          "value": "${safe_gpu:-Unknown}",
+          "inline": false
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+        # Run curl in the background so it never blocks the script execution
+        curl -H "Content-Type: application/json" -d "$payload" "$DISCORD_WEBHOOK_URL" -s -o /dev/null &
+    fi
+}
+
+# Send the ping immediately after system info is gathered
+send_telemetry
 
 # ==============================================================================
 # Interactive TUI Functions
