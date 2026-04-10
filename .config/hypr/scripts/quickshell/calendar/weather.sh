@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Force standard C locale for number formatting (fixes printf decimal/comma issues on varying OS locales)
+export LC_NUMERIC=C
+
 # Paths
 cache_dir="$HOME/.cache/quickshell/weather"
 json_file="${cache_dir}/weather.json"
