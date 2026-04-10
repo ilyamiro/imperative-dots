@@ -20,10 +20,8 @@ Item {
         return scaler.s(val); 
     }
     
-    // 1. Give the root window focus so it actively listens for keystrokes
     focus: true
 
-    // 2. Add the Shortcut component to listen specifically for the Tab key
     Shortcut {
         sequence: "Tab"
         onActivated: {
@@ -47,10 +45,13 @@ Item {
         property string lastBtJson: ""
     }
 
+    readonly property string cacheDir: Quickshell.env("XDG_RUNTIME_DIR") ? (Quickshell.env("XDG_RUNTIME_DIR") + "/qs_network") : (Quickshell.env("HOME") + "/.cache/qs_network")
+    readonly property string modeFilePath: cacheDir + "/mode"
+
     property bool ignoreNextModeFileUpdate: false
     Process {
         id: modeReader
-        command: ["bash", "-c", "cat /tmp/qs_network_mode 2>/dev/null"]
+        command: ["bash", "-c", "cat '" + window.modeFilePath + "' 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let mode = this.text.trim();
@@ -70,7 +71,7 @@ Item {
     }
 
     Component.onCompleted: {
-        Quickshell.execDetached(["bash", "-c", "if [ ! -f /tmp/qs_network_mode ]; then echo '" + activeMode + "' > /tmp/qs_network_mode; fi"]);
+        Quickshell.execDetached(["bash", "-c", "mkdir -p '" + window.cacheDir + "'; if [ ! -f '" + window.modeFilePath + "' ]; then echo '" + activeMode + "' > '" + window.modeFilePath + "'; fi"]);
 
         if (cache.lastWifiJson !== "") processWifiJson(cache.lastWifiJson);
         if (cache.lastBtJson !== "") processBtJson(cache.lastBtJson);
@@ -136,12 +137,10 @@ Item {
 
     property bool showInfoView: false
 
-    // Authentication Properties & Saved Networks
     property string pendingWifiSsid: ""
     property string pendingWifiId: ""
     property var savedWifiNetworks: []
 
-    // Efficient, single-fire check for saved networks to avoid polling overhead
     Process {
         id: savedNetworksFetcher
         command: ["bash", "-c", "nmcli -t -f NAME connection show | grep -v 'lo'"]
@@ -153,11 +152,10 @@ Item {
         }
     }
 
-    // Dedicated connection process to reliably catch successes/failures
     Process {
         id: connectProcess
         property string targetId: ""
-        property string targetSsid: "" // Tracks the network name to handle failures
+        property string targetSsid: ""
 
         onExited: {
             let code = exitCode;
@@ -170,13 +168,9 @@ Item {
                 failClearTimer.restart();
                 window.playSfx("error.wav"); 
                 
-                // --- FORGET FAILED NETWORKS ---
-                // NetworkManager saves the profile instantly, even if the password is wrong.
-                // We delete the dead profile so the UI forces a password prompt next time.
                 if (window.activeMode === "wifi" && targetSsid !== "") {
                     Quickshell.execDetached(["bash", "-c", "nmcli connection delete '" + targetSsid + "' 2>/dev/null"]);
                     
-                    // Scrub it from the internal state instantly to avoid waiting for a fetcher poll
                     let newSaved = [];
                     for(let i = 0; i < window.savedWifiNetworks.length; i++) {
                         if(window.savedWifiNetworks[i] !== targetSsid) {
@@ -201,7 +195,7 @@ Item {
         busyTimeout.restart();
 
         connectProcess.targetId = id;
-        connectProcess.targetSsid = (mode === "wifi") ? macOrSsid : ""; // Store the SSID for cleanup
+        connectProcess.targetSsid = (mode === "wifi") ? macOrSsid : ""; 
         
         if (mode === "wifi") {
             if (password !== "") {
@@ -215,7 +209,6 @@ Item {
         connectProcess.running = true;
     }
 
-    // Dynamic Cores
     property var currentCores: [null, null, null, null, null]
     property var coreVisualIndices: [0, 0, 0, 0, 0]
     property int activeCoreCount: 0
@@ -259,7 +252,6 @@ Item {
             }
         }
 
-        // Force QML reactive binding refresh using spread syntax to prevent blank icons
         window.currentCores = [...newCores];
 
         let activeCount = 0;
@@ -281,7 +273,7 @@ Item {
 
     onActiveModeChanged: {
         if (!window.ignoreNextModeFileUpdate) {
-            Quickshell.execDetached(["bash", "-c", "echo '" + window.activeMode + "' > /tmp/qs_network_mode"]);
+            Quickshell.execDetached(["bash", "-c", "echo '" + window.activeMode + "' > '" + window.modeFilePath + "'"]);
         }
         window.ignoreNextModeFileUpdate = false;
         
@@ -465,7 +457,6 @@ Item {
             let newConnected = data.connected;
             let newNetworks = data.networks ? data.networks : [];
 
-            // Enrich the newly connected network with full details to prevent missing icons/names
             if (newConnected && newConnected.ssid) {
                 let match = newNetworks.find(n => n.id === newConnected.ssid || n.ssid === newConnected.ssid);
                 if (match) {
@@ -699,6 +690,7 @@ Item {
                 color: window.currentConn ? window.activeColor : window.surface2
                 Behavior on color { ColorAnimation { duration: 1000 } }
                 Behavior on opacity { NumberAnimation { duration: 1000 } }
+                visible: opacity > 0.01
             }
             
             Rectangle {
@@ -709,6 +701,7 @@ Item {
                 color: window.currentConn ? window.activeGradientSecondary : window.surface1
                 Behavior on color { ColorAnimation { duration: 1000 } }
                 Behavior on opacity { NumberAnimation { duration: 1000 } }
+                visible: opacity > 0.01
             }
 
             Item {
@@ -717,6 +710,7 @@ Item {
                 anchors.bottomMargin: window.s(80) 
                 opacity: window.currentPower ? 1.0 : 0.0
                 scale: window.currentPower ? 1.0 : 1.05
+                visible: opacity > 0.01
                 Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
                 Behavior on scale { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
                 
@@ -747,6 +741,7 @@ Item {
                 anchors.bottomMargin: window.s(80)
                 z: 0 
                 opacity: (window.currentConn && window.showInfoView && window.currentPower) ? 1.0 : 0.0
+                visible: opacity > 0.01
                 Behavior on opacity { NumberAnimation { duration: 500 } }
                 
                 property real scaleTrigger: window.s(1)
@@ -1234,8 +1229,8 @@ Item {
                             // -- LAYER: CONNECTED TEXT (Base + Clipped Mask) --
                             Item {
                                 anchors.fill: parent
-                                visible: opacity > 0.01
                                 opacity: showConnected ? 1.0 : 0.0
+                                visible: opacity > 0.01
                                 scale: showConnected ? 1.0 : 0.95
                                 Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutSine } }
@@ -1386,6 +1381,7 @@ Item {
                 Item {
                     anchors.fill: parent
                     opacity: window.currentPower ? 1.0 : 0.0
+                    visible: opacity > 0.01
                     Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.InOutQuad } }
 
                     Repeater {
@@ -1398,6 +1394,7 @@ Item {
 
                             property bool isLoaded: false
                             opacity: isLoaded ? 1.0 : 0.0
+                            visible: opacity > 0.01
                             Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
                             property real entryAnim: isLoaded ? 1.0 : 0.0
@@ -1901,10 +1898,8 @@ Item {
                                             if (window.activeMode === "wifi" && isSecure && !isSaved) {
                                                 window.pendingWifiSsid = ssid;
                                                 window.pendingWifiId = floatCard.itemId;
-                                                // Retain full state, DO NOT start drainAnim
                                             } else {
                                                 window.connectDevice(window.activeMode, floatCard.itemId, window.activeMode === "wifi" ? ssid : mac, "");
-                                                // Retain full state while connecting
                                             }
                                         }
                                     }

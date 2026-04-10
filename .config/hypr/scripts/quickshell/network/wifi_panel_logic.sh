@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# Check if WiFi is enabled
 POWER=$(nmcli radio wifi)
 
 if [[ "$POWER" == "disabled" ]]; then
@@ -8,7 +7,6 @@ if [[ "$POWER" == "disabled" ]]; then
     exit 0
 fi
 
-# Function to get icon based on signal strength
 get_icon() {
     local signal=$1
     if [[ $signal -ge 80 ]]; then echo "󰤨";
@@ -18,68 +16,67 @@ get_icon() {
     else echo "󰤯"; fi
 }
 
-CACHE_DIR="/tmp/quickshell_network_cache"
+CACHE_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}/quickshell_network_cache"
 mkdir -p "$CACHE_DIR"
 
-# Get current connection details
-CURRENT_RAW=$(nmcli -t -f active,ssid,signal,security device wifi | grep "^yes")
+CURRENT_RAW=$(nmcli -t -f active,ssid,signal,security device wifi | awk -F: '$1=="yes"{print; exit}')
 
 if [[ -n "$CURRENT_RAW" ]]; then
     IFS=':' read -r active ssid signal security <<< "$CURRENT_RAW"
     icon=$(get_icon "$signal")
     
-    # Safe filename for cache
     SAFE_SSID="${ssid//[^a-zA-Z0-9]/_}"
     CACHE_FILE="$CACHE_DIR/wifi_$SAFE_SSID"
     
-    # Load cached IP and FREQ if they exist to prevent blocking
     if [ -f "$CACHE_FILE" ]; then
         source "$CACHE_FILE"
     fi
     
-    # If cache is missing, fetch the expensive stats once and save them
     if [ -z "$IP" ] || [ "$IP" == "No IP" ] || [ -z "$FREQ" ]; then
         IFACE=$(nmcli -t -f DEVICE,TYPE d | awk -F: '$2=="wifi"{print $1;exit}')
         IP=$(ip -4 addr show dev "$IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
         [ -z "$IP" ] && IP="No IP"
         
-        FREQ=$(iw dev "$IFACE" link 2>/dev/null | grep freq | awk '{print $2}')
+        FREQ=$(iw dev "$IFACE" link 2>/dev/null | awk '/freq:/ {print $2}')
         [ -n "$FREQ" ] && FREQ="${FREQ} MHz" || FREQ="Unknown"
         
         echo "IP=\"$IP\"" > "$CACHE_FILE"
         echo "FREQ=\"$FREQ\"" >> "$CACHE_FILE"
     fi
 
-    CONNECTED_JSON=$(jq -n \
-                  --arg id "$ssid" \
-                  --arg ssid "$ssid" \
-                  --arg icon "$icon" \
-                  --arg signal "$signal" \
-                  --arg security "$security" \
-                  --arg ip "$IP" \
-                  --arg freq "$FREQ" \
-                  '{id: $id, ssid: $ssid, icon: $icon, signal: $signal, security: $security, ip: $ip, freq: $freq}')
+    # Native Bash JSON generation
+    ssid_esc="${ssid//\"/\\\"}"
+    sec_esc="${security//\"/\\\"}"
+    icon_esc="${icon//\"/\\\"}"
+    CONNECTED_JSON="{\"id\":\"$ssid_esc\",\"ssid\":\"$ssid_esc\",\"icon\":\"$icon_esc\",\"signal\":\"$signal\",\"security\":\"$sec_esc\",\"ip\":\"$IP\",\"freq\":\"$FREQ\"}"
 else
     CONNECTED_JSON="null"
 fi
 
-# Get available networks INSTANTLY using --rescan no
-NETWORKS_JSON=$(nmcli -t -f active,ssid,signal,security device wifi list --rescan no | \
-    awk -F: '!seen[$2]++ && $2 != "" && $1 != "yes" {print $2":"$3":"$4}' | \
-    head -n 24 | \
-    while IFS=':' read -r ssid signal security; do
-        icon=$(get_icon "$signal")
-        jq -n \
-           --arg id "$ssid" \
-           --arg ssid "$ssid" \
-           --arg icon "$icon" \
-           --arg signal "$signal" \
-           --arg security "$security" \
-           '{id: $id, ssid: $ssid, icon: $icon, signal: $signal, security: $security}'
-    done | jq -s '.')
+# AWK processes the entire network list natively, zero sub-shells
+NETWORKS_JSON=$(nmcli -t -f active,ssid,signal,security device wifi list --rescan no | awk -F: '
+    !seen[$2]++ && $2 != "" && $1 != "yes" {
+        ssid=$2; signal=$3; security=$4;
+        
+        # Escape quotes inside strings
+        gsub(/"/, "\\\"", ssid);
+        gsub(/"/, "\\\"", security);
+        
+        if (signal >= 80) icon="󰤨";
+        else if (signal >= 60) icon="󰤥";
+        else if (signal >= 40) icon="󰤢";
+        else if (signal >= 20) icon="󰤟";
+        else icon="󰤯";
+        
+        printf "{\"id\":\"%s\",\"ssid\":\"%s\",\"icon\":\"%s\",\"signal\":\"%s\",\"security\":\"%s\"}\n", ssid, ssid, icon, signal, security
+    }
+' | head -n 24 | paste -sd, -)
 
-echo $(jq -n \
-       --arg power "on" \
-       --argjson connected "${CONNECTED_JSON:-null}" \
-       --argjson networks "${NETWORKS_JSON:-[]}" \
-       '{power: $power, connected: $connected, networks: $networks}')
+if [ -z "$NETWORKS_JSON" ]; then
+    NETWORKS_JSON="[]"
+else
+    NETWORKS_JSON="[$NETWORKS_JSON]"
+fi
+
+# Final JSON output
+echo "{\"power\":\"on\",\"connected\":$CONNECTED_JSON,\"networks\":$NETWORKS_JSON}"
