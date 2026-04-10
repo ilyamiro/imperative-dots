@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.0.23"
+DOTS_VERSION="1.0.23-1"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Global Variables & Initial States (Defaults)
@@ -1318,12 +1318,24 @@ if [ -f "$HYPR_CONF" ]; then
     sed -i '/env = SCRIPT_DIR,/d' "$HYPR_CONF"
     sed -i "/^env = NIXOS_OZONE_WL,1/a env = WALLPAPER_DIR,$WALLPAPER_DIR\nenv = SCRIPT_DIR,$HOME/.config/hypr/scripts" "$HYPR_CONF"
     
-    # 2. Inject Advanced Nvidia specific configurations (ONLY IF PROPRIETARY IS CHOSEN)
-    if [ "$HAS_NVIDIA_PROPRIETARY" = true ]; then
-        # Check to avoid duplicating the entire block
-        if ! grep -q "LIBVA_DRIVER_NAME,nvidia" "$HYPR_CONF"; then
-            sed -i '/^env = NIXOS_OZONE_WL,1/a env = LIBVA_DRIVER_NAME,nvidia\nenv = XDG_SESSION_TYPE,wayland\nenv = GBM_BACKEND,nvidia-drm\nenv = __GLX_VENDOR_LIBRARY_NAME,nvidia\nenv = WLR_NO_HARDWARE_CURSORS,1\ncursor {\n    no_hardware_cursors = true\n}' "$HYPR_CONF"
-        fi
+    # 2. Inject Advanced Nvidia specific configurations based on HARDWARE (Not driver choice)
+    if [ "$GPU_VENDOR" == "NVIDIA" ]; then
+        echo -e "  -> Applying NVIDIA-specific environment variables to Hyprland config..."
+        
+        # First, aggressively clean up old lines to prevent duplication on multiple script runs
+        sed -i '/env = LIBVA_DRIVER_NAME,nvidia/d' "$HYPR_CONF"
+        sed -i '/env = XDG_SESSION_TYPE,wayland/d' "$HYPR_CONF"
+        sed -i '/env = GBM_BACKEND,nvidia-drm/d' "$HYPR_CONF"
+        sed -i '/env = __GLX_VENDOR_LIBRARY_NAME,nvidia/d' "$HYPR_CONF"
+        sed -i '/env = WLR_NO_HARDWARE_CURSORS,1/d' "$HYPR_CONF"
+        sed -i '/env = QSG_RHI_BACKEND,vulkan/d' "$HYPR_CONF"
+        sed -i '/env = QSG_RENDER_LOOP,basic/d' "$HYPR_CONF"
+        sed -i '/env = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1/d' "$HYPR_CONF"
+        sed -i '/env = __GL_SHADER_DISK_CACHE_SIZE,1073741824/d' "$HYPR_CONF"
+        sed -i '/^cursor {/,/^}/d' "$HYPR_CONF"
+        
+        # Now inject the full block natively
+        sed -i '/^env = NIXOS_OZONE_WL,1/a env = LIBVA_DRIVER_NAME,nvidia\nenv = XDG_SESSION_TYPE,wayland\nenv = GBM_BACKEND,nvidia-drm\nenv = __GLX_VENDOR_LIBRARY_NAME,nvidia\nenv = WLR_NO_HARDWARE_CURSORS,1\nenv = QSG_RHI_BACKEND,vulkan\nenv = QSG_RENDER_LOOP,basic\nenv = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1\nenv = __GL_SHADER_DISK_CACHE_SIZE,1073741824\ncursor {\n    no_hardware_cursors = true\n}' "$HYPR_CONF"
     fi
 else
     echo -e "${C_RED}Warning: hyprland.conf not found at $HYPR_CONF${RESET}"
