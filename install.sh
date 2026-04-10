@@ -1302,47 +1302,46 @@ else
 fi
 
 if [ -f "$HYPR_CONF" ]; then
-    
-    # 0. Inject Keyboard Layout Configurations dynamically
-    echo -e "  -> Applying Keyboard configuration..."
-    sed -i "s/^ *kb_layout =.*/    kb_layout = $KB_LAYOUTS/" "$HYPR_CONF"
-    if [ -n "$KB_OPTIONS" ]; then
-        sed -i "s/^ *kb_options =.*/    kb_options = $KB_OPTIONS/" "$HYPR_CONF"
-    else
-        sed -i "s/^ *kb_options =.*/    kb_options = /" "$HYPR_CONF"
-    fi
+    
+    # 0. Inject Keyboard Layout Configurations dynamically
+    echo -e "  -> Applying Keyboard configuration..."
+    sed -i "s/^ *kb_layout =.*/    kb_layout = $KB_LAYOUTS/" "$HYPR_CONF"
+    if [ -n "$KB_OPTIONS" ]; then
+        sed -i "s/^ *kb_options =.*/    kb_options = $KB_OPTIONS/" "$HYPR_CONF"
+    else
+        sed -i "s/^ *kb_options =.*/    kb_options = /" "$HYPR_CONF"
+    fi
 
-    # 1. Inject Environment Variables for Quickshell
-    # Clean up previous injections first so they don't stack up on multiple runs
-    sed -i '/env = WALLPAPER_DIR,/d' "$HYPR_CONF"
-    sed -i '/env = SCRIPT_DIR,/d' "$HYPR_CONF"
-    
-    # Use the section header as a robust anchor instead of a specific env variable
-    sed -i "/ENVIRONMENT VARIABLES/a env = WALLPAPER_DIR,$WALLPAPER_DIR\nenv = SCRIPT_DIR,$HOME/.config/hypr/scripts" "$HYPR_CONF"
-    
-    # 2. Inject Advanced Nvidia specific configurations based on HARDWARE (Not driver choice)
-    if [ "$GPU_VENDOR" == "NVIDIA" ]; then
-        echo -e "  -> Applying NVIDIA-specific environment variables to Hyprland config..."
-        
-        # First, aggressively clean up old lines to prevent duplication on multiple script runs
-        sed -i '/env = LIBVA_DRIVER_NAME,nvidia/d' "$HYPR_CONF"
-        sed -i '/env = XDG_SESSION_TYPE,wayland/d' "$HYPR_CONF"
-        sed -i '/env = GBM_BACKEND,nvidia-drm/d' "$HYPR_CONF"
-        sed -i '/env = __GLX_VENDOR_LIBRARY_NAME,nvidia/d' "$HYPR_CONF"
-        sed -i '/env = WLR_NO_HARDWARE_CURSORS,1/d' "$HYPR_CONF"
-        sed -i '/env = QSG_RHI_BACKEND,vulkan/d' "$HYPR_CONF"
-        sed -i '/env = QSG_RENDER_LOOP,basic/d' "$HYPR_CONF"
-        sed -i '/env = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1/d' "$HYPR_CONF"
-        sed -i '/env = __GL_SHADER_DISK_CACHE_SIZE,1073741824/d' "$HYPR_CONF"
-        sed -i '/^cursor {/,/^}/d' "$HYPR_CONF"
-        
-        # Now inject the full block natively using the robust header anchor
-        sed -i '/ENVIRONMENT VARIABLES/a env = LIBVA_DRIVER_NAME,nvidia\nenv = XDG_SESSION_TYPE,wayland\nenv = GBM_BACKEND,nvidia-drm\nenv = __GLX_VENDOR_LIBRARY_NAME,nvidia\nenv = WLR_NO_HARDWARE_CURSORS,1\nenv = QSG_RHI_BACKEND,vulkan\nenv = QSG_RENDER_LOOP,basic\nenv = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1\nenv = __GL_SHADER_DISK_CACHE_SIZE,1073741824\n' "$HYPR_CONF"
-    fi
+    # 1. Inject Environment Variables for Quickshell
+    # Clean up previous injections first so they don't stack up on multiple runs
+    sed -i '/env = WALLPAPER_DIR,/d' "$HYPR_CONF"
+    sed -i '/env = SCRIPT_DIR,/d' "$HYPR_CONF"
+    
+    # Inject directly under the ENVIRONMENT VARIABLES header box
+    sed -i "/◈ ENVIRONMENT VARIABLES/{N;a env = WALLPAPER_DIR,$WALLPAPER_DIR\nenv = SCRIPT_DIR,$HOME/.config/hypr/scripts" -e "}" "$HYPR_CONF"
+    
+    # 2. Inject Advanced Nvidia specific configurations based on HARDWARE (Not driver choice)
+    if [ "$GPU_VENDOR" == "NVIDIA" ]; then
+        echo -e "  -> Applying NVIDIA-specific environment variables to Hyprland config..."
+        
+        # First, aggressively clean up old lines to prevent duplication on multiple script runs
+        sed -i '/env = LIBVA_DRIVER_NAME,nvidia/d' "$HYPR_CONF"
+        sed -i '/env = XDG_SESSION_TYPE,wayland/d' "$HYPR_CONF"
+        sed -i '/env = GBM_BACKEND,nvidia-drm/d' "$HYPR_CONF"
+        sed -i '/env = __GLX_VENDOR_LIBRARY_NAME,nvidia/d' "$HYPR_CONF"
+        sed -i '/env = WLR_NO_HARDWARE_CURSORS,1/d' "$HYPR_CONF"
+        sed -i '/env = QSG_RHI_BACKEND,vulkan/d' "$HYPR_CONF"
+        sed -i '/env = QSG_RENDER_LOOP,basic/d' "$HYPR_CONF"
+        sed -i '/env = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1/d' "$HYPR_CONF"
+        sed -i '/env = __GL_SHADER_DISK_CACHE_SIZE,1073741824/d' "$HYPR_CONF"
+        sed -i '/^cursor {/,/^}/d' "$HYPR_CONF"
+        
+        # Now inject the full block natively under the header box
+        sed -i "/◈ ENVIRONMENT VARIABLES/{N;a env = LIBVA_DRIVER_NAME,nvidia\nenv = XDG_SESSION_TYPE,wayland\nenv = GBM_BACKEND,nvidia-drm\nenv = __GLX_VENDOR_LIBRARY_NAME,nvidia\nenv = WLR_NO_HARDWARE_CURSORS,1\nenv = QSG_RHI_BACKEND,vulkan\nenv = QSG_RENDER_LOOP,basic\nenv = __GL_SHADER_DISK_CACHE_SKIP_CLEANUP,1\nenv = __GL_SHADER_DISK_CACHE_SIZE,1073741824\ncursor {\n    no_hardware_cursors = true\n}" -e "}" "$HYPR_CONF"
+    fi
 else
-    echo -e "${C_RED}Warning: hyprland.conf not found at $HYPR_CONF${RESET}"
+    echo -e "${C_RED}Warning: hyprland.conf not found at $HYPR_CONF${RESET}"
 fi
-
 
 # 4. Patch WallpaperPicker.qml dynamically
 if [ -f "$WP_QML" ]; then
