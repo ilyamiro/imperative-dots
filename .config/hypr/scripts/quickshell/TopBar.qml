@@ -299,17 +299,19 @@ Variants {
             Process {
                 id: weatherPoller
                 command: ["bash", "-c", `
-                    echo "$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-icon)"
-                    echo "$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-temp)"
-                    echo "$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-hex)"
+                    icon=$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-icon)
+                    temp=$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-temp)
+                    hex=$(~/.config/hypr/scripts/quickshell/calendar/weather.sh --current-hex)
+                    echo "$icon|||$temp|||$hex"
                 `]
                 stdout: StdioCollector {
                     onStreamFinished: {
-                        let lines = this.text.trim().split("\n");
-                        if (lines.length >= 3) {
-                            barWindow.weatherIcon = lines[0];
-                            barWindow.weatherTemp = lines[1];
-                            barWindow.weatherHex = lines[2] || mocha.yellow;
+                        let txt = this.text.trim();
+                        let parts = txt.split("|||");
+                        if (parts.length >= 3) {
+                            if (parts[0].trim() !== "") barWindow.weatherIcon = parts[0].trim();
+                            if (parts[1].trim() !== "") barWindow.weatherTemp = parts[1].trim();
+                            if (parts[2].trim() !== "") barWindow.weatherHex = parts[2].trim();
                         }
                     }
                 }

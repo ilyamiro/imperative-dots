@@ -8,8 +8,8 @@ VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Global Variables & Initial States (Defaults)
 WALLPAPER_DIR="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")/Wallpapers"
-WEATHER_API_KEY=""
-WEATHER_CITY_ID=""
+WEATHER_LAT=""
+WEATHER_LON=""
 WEATHER_UNIT=""
 FAILED_PKGS=()
 
@@ -46,7 +46,14 @@ if [ -f "$VERSION_FILE" ]; then
     source "$VERSION_FILE"
     if [ -n "$LOCAL_VERSION" ]; then
         if [ -n "$KB_LAYOUTS" ]; then VISITED_KEYBOARD=true; fi
-        if [ -n "$WEATHER_API_KEY" ]; then VISITED_WEATHER=true; fi
+        # old version files used OpenWeather API keys and OpenWeather City ID's so the user should reconfigure
+        if [ -n "$WEATHER_API_KEY" ] && [ -z "$WEATHER_LAT" ]; then
+            WEATHER_LAT=""
+            WEATHER_LON=""
+            VISITED_WEATHER=false
+        elif [ -n "$WEATHER_LAT" ] && [ "$WEATHER_LAT" != "Skipped" ]; then
+            VISITED_WEATHER=true
+        fi
         if [ "$DRIVER_CHOICE" != "None (Skipped)" ] && [ -n "$DRIVER_CHOICE" ]; then VISITED_DRIVERS=true; fi
     fi
 else
@@ -569,39 +576,51 @@ show_overview() {
 set_weather_api() {
     while true; do
         draw_header
-        echo -e "${BOLD}${C_CYAN}=== OpenWeatherMap Interactive Setup ===${RESET}"
-        
+        echo -e "${BOLD}${C_CYAN}=== Open-Meteo Interactive Setup ===${RESET}"
+
         ENV_FILE="$HOME/.config/hypr/scripts/quickshell/calendar/.env"
-        
-        if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-            echo -e "${C_GREEN}An existing Weather configuration (.env) was detected.${RESET}"
-            echo -e "${BOLD}${C_YELLOW}Press ENTER without typing anything to KEEP your existing configuration.${RESET}\n"
-        else
-            echo -e "${BOLD}${C_YELLOW}Without this, weather widgets WILL NOT WORK.${RESET}\n"
-            echo -e "${C_MAGENTA}How to get a free API key:${RESET}"
-            echo -e "  1. Visit ${C_BLUE}https://openweathermap.org/${RESET}"
-            echo -e "  2. Create a free account and log in."
-            echo -e "  3. Click your profile name -> 'My API keys'."
-            echo -e "  4. Generate a new key and paste it below."
-            echo -e "  ${BOLD}${C_YELLOW}Note: New API keys may take a couple of hours to activate. This installer will NOT block you from using a fresh key.${RESET}\n"
+
+        local has_valid_env=false
+        local has_old_env=false
+        if [ -f "$ENV_FILE" ]; then
+            if grep -q "OPENMETEO_LAT" "$ENV_FILE" 2>/dev/null; then
+                has_valid_env=true
+            elif grep -q "OPENWEATHER_KEY" "$ENV_FILE" 2>/dev/null; then
+                has_old_env=true
+            fi
         fi
-        
-        read -p "Enter your OpenWeather API Key (or press Enter to skip/keep): " input_key
-        
-        if [[ -z "$input_key" ]]; then
-            if [ -f "$ENV_FILE" ] || [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-                echo -e "\n${C_GREEN}Keeping existing weather configuration.${RESET}"
+
+        if $has_valid_env || [[ -n "$WEATHER_LAT" && "$WEATHER_LAT" != "Skipped" ]]; then
+            echo -e "${C_GREEN}An existing Open-Meteo configuration was detected.${RESET}"
+            echo -e "${BOLD}${C_YELLOW}Press ENTER without typing anything to KEEP your existing configuration.${RESET}\n"
+        elif $has_old_env; then
+            echo -e "${C_YELLOW}An old OpenWeather .env was detected. It cannot be auto-migrated (City ID ≠ Lat/Lon).${RESET}"
+            echo -e "${C_YELLOW}Please search for your city below to create a new Open-Meteo config.${RESET}\n"
+        else
+            echo -e "${C_GREEN}Open-Meteo is completely free - no API key required.${RESET}"
+            echo -e "${BOLD}${C_YELLOW}Without this, weather widgets will not show correctly.${RESET}\n"
+        fi
+
+        read -p "Enter city name to search (or press Enter to skip/keep): " input_city
+
+        if [[ -z "$input_city" ]]; then
+            if $has_valid_env || [[ -n "$WEATHER_LAT" && "$WEATHER_LAT" != "Skipped" ]]; then
+                echo -e "\n${C_GREEN}Keeping existing Open-Meteo configuration.${RESET}"
                 KEEP_OLD_ENV=true
                 VISITED_WEATHER=true
                 sleep 1.5
                 break
+            elif $has_old_env; then
+                echo -e "\n${C_RED}Old OpenWeather config cannot be kept — please search for your city to migrate.${RESET}"
+                sleep 2
+                continue
             else
-                echo -e "\n${C_RED}WARNING: You did not enter an API key.${RESET}"
-                echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without it? (y/n): "
+                echo -e "\n${C_RED}WARNING: You did not enter a city.${RESET}"
+                echo -n -e "Are you ${BOLD}${C_RED}100% sure${RESET} you want to proceed without weather? (y/n): "
                 read -r confirm
                 if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                    WEATHER_API_KEY="Skipped"
-                    WEATHER_CITY_ID=""
+                    WEATHER_LAT="Skipped"
+                    WEATHER_LON=""
                     WEATHER_UNIT=""
                     KEEP_OLD_ENV=false
                     VISITED_WEATHER=true
@@ -611,52 +630,72 @@ set_weather_api() {
             fi
         fi
 
-        # Soft validation to ensure it looks like a valid key without querying the API
-        input_key=$(echo "$input_key" | tr -d ' ')
-        if [[ ${#input_key} -ne 32 ]]; then
-            echo -e "\n${C_YELLOW}Warning: OpenWeather API keys are typically exactly 32 characters long.${RESET}"
-            echo -e "${C_YELLOW}Your key is ${#input_key} characters long.${RESET}"
-            echo -n "Are you sure this key is correct? (y/n): "
-            read -r confirm_key
-            if [[ ! "$confirm_key" =~ ^[Yy]$ ]]; then
-                continue
-            fi
-        fi
-        
-        WEATHER_API_KEY="$input_key"
-        
-        echo -e "\n${C_CYAN}Let's set your location using your City ID.${RESET}"
-        echo -e "1. Go to ${C_BLUE}https://openweathermap.org/${RESET} and search for your city."
-        echo -e "2. Look at the URL in your browser. It will look something like this:"
-        echo -e "   ${DIM}https://openweathermap.org/city/${RESET}${BOLD}2643743${RESET}"
-        echo -e "3. Copy that number at the end (the City ID) and paste it below.\n"
-        
-        read -p "Enter City ID: " input_id
+        # use Open-Meteo Geocoding API to get citys and find LAT and LON
+        echo -e "\n${C_CYAN}Searching for '${input_city}'...${RESET}"
+        local encoded_city="${input_city// /+}"
+        local geo_response
+        geo_response=$(curl -fsSL \
+            "https://geocoding-api.open-meteo.com/v1/search?name=${encoded_city}&count=10&language=en&format=json" \
+            2>/dev/null)
 
-        if [[ -z "$input_id" || ! "$input_id" =~ ^[0-9]+$ ]]; then
-            echo -e "${C_RED}Invalid City ID. It must be a number.${RESET}"
+        if [[ -z "$geo_response" ]]; then
+            echo -e "${C_RED}Network error — could not reach geocoding-api.open-meteo.com. Check your connection.${RESET}"
+            sleep 2
+            continue
+        fi
+
+        if ! echo "$geo_response" | jq -e '.results' > /dev/null 2>&1 || \
+           [[ "$(echo "$geo_response" | jq '.results | length')" -eq 0 ]]; then
+            echo -e "${C_RED}No cities found for '${input_city}'. Try a different spelling or broader name.${RESET}"
             sleep 1.5
             continue
         fi
 
-        WEATHER_CITY_ID="$input_id"
-        
-        # Ask for standard units
-        echo ""
-        unit_choice=$(echo -e "metric (Celsius)\nimperial (Fahrenheit)\nstandard (Kelvin)" | fzf \
+        local city_list
+        city_list=$(echo "$geo_response" | jq -r \
+            '.results[] | "\(.name), \(.admin1 // "-"), \(.country) [LAT:\(.latitude) LON:\(.longitude)]"')
+
+        local selected
+        selected=$(echo "$city_list" | fzf \
             --layout=reverse \
             --border=rounded \
             --margin=1,2 \
-            --height=12 \
+            --height=16 \
+            --prompt=" Select City > " \
+            --pointer=">" \
+            --header=" Select your city — use ARROW KEYS and ENTER, ESC to search again ")
+
+        [[ -z "$selected" ]] && continue
+
+        local lat lon
+        lat=$(echo "$selected" | grep -oP 'LAT:[-0-9.]+' | cut -d: -f2)
+        lon=$(echo "$selected" | grep -oP 'LON:[-0-9.]+' | cut -d: -f2)
+
+        if [[ -z "$lat" || -z "$lon" ]]; then
+            echo -e "${C_RED}Failed to parse coordinates from selection. Please try again.${RESET}"
+            sleep 1.5
+            continue
+        fi
+
+        WEATHER_LAT="$lat"
+        WEATHER_LON="$lon"
+
+        # OpenMeteo does not support kelvin.
+        echo ""
+        local unit_choice
+        unit_choice=$(echo -e "celsius\nfahrenheit" | fzf \
+            --layout=reverse \
+            --border=rounded \
+            --margin=1,2 \
+            --height=8 \
             --prompt=" Select Temperature Unit > " \
             --pointer=">" \
-            --header=" Choose your preferred unit format ")
-        
-        WEATHER_UNIT=$(echo "$unit_choice" | awk '{print $1}')
-        [[ -z "$WEATHER_UNIT" ]] && WEATHER_UNIT="metric"
-        
+            --header=" Choose your preferred unit ")
+
+        WEATHER_UNIT="${unit_choice:-celsius}"
         KEEP_OLD_ENV=false
-        echo -e "\n${C_GREEN}Weather configuration complete! Widget will update once your key is activated by OpenWeather.${RESET}"
+
+        echo -e "\n${C_GREEN}Open-Meteo configured! Location: ${selected%% [LAT*]} | Coords: ${lat}, ${lon} | Unit: ${WEATHER_UNIT}${RESET}"
         sleep 2.5
         VISITED_WEATHER=true
         break
@@ -810,19 +849,22 @@ while true; do
     S_KBD=$( [ "$VISITED_KEYBOARD" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_RED}[ ]${RESET}" )
     S_TEL=$( [ "$ENABLE_TELEMETRY" = true ] && echo -e "${C_GREEN}[ON]${RESET}" || echo -e "${DIM}[OFF]${RESET}" )
 
-    if [[ -z "$WEATHER_API_KEY" ]]; then
-        if [ -f "$HOME/.config/hypr/scripts/quickshell/calendar/.env" ]; then
+    _env_check="$HOME/.config/hypr/scripts/quickshell/calendar/.env"
+    if [[ -z "$WEATHER_LAT" || "$WEATHER_LAT" == "" ]]; then
+        if [ -f "$_env_check" ] && grep -q "OPENMETEO_LAT" "$_env_check" 2>/dev/null; then
             API_DISPLAY="Set (from .env file)"
+        elif [ -f "$_env_check" ] && grep -q "OPENWEATHER_KEY" "$_env_check" 2>/dev/null; then
+            API_DISPLAY="${C_YELLOW}Needs Migration${RESET}"
         else
             API_DISPLAY="Not Set"
         fi
-    elif [[ "$WEATHER_API_KEY" == "Skipped" ]]; then API_DISPLAY="Skipped"
-    else API_DISPLAY="Set ($WEATHER_UNIT, ID: $WEATHER_CITY_ID)"; fi
+    elif [[ "$WEATHER_LAT" == "Skipped" ]]; then API_DISPLAY="Skipped"
+    else API_DISPLAY="Set ($WEATHER_UNIT, ${WEATHER_LAT}/${WEATHER_LON})"; fi
 
     # Build the color-coded menu string
     MENU_ITEMS="1. $S_PKG ${C_GREEN}Manage Packages${RESET} [${#PKGS[@]} queued, Optional]\n"
     MENU_ITEMS+="2. $S_OVW ${C_CYAN}Overview & Keybinds${RESET} [Optional]\n"
-    MENU_ITEMS+="3. $S_WTH ${C_YELLOW}Set Weather API Key${RESET} [${API_DISPLAY}, Optional]\n"
+    MENU_ITEMS+="3. $S_WTH ${C_YELLOW}Set Weather Configuration${RESET} [${API_DISPLAY}, Optional]\n"
     MENU_ITEMS+="4. $S_DRV ${C_RED}[ DRIVERS ] Setup${RESET} [${DRIVER_CHOICE}, Optional]\n"
     MENU_ITEMS+="5. $S_KBD ${C_BLUE}Keyboard Layout Setup${RESET} [${KB_LAYOUTS_DISPLAY:-$KB_LAYOUTS}]\n"
     MENU_ITEMS+="6. $S_TEL ${C_CYAN}Telemetry Settings${RESET}\n"
@@ -1124,35 +1166,41 @@ fi
 ENV_TARGET_DIR="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/calendar"
 OLD_ENV_IN_BACKUP="$BACKUP_DIR/hypr/scripts/quickshell/calendar/.env"
 
+_write_openmeteo_env() {
+    local target_dir="$1"
+    mkdir -p "$target_dir"
+    cat <<EOF > "$target_dir/.env"
+# OpenMeteo Configuration
+OPENMETEO_LAT=${WEATHER_LAT}
+OPENMETEO_LON=${WEATHER_LON}
+OPENMETEO_UNIT=${WEATHER_UNIT}
+EOF
+    chmod 600 "$target_dir/.env"
+}
+
 if [[ "$KEEP_OLD_ENV" == true ]]; then
     if [ -f "$OLD_ENV_IN_BACKUP" ]; then
-        mkdir -p "$ENV_TARGET_DIR"
-        cp "$OLD_ENV_IN_BACKUP" "$ENV_TARGET_DIR/.env"
-        printf "  -> Restored existing Weather API config from backup %-3s ${C_GREEN}[ OK ]${RESET}\n" ""
+        # Migrate old OpenWeather backup to Open-Meteo format if needed
+        if grep -q "OPENWEATHER_KEY" "$OLD_ENV_IN_BACKUP" 2>/dev/null; then
+            echo -e "  -> ${C_YELLOW}Old OpenWeather backup detected — cannot auto-migrate. Re-run setup to configure weather.${RESET}"
+        else
+            mkdir -p "$ENV_TARGET_DIR"
+            cp "$OLD_ENV_IN_BACKUP" "$ENV_TARGET_DIR/.env"
+            printf "  -> Restored existing Open-Meteo config from backup %-3s ${C_GREEN}[ OK ]${RESET}\n" ""
+        fi
     elif [ -f "$ENV_TARGET_DIR/.env" ]; then
-        printf "  -> Retained existing Weather API config %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
-    elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-        # Fallback if file doesn't exist but we have the vars loaded from version file
-        mkdir -p "$ENV_TARGET_DIR"
-        cat <<EOF > "$ENV_TARGET_DIR/.env"
-# OpenWeather API Configuration
-OPENWEATHER_KEY=${WEATHER_API_KEY}
-OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
-OPENWEATHER_UNIT=${WEATHER_UNIT}
-EOF
-        chmod 600 "$ENV_TARGET_DIR/.env"
-        printf "  -> Regenerated Weather API config from cache %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
+        if grep -q "OPENWEATHER_KEY" "$ENV_TARGET_DIR/.env" 2>/dev/null; then
+            echo -e "  -> ${C_YELLOW}Old OpenWeather .env found — cannot auto-migrate. Re-run setup to configure weather.${RESET}"
+        else
+            printf "  -> Retained existing Open-Meteo config %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
+        fi
+    elif [[ -n "$WEATHER_LAT" && "$WEATHER_LAT" != "Skipped" ]]; then
+        _write_openmeteo_env "$ENV_TARGET_DIR"
+        printf "  -> Regenerated Open-Meteo config from cache %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
     fi
-elif [[ -n "$WEATHER_API_KEY" && "$WEATHER_API_KEY" != "Skipped" ]]; then
-    mkdir -p "$ENV_TARGET_DIR"
-    cat <<EOF > "$ENV_TARGET_DIR/.env"
-# OpenWeather API Configuration
-OPENWEATHER_KEY=${WEATHER_API_KEY}
-OPENWEATHER_CITY_ID=${WEATHER_CITY_ID}
-OPENWEATHER_UNIT=${WEATHER_UNIT}
-EOF
-    chmod 600 "$ENV_TARGET_DIR/.env"
-    printf "  -> Saved Weather API config to .env %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
+elif [[ -n "$WEATHER_LAT" && "$WEATHER_LAT" != "Skipped" ]]; then
+    _write_openmeteo_env "$ENV_TARGET_DIR"
+    printf "  -> Saved Open-Meteo config to .env %-14s ${C_GREEN}[ OK ]${RESET}\n" ""
 fi
 
 # Deploy Cava Wrapper
@@ -1401,8 +1449,8 @@ fi
 cat <<EOF > "$VERSION_FILE"
 LOCAL_VERSION="$DOTS_VERSION"
 LAST_COMMIT="$NEW_COMMIT"
-WEATHER_API_KEY="$WEATHER_API_KEY"
-WEATHER_CITY_ID="$WEATHER_CITY_ID"
+WEATHER_LAT="$WEATHER_LAT"
+WEATHER_LON="$WEATHER_LON"
 WEATHER_UNIT="$WEATHER_UNIT"
 DRIVER_CHOICE="$DRIVER_CHOICE"
 KB_LAYOUTS="$KB_LAYOUTS"
