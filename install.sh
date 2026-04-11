@@ -95,6 +95,12 @@ ARCH_PKGS=(
     "qt5-wayland" "qt5-quickcontrols" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-wayland"
 )
 
+if grep -qi "cachyos" /etc/os-release 2>/dev/null; then
+    ARCH_PKGS+=("cachy-update")
+else
+    ARCH_PKGS+=("arch-update")
+fi
+
 # ==============================================================================
 # Early Distro Detection & TUI Dependency Bootstrap
 # ==============================================================================
