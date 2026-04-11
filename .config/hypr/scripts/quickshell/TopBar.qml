@@ -352,7 +352,7 @@ Variants {
                 ']
             }
             Timer {
-                interval: 150000
+                interval: 900
                 running: true
                 repeat: true
                 triggeredOnStart: true
