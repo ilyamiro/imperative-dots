@@ -12,7 +12,6 @@ function getScale(mw, userScale) {
         baseScale = Math.pow(r, 0.5);
     }
     
-    // Multiply the screen-calculated scale by the user's uiScale
     return baseScale * (userScale !== undefined ? userScale : 1.0);
 }
 

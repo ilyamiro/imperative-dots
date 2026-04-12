@@ -54,11 +54,9 @@ PanelWindow {
     property real animX: 0
     property real animY: 0
     
-    // NEW: Explicit targets for the inner content wrapper so widgets can override them dynamically
     property real targetW: 1
     property real targetH: 1
 
-    // NEW: Global UI Scale mapped from settings.json
     property real globalUiScale: 1.0
 
     onGlobalUiScaleChanged: {
@@ -69,10 +67,11 @@ PanelWindow {
     Process {
         id: settingsReader
         command: ["bash", "-c", "cat ~/.config/hypr/settings.json 2>/dev/null || echo '{}'"]
+        running: true // Run once at startup
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    if (this.text && this.text.trim().length > 0) {
+                    if (this.text && this.text.trim().length > 0 && this.text.trim() !== "{}") {
                         let parsed = JSON.parse(this.text);
                         if (parsed.uiScale !== undefined && masterWindow.globalUiScale !== parsed.uiScale) {
                             masterWindow.globalUiScale = parsed.uiScale;
@@ -85,15 +84,19 @@ PanelWindow {
         }
     }
 
-    Timer {
-        id: settingsPollTimer
-        interval: 2000
+    // EVENT-DRIVEN WATCHER
+    Process {
+        id: settingsWatcher
+        command: ["bash", "-c", "while [ ! -f ~/.config/hypr/settings.json ]; do sleep 1; done; inotifywait -qq -e modify,close_write ~/.config/hypr/settings.json"]
         running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            settingsReader.running = false;
-            settingsReader.running = true;
+        stdout: StdioCollector {
+            onStreamFinished: {
+                settingsReader.running = false;
+                settingsReader.running = true;
+                
+                settingsWatcher.running = false;
+                settingsWatcher.running = true;
+            }
         }
     }
     // -------------------------------
@@ -102,7 +105,6 @@ PanelWindow {
         return Registry.getLayout(name, 0, 0, Screen.width, Screen.height, masterWindow.globalUiScale);
     }
 
-    // Automatically recalculates position and scale if the OS resolution changes
     Connections {
         target: Screen
         function onWidthChanged() { handleNativeScreenChange(); }
@@ -114,8 +116,6 @@ PanelWindow {
         
         let t = getLayout(masterWindow.currentActive);
         if (t) {
-            // Update the animation targets. The Behaviors below will 
-            // glide the widget to the new layout perfectly.
             masterWindow.animX = t.rx;
             masterWindow.animY = t.ry;
             masterWindow.animW = t.w;
@@ -124,7 +124,6 @@ PanelWindow {
             masterWindow.targetH = t.h;
         }
     }
-    // ---------------------------------------
 
     onIsVisibleChanged: {
         if (isVisible) masterWindow.requestActivate();
@@ -152,7 +151,6 @@ PanelWindow {
 
         Item {
             anchors.centerIn: parent
-            // CHANGE: Now uses the overrideable properties instead of strict registry bindings
             width: masterWindow.targetW
             height: masterWindow.targetH
 
@@ -187,8 +185,6 @@ PanelWindow {
     }
 
     function switchWidget(newWidget, arg) {
-        // FIX 1: Immediately update the system state file so the bash manager 
-        // doesn't read stale data during the morph animations.
         Quickshell.execDetached(["bash", "-c", "echo '" + newWidget + "' > /tmp/qs_active_widget"]);
 
         prepTimer.stop();
@@ -323,8 +319,6 @@ PanelWindow {
 
     Process {
         id: ipcPoller
-        // FIX 2: Use `mv` to make the file read/delete atomic. This prevents 
-        // wiping out rapid subsequent commands that happen during execution.
         command: ["bash", "-c", "if [ -f /tmp/qs_widget_state ]; then mv /tmp/qs_widget_state /tmp/qs_widget_state_read 2>/dev/null && cat /tmp/qs_widget_state_read && rm /tmp/qs_widget_state_read; fi"]
         stdout: StdioCollector {
             onStreamFinished: {
