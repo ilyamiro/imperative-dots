@@ -260,32 +260,36 @@ Item {
     }
 
     // -------------------------------------------------------------------------
-    // VISIBILITY LOGIC
-    // -------------------------------------------------------------------------
-    onVisibleChanged: {
-        if (!visible) {
-            window.initialFocusSet = false;
-            window.searchIndexRestored = false;
-            window.isApplying = false; // Free the lock strictly when hidden
-            
-            if (window.hasSearched) {
-                window.isSearchPaused = true;
-            }
-        } else {
-            window.isFilterAnimating = true;
-            filterAnimationTimer.restart();
+    // VISIBILITY LOGIC
+    // -------------------------------------------------------------------------
+    onVisibleChanged: {
+        if (!visible) {
+            window.initialFocusSet = false;
+            window.searchIndexRestored = false;
+            window.isApplying = false; // Free the lock strictly when hidden
+            
+            if (window.hasSearched) {
+                window.isSearchPaused = true;
+            }
+        } else {
+            // CHANGED: Force a refresh of the settings from the SSOT every time the picker is opened
+            wpSettingsReader.running = false;
+            wpSettingsReader.running = true;
 
-            // Re-apply focus rules when re-opening
-            if (window.currentFilter !== "Search") {
-                window.applyFilters(true);
-            } else if (window.hasSearched) {
-                window.searchIndexRestored = false;
-                window.isSearchPaused = true;
-                window.trySearchFocus();
-                window.syncSearchModel();
-            }
-        }
-    }
+            window.isFilterAnimating = true;
+            filterAnimationTimer.restart();
+
+            // Re-apply focus rules when re-opening
+            if (window.currentFilter !== "Search") {
+                window.applyFilters(true);
+            } else if (window.hasSearched) {
+                window.searchIndexRestored = false;
+                window.isSearchPaused = true;
+                window.trySearchFocus();
+                window.syncSearchModel();
+            }
+        }
+    }
 
     // -------------------------------------------------------------------------
     // NOTIFICATION & LABEL STATE LOGIC
@@ -497,14 +501,39 @@ Item {
     readonly property string homeDir: "file://" + Quickshell.env("HOME")
     readonly property string thumbDir: homeDir + "/.cache/wallpaper_picker/thumbs"
     readonly property string searchDir: homeDir + "/.cache/wallpaper_picker/search_thumbs"
-    readonly property string srcDir: {
-    	const dir = Quickshell.env("WALLPAPER_DIR")
-    	return (dir && dir !== "") 
-        ? dir 
-        : Quickshell.env("HOME") + "/Pictures/Wallpapers"
+
+    // CHANGED: Make srcDir dynamic instead of readonly, with a safe fallback
+    property string srcDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
+
+    // ADDED: Read directly from the SSOT settings.json to get the live directory
+    Process {
+        id: wpSettingsReader
+        command: ["bash", "-c", "cat ~/.config/hypr/settings.json 2>/dev/null || echo '{}'"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    if (this.text && this.text.trim().length > 0 && this.text.trim() !== "{}") {
+                        let parsed = JSON.parse(this.text);
+                        if (parsed.wallpaperDir) {
+                            let dir = parsed.wallpaperDir.trim();
+                            // Sanitize: Expand '~' to absolute home path (QML file:// does not understand ~)
+                            if (dir.startsWith("~/")) {
+                                dir = Quickshell.env("HOME") + dir.substring(1);
+                            }
+                            // Sanitize: Remove trailing slashes
+                            if (dir.endsWith("/")) {
+                                dir = dir.substring(0, dir.length - 1);
+                            }
+                            window.srcDir = dir;
+                        }
+                    }
+                } catch (e) {
+                    console.log("Error parsing settings in WallpaperPicker:", e);
+                }
+            }
+        }
     }
-
-
     readonly property var transitions: ["grow", "outer", "any", "wipe", "wave", "pixel", "center"]
 
     readonly property real itemWidth: window.s(400)
