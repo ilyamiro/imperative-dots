@@ -16,6 +16,7 @@ total=11
 
 init_display() {
     clear
+    draw_header
     echo -e "\e[1;34m=== INSTALADOR IMPERATIVE-DOTS ===\e[0m"
     echo "" # Espacio reservado para la barra de progreso (Línea 2)
     echo "----------------------------------"
@@ -106,8 +107,6 @@ EOF
 # ==============================================================================
 init_install() {
 
-    clear
-    draw_header
     init_display
 
     show_progress 1 
