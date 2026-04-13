@@ -88,7 +88,7 @@ while true; do
                 continue
             fi
             prompt_optional_features
-            install_process
+            init_install
             break 
             ;;
         *"7"*) clear; exit 0 ;;
