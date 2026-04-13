@@ -12,7 +12,7 @@ source ./config_fonts.sh
 source ./config_Adaptability.sh
 source ./config_theme.sh
 
-local total=11
+total=11
 
 init_display() {
     clear
@@ -108,7 +108,7 @@ init_install() {
 
     clear
     draw_header
-    init_pantalla
+    init_display
 
     show_progress 1 
     # Pre-authenticate sudo to prevent password prompts from breaking during piped commands
