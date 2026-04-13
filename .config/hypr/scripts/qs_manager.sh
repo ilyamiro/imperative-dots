@@ -6,8 +6,23 @@
 QS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BT_PID_FILE="$HOME/.cache/bt_scan_pid"
 BT_SCAN_LOG="$HOME/.cache/bt_scan.log"
-SRC_DIR="${WALLPAPER_DIR:-${srcdir:-$HOME/Pictures/Wallpapers}}"
 THUMB_DIR="$HOME/.cache/wallpaper_picker/thumbs"
+
+# DYNAMICALLY READ FROM SSOT (Hyprland env variables do not hot-reload)
+SETTINGS_FILE="$HOME/.config/hypr/settings.json"
+if [ -f "$SETTINGS_FILE" ]; then
+    JSON_DIR=$(jq -r '.wallpaperDir // empty' "$SETTINGS_FILE" 2>/dev/null)
+    if [ -n "$JSON_DIR" ]; then
+        # Expand tilde ~ to absolute path
+        JSON_DIR="${JSON_DIR/#\~/$HOME}"
+        # Strip any trailing slashes to prevent double-slash pathing issues
+        JSON_DIR="${JSON_DIR%/}"
+        SRC_DIR="$JSON_DIR"
+    fi
+fi
+
+# Fallback if json extraction fails
+SRC_DIR="${SRC_DIR:-${WALLPAPER_DIR:-$HOME/Pictures/Wallpapers}}"
 
 # User-specific cache directory matching the QML logic
 QS_NETWORK_CACHE="${XDG_RUNTIME_DIR:-$HOME/.cache}/qs_network"
@@ -79,12 +94,14 @@ handle_wallpaper_prep() {
     CURRENT_SRC=""
 
     if pgrep -a "mpvpaper" > /dev/null; then
-        CURRENT_SRC=$(pgrep -a mpvpaper | grep -o "$SRC_DIR/[^' ]*" | head -n1)
+        # More resilient extraction: grab any valid video path
+        CURRENT_SRC=$(pgrep -a mpvpaper | grep -oE "/[^' ]+" | grep -E "\.(mp4|mkv|mov|webm)$" | head -n1)
         CURRENT_SRC=$(basename "$CURRENT_SRC")
     fi
 
     if [ -z "$CURRENT_SRC" ] && command -v swww >/dev/null; then
-        CURRENT_SRC=$(swww query 2>/dev/null | grep -o "$SRC_DIR/[^ ]*" | head -n1)
+        # Bulletproof extraction: Ignore the folder structure and strip exactly what comes after "image: "
+        CURRENT_SRC=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1 | tr -d '"' | tr -d "'")
         CURRENT_SRC=$(basename "$CURRENT_SRC")
     fi
 
