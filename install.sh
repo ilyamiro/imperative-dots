@@ -2,7 +2,7 @@
 
 
 # Inicia variables
-source ./archivo_herramientas.sh
+source ./modules/global-var.sh
 
 
 echo "Inicio de instalacion"
