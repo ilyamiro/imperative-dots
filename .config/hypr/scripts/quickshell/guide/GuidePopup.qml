@@ -30,6 +30,29 @@ Item {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
+    function compareVersions(local, remote) {
+        if (local === remote || local === "Unknown" || local === "Loading..." || !local || !remote) return false;
+
+        function parseVersion(v) {
+            let parts = v.split('-');
+            let base = parts[0].split('.').map(Number);
+            let rev = parts.length > 1 ? parseInt(parts[1]) : 0;
+            return { base: base, rev: rev };
+        }
+
+        let l = parseVersion(local);
+        let r = parseVersion(remote);
+
+        for (let i = 0; i < Math.max(l.base.length, r.base.length); i++) {
+            let lVal = l.base[i] || 0;
+            let rVal = r.base[i] || 0;
+            if (lVal < rVal) return true;
+            if (lVal > rVal) return false;
+        }
+
+        return l.rev < r.rev;
+    }
+
     // -------------------------------------------------------------------------
     // KEYBOARD SHORTCUTS & NAVIGATION
     // -------------------------------------------------------------------------
@@ -107,7 +130,7 @@ Item {
     property color ambientBlue: Qt.tint(root.blue, Qt.rgba(root.sapphire.r, root.sapphire.g, root.sapphire.b, colorBlend))
 
     // -------------------------------------------------------------------------
-    // SSOT GLOBAL SETTINGS
+    // SSOT GLOBAL SETTINGS & UPDATES
     // -------------------------------------------------------------------------
     property real setUiScale: 1.0
     property bool setOpenGuideAtStartup: true
@@ -120,6 +143,20 @@ Item {
     }
     property string setLanguage: ""
     property string dotsVersion: "Loading..."
+    property string remoteVersion: ""
+    property bool updateAvailable: false
+
+    onDotsVersionChanged: {
+        if (remoteVersion !== "" && dotsVersion !== "Loading...") {
+            updateAvailable = compareVersions(dotsVersion, remoteVersion);
+        }
+    }
+
+    onRemoteVersionChanged: {
+        if (remoteVersion !== "" && dotsVersion !== "Loading...") {
+            updateAvailable = compareVersions(dotsVersion, remoteVersion);
+        }
+    }
 
     function saveAppSettings() {
         let config = {
@@ -144,6 +181,18 @@ Item {
             onStreamFinished: {
                 let out = this.text ? this.text.trim() : "";
                 if (out !== "") root.dotsVersion = out;
+            }
+        }
+    }
+
+    Process {
+        id: updateChecker
+        command: ["bash", "-c", "curl -m 5 -s https://raw.githubusercontent.com/ilyamiro/imperative-dots/master/install.sh | grep '^DOTS_VERSION=' | cut -d'\"' -f2"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let out = this.text ? this.text.trim() : "";
+                if (out !== "") root.remoteVersion = out;
             }
         }
     }
@@ -396,8 +445,8 @@ Item {
     // -------------------------------------------------------------------------
     property int currentTab: 0
     property int selectedModuleIndex: 0
-    property var tabNames: ["System", "Settings", "Resources", "Modules", "Keybinds", "Matugen", "Weather", "Greeter"]
-    property var tabIcons: ["", "", "󰣖", "󰣆", "󰌌", "󰏘", "󰖐", "󰍃"]
+    property var tabNames: ["System", "Settings", "Resources", "Modules", "Keybinds", "Matugen", "Weather", "Greeter", "About"]
+    property var tabIcons: ["", "", "󰣖", "󰣆", "󰌌", "󰏘", "󰖐", "󰍃", ""]
 
     property real introBase: 0.0
     property real introSidebar: 0.0
@@ -719,6 +768,58 @@ Item {
 
                 Item { Layout.fillHeight: true }
 
+                // --- UPDATE AVAILABLE BUTTON ---
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.updateAvailable ? root.s(50) : 0
+                    visible: root.updateAvailable
+                    opacity: root.updateAvailable ? 1.0 : 0.0
+                    radius: root.s(8)
+                    color: updateHover.containsMouse ? Qt.alpha(root.green, 0.15) : Qt.alpha(root.green, 0.05)
+                    border.color: updateHover.containsMouse ? root.green : Qt.alpha(root.green, 0.4)
+                    border.width: 1
+                    scale: updateHover.pressed ? 0.96 : (updateHover.containsMouse ? 1.02 : 1.0)
+                    clip: true
+                    
+                    Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.OutQuart } }
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
+                    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: root.s(2)
+                        
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: root.s(6)
+                            Text { text: "󰚰"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(14); color: root.green }
+                            Text { text: "Update Available"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(12); color: root.green }
+                        }
+                        
+                        Text {
+                            text: root.dotsVersion + "  " + root.remoteVersion
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: root.s(10)
+                            color: root.subtext0
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: updateHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            let cmd = "if command -v kitty >/dev/null 2>&1; then kitty bash -c '$(curl -fsSL https://raw.githubusercontent.com/ilyamiro/imperative-dots/master/install.sh)'; else ${TERM:-xterm} -e bash -c '$(curl -fsSL https://raw.githubusercontent.com/ilyamiro/imperative-dots/master/install.sh)'; fi";
+                            Quickshell.execDetached(["bash", "-c", cmd]);
+                        }
+                    }
+                }
+
+                // --- CLOSE BUTTON ---
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.s(44)
@@ -2974,6 +3075,28 @@ Item {
             Item {
                 anchors.fill: parent
                 visible: root.currentTab === 7
+                opacity: visible ? 1.0 : 0.0
+                property real slideY: visible ? 0 : root.s(10)
+                
+                Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
+                transform: Translate { y: slideY }
+                Behavior on opacity { NumberAnimation { duration: 250 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "coming soon"
+                    font.family: "JetBrains Mono"
+                    font.pixelSize: root.s(24)
+                    color: root.subtext0
+                }
+            }
+
+            // ------------------------------------------
+            // TAB 8: ABOUT
+            // ------------------------------------------
+            Item {
+                anchors.fill: parent
+                visible: root.currentTab === 8
                 opacity: visible ? 1.0 : 0.0
                 property real slideY: visible ? 0 : root.s(10)
                 

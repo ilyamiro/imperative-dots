@@ -136,6 +136,7 @@ PanelWindow {
         width: masterWindow.animW
         height: masterWindow.animH
         clip: true 
+        layer.enabled: true // FIX: Forces hardware off-screen rendering to bypass the right-side clipping artifact
 
         Behavior on x { enabled: !masterWindow.disableMorph; NumberAnimation { duration: masterWindow.morphDuration; easing.type: Easing.InOutCubic } }
         Behavior on y { enabled: !masterWindow.disableMorph; NumberAnimation { duration: masterWindow.morphDuration; easing.type: Easing.InOutCubic } }
