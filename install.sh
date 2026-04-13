@@ -33,6 +33,7 @@ source ./modules/manage_keyboard.sh
 source ./modules/prompt_optional_features.sh
 source ./modules/set_weather_api.sh
 source ./modules/show_overview.sh
+source ./modules/install_modules/install_process.sh
 
 
 # ==============================================================================
