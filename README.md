@@ -1,12 +1,8 @@
-## Soon to be an install script for my configuration
+## Proyecto Tanquilandi-dots
 
-### I am actively working on it and I am looking for testers! Reach out to me:
-#### twitter/x: @ilyamirox
-#### reddit: u/ilyamiro1
-#### telegram: @sacrificeit
-#### email: ilyamiro.work@gmail.com
+Este proyecto es un fork de [imperative-dots](https://github.com/ilyamiro/imperative-dots) con el objetivo de generar una personalización de instalación propia para `Arch Linux`. A partir de la base original, se adaptan configuraciones, temas y scripts para construir un entorno de escritorio completamente personalizado y reproducible.
 
-### One liner for testing
+### One liner para probar
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/ilyamiro/imperative-dots/master/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Duban-sg/tranquiland-dots/master/install.sh)"
 ```
