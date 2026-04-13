@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.1.6"
+DOTS_VERSION="1.1.7"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Prevent the TTY/Console from falling asleep (black screen) during long package builds
@@ -246,11 +246,13 @@ EOF
     local OSC8_GH="\e]8;;https://github.com/ilyamiro/imperative-dots.git\a"
     local OSC8_TW="\e]8;;https://twitter.com/ilyamirox\a"
     local OSC8_RD="\e]8;;https://reddit.com/r/ilyamiro1\a"
+    local OSC8_KF="\e]8;;https://ko-fi.com/ilyamiro\a"
     local OSC8_END="\e]8;;\a"
 
     printf "\033[K${C_BLUE} -----------------------------------------------------------------${RESET}\n"
     printf "\033[K${BOLD}${C_GREEN} GitHub:${RESET}  ${OSC8_GH}https://github.com/ilyamiro/imperative-dots.git${OSC8_END}\n"
     printf "\033[K${BOLD}${C_CYAN} Twitter:${RESET} ${OSC8_TW}@ilyamirox${OSC8_END}  |  ${BOLD}${C_RED}Reddit:${RESET} ${OSC8_RD}r/ilyamiro1${OSC8_END}\n"
+    printf "\033[K${BOLD}${C_MAGENTA} Donate:${RESET}  ${OSC8_KF}Donate on Ko-fi (Help the project!)${OSC8_END}\n"
     printf "\033[K${C_BLUE} -----------------------------------------------------------------${RESET}\n"
     printf "\033[K${BOLD} User:           ${RESET} %s\n" "$USER_NAME"
     printf "\033[K${BOLD} OS:             ${RESET} %s\n" "$OS_NAME"
@@ -893,8 +895,12 @@ sudo -v
 
 # --- 0. Resolve Package Conflicts ---
 echo -e "\n${C_CYAN}[ INFO ]${RESET} Resolving potential package conflicts..."
-# Added 'jack', 'jack2', and 'go-yq' here to prevent installation hangs
-CONFLICTING_PKGS=("swayosd" "quickshell" "matugen" "jack" "jack2" "go-yq")
+
+# Hard-clear jack & jack2 immediately to prevent the "impossible conflict" with pipewire-jack
+echo -e "  -> Forcefully clearing 'jack' and 'jack2' for pipewire-jack..."
+sudo pacman -Rdd --noconfirm jack jack2 > /dev/null 2>&1 || true
+
+CONFLICTING_PKGS=("swayosd" "quickshell" "matugen" "go-yq")
 for cpkg in "${CONFLICTING_PKGS[@]}"; do
     if pacman -Qq | grep -qx "$cpkg"; then
         echo -e "  -> ${C_YELLOW}Removing conflicting package '$cpkg'...${RESET}"
@@ -939,14 +945,13 @@ else
         echo -e "${C_BLUE}::${RESET} ${BOLD}Installing ${pkg}...${RESET}"
         echo -e "${C_CYAN}=================================================================${RESET}"
 
-        # Arch: Pipe 'yes ""' (Enter keystrokes) to automatically choose the default provider (1)
-        # Limit CARGO_BUILD_JOBS and MAKEFLAGS to prevent OOM errors during heavy compilations
         # Calculate safe thread limits (half of total cores, minimum 1, max 4)
         SAFE_JOBS=$(( $(nproc) / 2 ))
         [[ $SAFE_JOBS -lt 1 ]] && SAFE_JOBS=1
         [[ $SAFE_JOBS -gt 4 ]] && SAFE_JOBS=4
 
-        if yes "" | env CARGO_BUILD_JOBS="$SAFE_JOBS" MAKEFLAGS="-j$SAFE_JOBS" $PKG_MANAGER "$pkg"; then
+        # Changed from `yes ""` to `yes "Y"` to automatically accept replacements (like pipewire-jack replacements)
+        if yes "Y" | env CARGO_BUILD_JOBS="$SAFE_JOBS" MAKEFLAGS="-j$SAFE_JOBS" $PKG_MANAGER "$pkg"; then
             echo -e "\n${C_GREEN}[ OK ] Successfully installed ${pkg}${RESET}"
         else
             echo -e "\n${C_RED}[ FAILED ] Failed to install ${pkg}${RESET}"
@@ -1099,8 +1104,16 @@ elif [ "$OLD_COMMIT" == "$NEW_COMMIT" ] && [ -n "$OLD_COMMIT" ]; then
     echo -e "  -> Repository is up to date (${C_YELLOW}${NEW_COMMIT::7}${RESET}). Only applying upstream changes (None found)."
 fi
 
+SETTINGS_FILE="$TARGET_CONFIG_DIR/hypr/scripts/quickshell/settings.json"
+
 if [ "$DO_FULL_INSTALL" = true ]; then
     echo "  -> Performing Full Install / Overwrite..."
+    
+    # Pre-backup settings.json specifically to guarantee it survives the copy loop overwrites
+    if [ -f "$SETTINGS_FILE" ]; then
+        cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.bak"
+    fi
+
     for folder in "${CONFIG_FOLDERS[@]}"; do
         TARGET_PATH="$TARGET_CONFIG_DIR/$folder"
         SOURCE_PATH="$REPO_DIR/.config/$folder"
@@ -1113,6 +1126,13 @@ if [ "$DO_FULL_INSTALL" = true ]; then
             printf "  -> Copied %-31s ${C_GREEN}[ OK ]${RESET}\n" "$folder"
         fi
     done
+    
+    # Safely restore settings.json if it existed prior to the copy loop
+    if [ -f "$BACKUP_DIR/settings.json.bak" ]; then
+        mkdir -p "$(dirname "$SETTINGS_FILE")"
+        cp "$BACKUP_DIR/settings.json.bak" "$SETTINGS_FILE"
+        printf "  -> Restored existing settings.json  %-12s ${C_GREEN}[ OK ]${RESET}\n" ""
+    fi
 else
     # Partial Update Logic (Git Diff)
     CHANGED_FILES=""
@@ -1327,7 +1347,7 @@ fi
 if [ -f "$HYPR_CONF" ]; then
 
     # 0. Inject Keyboard Layout Configurations dynamically
-    echo -e "  -> Applying Keyboard configuration..."
+    echo -e "  -> Applying Keyboard configuration to hyprland.conf..."
     sed -i "s/^ *kb_layout =.*/    kb_layout = $KB_LAYOUTS/" "$HYPR_CONF"
     if [ -n "$KB_OPTIONS" ]; then
         sed -i "s/^ *kb_options =.*/    kb_options = $KB_OPTIONS/" "$HYPR_CONF"
@@ -1390,6 +1410,16 @@ EOF
     # ========================================================================
 else
     echo -e "${C_RED}Warning: hyprland.conf not found at $HYPR_CONF${RESET}"
+fi
+
+# -> Inject Keyboard Layouts into settings.json <-
+echo -e "  -> Syncing Keyboard languages to settings.json..."
+if [ -f "$SETTINGS_FILE" ]; then
+    tmp_json=$(mktemp)
+    jq --arg langs "$KB_LAYOUTS" '.languages = $langs' "$SETTINGS_FILE" > "$tmp_json" && mv "$tmp_json" "$SETTINGS_FILE"
+else
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
+    echo "{\"languages\": \"$KB_LAYOUTS\"}" > "$SETTINGS_FILE"
 fi
 
 # 4. Patch WallpaperPicker.qml dynamically
@@ -1487,7 +1517,21 @@ printf "  -> Configuration and version state saved %-7s ${C_GREEN}[ OK ]${RESET}
 # ==============================================================================
 # Final Output
 # ==============================================================================
-echo -e "\n${BOLD}${C_MAGENTA}=== Installation Complete ===${RESET}\n"
+echo -e "\n${BOLD}${C_GREEN}"
+cat << "EOF"
+  ___ _  _ ___ _____ _   _    _      _ _____ ___ ___  _  _    ___ ___  __  __ ___ _    ___ _____ ___ 
+ |_ _| \| / __|_   _/_\ | |  | |    /_\_   _|_ _/ _ \| \| |  / __/ _ \|  \/  | _ \ |  | __|_   _| __|
+  | || .` \__ \ | |/ _ \| |__| |__ / _ \| |  | | (_) | .` | | (_| (_) | |\/| |  _/ |__| _|  | | | _| 
+ |___|_|\_|___/ |_/_/ \_\____|____/_/ \_\_| |___\___/|_|\_|  \___\___/|_|  |_|_| |____|___| |_| |___|
+                                                                                                     
+EOF
+echo -e "${RESET}\n"
+
+echo -e "${BOLD}${C_MAGENTA}=================================================================${RESET}"
+echo -e "${BOLD}${C_YELLOW} Support the Creator:${RESET}"
+echo -e " If you enjoy this project, consider buying me a coffee!"
+echo -e " ${BOLD}${C_CYAN}Ko-fi:${RESET} https://ko-fi.com/ilyamiro"
+echo -e "${BOLD}${C_MAGENTA}=================================================================${RESET}\n"
 
 if [ ${#FAILED_PKGS[@]} -ne 0 ]; then
     echo -e "${BOLD}${C_RED}The following packages were NOT installed. Try building them yourself:${RESET}"
