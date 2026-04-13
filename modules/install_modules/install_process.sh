@@ -110,11 +110,11 @@ EOF
 # ==============================================================================
 init_install() {
 
-    TOTAL_STEPS=11
+    
 
     init_display
 
-    show_progress 1 
+    show_progress 1 $TOTAL_STEPS
     # Pre-authenticate sudo to prevent password prompts from breaking during piped commands
     echo -e "${C_CYAN}[ INFO ]${RESET} Requesting sudo privileges for installation..."
     sudo -v
