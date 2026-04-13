@@ -1,7 +1,30 @@
 #!/usr/bin/env bash
 
+# ==============================================================================
+# Init Script
+# ==============================================================================
 
-# Inicia variables
+APP_NAME="TRANQUILAND"
+TEMPORAL=$(mktemp -d)
+
+echo "Iniciando $APP_NAME..."
+git clone https://github.com/Duban-sg/tranquiland-dots.git $TEMPORAL
+cd $TEMPORAL
+
+# ==============================================================================
+# clean temporals 
+# ==============================================================================
+
+limpiar() {
+  echo "Eliminando archivos temporales..."
+  rm -rf "$TEMPORAL"
+}
+trap limpiar EXIT
+
+
+# ==============================================================================
+# import modules
+# ==============================================================================
 source ./modules/global_var.sh
 source ./modules/draw_header.sh
 source ./modules/manage_packages.sh
@@ -11,9 +34,12 @@ source ./modules/prompt_optional_features.sh
 source ./modules/set_weather_api.sh
 source ./modules/show_overview.sh
 
+
+# ==============================================================================
+# Menu 
+# ==============================================================================
+
 clear
-
-
 while true; do
     draw_header
     
