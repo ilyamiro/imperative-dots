@@ -96,3 +96,4 @@ while true; do
 done
 
 
+install_process
