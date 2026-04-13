@@ -1143,5 +1143,8 @@ if [ ${#FAILED_PKGS[@]} -ne 0 ]; then
     echo ""
 fi
 
+
+
+
 echo -e "Old configurations backed up to: ${C_CYAN}$BACKUP_DIR${RESET}"
 echo -e "Please log out and log back in, or restart Hyprland to apply all changes."
