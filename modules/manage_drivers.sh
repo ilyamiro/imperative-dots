@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 
 # ==============================================================================
 # Function to select drivers, this is a experimental function
