@@ -2,17 +2,15 @@
 
 
 #!/bin/bash
-DIR_ACTUAL="$(pwd)"
 
-
-source "$DIR_ACTUAL/resolve_package.sh"
-source "$DIR_ACTUAL/install_drivers.sh"
-source "$DIR_ACTUAL/config_display_manager.sh"
-source "$DIR_ACTUAL/config_wallpapers.sh"
-source "$DIR_ACTUAL/copy_dotfiles.sh"
-source "$DIR_ACTUAL/config_fonts.sh"
-source "$DIR_ACTUAL/config_Adaptability.sh"
-source "$DIR_ACTUAL/config_theme.sh"
+source "./modules/install_modules/resolve_package.sh"
+source "./modules/install_modules/install_drivers.sh"
+source "./modules/install_modules/config_display_manager.sh"
+source "./modules/install_modules/config_wallpapers.sh"
+source "./modules/install_modules/copy_dotfiles.sh"
+source "./modules/install_modules/config_fonts.sh"
+source "./modules/install_modules/config_Adaptability.sh"
+source "./modules/install_modules/config_theme.sh"
 
 
 
@@ -55,7 +53,7 @@ show_progress() {
     tput sc 
 
     # Mover el cursor a la línea 2, columna 0 (donde está el espacio vacío)
-    tput cup 16 0 
+    tput cup 23 0 
 
     # Construir y pintar la barra (con colores)
     local barra_visual=$(printf "%${rellenos}s" | tr ' ' '#')
