@@ -43,6 +43,7 @@ finish_display(){
 show_progress() {
 
     local actual=$1
+    local total=$2
     local ancho_barra=30
     
     # Cálculos
@@ -109,6 +110,8 @@ EOF
 # ==============================================================================
 init_install() {
 
+    TOTAL_STEPS=11
+
     init_display
 
     show_progress 1 
@@ -117,45 +120,45 @@ init_install() {
     sudo -v
 
     # --- 2. Resolve Package Conflicts ---
-    show_progress 2 
+    show_progress 2 $TOTAL_STEPS
     resolve_package
 
     combine_base_package
 
     # --- 3. Install Dependencies & Drivers ---
-    show_progress 3 
+    show_progress 3 $TOTAL_STEPS
     install_drivers
 
     # --- 4. Display Manager Cleanup & SDDM Setup ---
-    show_progress 4 
+    show_progress 4 $TOTAL_STEPS
     config_display_manager
 
     # --- 5. Repository Cloning & Wallpapers ---
-    show_progress 5 
+    show_progress 5 $TOTAL_STEPS
     config_wallpapers
 
     # --- 6. Copying Dotfiles & Backups ---
-    show_progress 6 
+    show_progress 6 $TOTAL_STEPS
     copy_dotfiles
 
     # --- 7. Fonts ---
-    show_progress 7 
+    show_progress 7 $TOTAL_STEPS
     config_fonts
 
     # --- 8. Adaptability Phase ---
-    show_progress 8 
+    show_progress 8 $TOTAL_STEPS
     config_Adaptability
 
     # --- 9. Setup SDDM Theme and Config ---
-    show_progress 9 
+    show_progress 9 $TOTAL_STEPS
     config_theme
 
     # --- 9. Finalize Version Marker & User State Persistence ---
-    show_progress 10 
+    show_progress 10 $TOTAL_STEPS
     finalize_version_marker
 
     # --- 9. Final Output ---
-    show_progress 11 
+    show_progress 11 $TOTAL_STEPS
     finish_display
 
 }
