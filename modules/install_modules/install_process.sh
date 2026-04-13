@@ -2,17 +2,19 @@
 
 
 #!/bin/bash
+DIR_ACTUAL="$(pwd)"
 
-source ./resolve_package.sh
-source ./install_drivers.sh
-source ./config_display_manager.sh
-source ./config_wallpapers.sh
-source ./copy_dotfiles.sh
-source ./config_fonts.sh
-source ./config_Adaptability.sh
-source ./config_theme.sh
 
-total=11
+source "$DIR_ACTUAL/resolve_package.sh"
+source "$DIR_ACTUAL/install_drivers.sh"
+source "$DIR_ACTUAL/config_display_manager.sh"
+source "$DIR_ACTUAL/config_wallpapers.sh"
+source "$DIR_ACTUAL/copy_dotfiles.sh"
+source "$DIR_ACTUAL/config_fonts.sh"
+source "$DIR_ACTUAL/config_Adaptability.sh"
+source "$DIR_ACTUAL/config_theme.sh"
+
+
 
 init_display() {
     clear
