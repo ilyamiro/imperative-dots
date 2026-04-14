@@ -16,10 +16,11 @@ PanelWindow {
     
     exclusionMode: ExclusionMode.Ignore 
     focusable: true
-    width: Screen.width
-    height: Screen.height
+    screen: Quickshell.cursorScreen
+    width: screen.width
+    height: screen.height
 
-    Scaler { id: scaler; currentWidth: Screen.width }
+    Scaler { id: scaler; currentWidth: width }
     function s(val) { return scaler.s(val); }
     
     MatugenColors { id: _theme }
