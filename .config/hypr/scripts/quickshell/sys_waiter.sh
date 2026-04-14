@@ -1,30 +1,52 @@
 #!/usr/bin/env bash
 
-# Debounce increased slightly to prevent tight loops on grouped events
+# Buffer delay to prevent hyper-looping if a daemon sends immediate sync events
 sleep 0.5
 
-# Kill any child listening jobs gracefully
-trap 'kill -TERM $(jobs -p) 2>/dev/null; wait $(jobs -p) 2>/dev/null' EXIT
+# Setup a unique named pipe for this specific script execution
+PIPE="/tmp/qs_sys_waiter_$$"
+mkfifo "$PIPE" 2>/dev/null
 
-# Wrap each listener in a subshell that sleeps infinitely if the command fails.
+# Cleanup Trap: Recursively kill all child processes. 
+kill_descendants() {
+    local pid=$1
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null)
+    for child in $children; do
+        kill_descendants "$child"
+    done
+    [ "$pid" != "$$" ] && kill -9 "$pid" 2>/dev/null
+}
+trap 'kill_descendants $$; rm -f "$PIPE"; exit 0' EXIT INT TERM
 
-# 1. Volume: Wait for actual volume changes, completely ignore sink-input spam
-( pactl subscribe 2>/dev/null | grep --line-buffered -m 1 "Event 'change' on sink " || sleep infinity ) &
+# 1. Volume
+pactl subscribe 2>/dev/null | grep --line-buffered -E "sink|server" > "$PIPE" &
 
-# 2. Network: Only trigger on actual connection/disconnection events
-( nmcli monitor 2>/dev/null | grep --line-buffered -m 1 -E "connected|disconnected" || sleep infinity ) &
+# 2. Network
+nmcli monitor 2>/dev/null | grep --line-buffered -E "connected|disconnected" > "$PIPE" &
 
-# 3. Bluetooth: Stop matching the header! Match actual string properties changing.
-( dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Device1'" 2>/dev/null | grep --line-buffered -m 1 "string " || sleep infinity ) &
+# 3. Bluetooth Device: Changed to "member=PropertiesChanged" to dodge the "NameAcquired" startup string
+dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Device1'" \
+    2>/dev/null | grep --line-buffered "member=PropertiesChanged" > "$PIPE" &
 
-# 4. Battery: Ignore minor voltage fluctuations, wait for actual percentage/state changes
-( udevadm monitor --subsystem-match=power_supply 2>/dev/null | grep --line-buffered -m 1 "BAT" || sleep infinity ) &
+# 4. Bluetooth Adapter: Changed to "member=PropertiesChanged" to dodge the "NameAcquired" startup string
+dbus-monitor --system "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Adapter1'" \
+    2>/dev/null | grep --line-buffered "member=PropertiesChanged" > "$PIPE" &
 
-# Failsafe: Force a silent UI refresh every 60 seconds
-sleep 60 &
+# 5. Battery: Changed to "change" to dodge the "monitor will print..." startup header
+udevadm monitor --subsystem-match=power_supply 2>/dev/null | grep --line-buffered "change" > "$PIPE" &
 
-# Wait for the *first* background job to successfully complete an event
-wait -n
+# 6. Keyboard Layout (Hyprland)
+if [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+    socat -U - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock 2>/dev/null \
+        | grep --line-buffered "activelayout>>" > "$PIPE" &
+fi
 
-# Output a signal to ensure Quickshell registers the stream completion
+# 7. Failsafe: force a refresh every 30 seconds
+(sleep 30 && echo "failsafe" > "$PIPE") &
+
+# Block the script here until the VERY FIRST line comes through the pipe
+read -r _ < "$PIPE"
+
+# Output the trigger. The script naturally exits, firing the cleanup trap.
 echo "trigger"

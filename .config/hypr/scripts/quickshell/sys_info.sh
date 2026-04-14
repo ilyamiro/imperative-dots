@@ -45,9 +45,17 @@ toggle_wifi() {
     fi
 }
 
-## BLUETOOTH (Wrapped in timeouts to prevent desktop hanging)
+## BLUETOOTH
 get_bt_status() {
-    if timeout 0.5 bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then 
+    # Fast native check via rfkill to avoid bluetoothctl timeout hangs
+    if command -v rfkill &>/dev/null; then
+        if rfkill list bluetooth 2>/dev/null | grep -q "Soft blocked: no"; then
+            echo "on"; return
+        else
+            echo "off"; return
+        fi
+    fi
+    if timeout 0.2 bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then 
         echo "on"
     else 
         echo "off"
@@ -56,7 +64,7 @@ get_bt_status() {
 
 get_bt_connected_device() {
     if [ "$(get_bt_status)" = "on" ]; then
-        local device=$(timeout 0.5 bluetoothctl devices Connected 2>/dev/null | head -n1 | cut -d' ' -f3-)
+        local device=$(timeout 0.2 bluetoothctl devices Connected 2>/dev/null | head -n1 | cut -d' ' -f3-)
         if [ -n "$device" ]; then
             echo "$device"
         else
@@ -69,7 +77,7 @@ get_bt_connected_device() {
 
 get_bt_icon() {
     if [ "$(get_bt_status)" = "on" ]; then
-        if timeout 0.5 bluetoothctl devices Connected 2>/dev/null | grep -q "^Device"; then 
+        if timeout 0.2 bluetoothctl devices Connected 2>/dev/null | grep -q "^Device"; then 
             echo "󰂱"
         else 
             echo "󰂯"
@@ -89,7 +97,7 @@ toggle_bt() {
     fi
 }
 
-## AUDIO (Bulletproof Pipewire Regex)
+## AUDIO
 get_volume() {
     local vol=""
     if command -v wpctl &> /dev/null; then 
@@ -164,7 +172,7 @@ get_battery_icon() {
     fi
 }
 
-## SYSTEM (Fallback to first indexed keyboard if 'main' isn't flagged)
+## SYSTEM
 get_kb_layout() {
     local layout=$(hyprctl devices -j 2>/dev/null | jq -r '(.keyboards[] | select(.main == true) | .active_keymap) // .keyboards[0].active_keymap // empty' | head -n1)
     [[ -z "$layout" || "$layout" == "null" ]] && layout="US"
@@ -177,26 +185,44 @@ case $1 in
     --bt-toggle) toggle_bt ;;
     --toggle-mute) toggle_mute ;;
     *)
-        jq -n -c \
-          --arg wifi_status "$(get_wifi_status)" \
-          --arg wifi_ssid "$(get_wifi_ssid)" \
-          --arg wifi_icon "$(get_wifi_icon)" \
-          --arg bt_status "$(get_bt_status)" \
-          --arg bt_icon "$(get_bt_icon)" \
-          --arg bt_connected "$(get_bt_connected_device)" \
-          --arg volume "$(get_volume)" \
-          --arg volume_icon "$(get_volume_icon)" \
-          --arg is_muted "$(is_muted)" \
-          --arg bat_percent "$(get_battery_percent)" \
-          --arg bat_status "$(get_battery_status)" \
-          --arg bat_icon "$(get_battery_icon)" \
-          --arg kb_layout "$(get_kb_layout)" \
-          '{
-             wifi: { status: $wifi_status, ssid: $wifi_ssid, icon: $wifi_icon },
-             bt: { status: $bt_status, icon: $bt_icon, connected: $bt_connected },
-             audio: { volume: $volume, icon: $volume_icon, is_muted: $is_muted },
-             battery: { percent: $bat_percent, status: $bat_status, icon: $bat_icon },
-             keyboard: { layout: $kb_layout }
-           }'
+        # Setup a temporary directory for parallel JSON dumps
+        tmp_dir=$(mktemp -d /tmp/qs_sys_info.XXXXXX)
+        trap 'rm -rf "$tmp_dir"' EXIT
+
+        # Execute data gathering for each module in strict parallel
+        ( jq -n -c \
+            --arg status "$(get_wifi_status)" \
+            --arg ssid "$(get_wifi_ssid)" \
+            --arg icon "$(get_wifi_icon)" \
+            '{wifi: {status: $status, ssid: $ssid, icon: $icon}}' > "$tmp_dir/wifi.json" ) &
+
+        ( jq -n -c \
+            --arg status "$(get_bt_status)" \
+            --arg icon "$(get_bt_icon)" \
+            --arg connected "$(get_bt_connected_device)" \
+            '{bt: {status: $status, icon: $icon, connected: $connected}}' > "$tmp_dir/bt.json" ) &
+
+        ( jq -n -c \
+            --arg volume "$(get_volume)" \
+            --arg icon "$(get_volume_icon)" \
+            --arg is_muted "$(is_muted)" \
+            '{audio: {volume: $volume, icon: $icon, is_muted: $is_muted}}' > "$tmp_dir/audio.json" ) &
+
+        ( jq -n -c \
+            --arg percent "$(get_battery_percent)" \
+            --arg status "$(get_battery_status)" \
+            --arg icon "$(get_battery_icon)" \
+            '{battery: {percent: $percent, status: $status, icon: $icon}}' > "$tmp_dir/battery.json" ) &
+
+        ( jq -n -c \
+            --arg layout "$(get_kb_layout)" \
+            '{keyboard: {layout: $layout}}' > "$tmp_dir/kb.json" ) &
+
+        # Wait for all background tasks to finish.
+        # Max latency is now bounded by the single slowest task, not the sum of all tasks.
+        wait
+
+        # Merge all partial JSON files into the master payload
+        jq -s 'add' "$tmp_dir"/*.json
     ;;
 esac

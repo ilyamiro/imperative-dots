@@ -7,7 +7,6 @@ import Quickshell.Wayland
 import Quickshell.Services.Notifications
 import "WindowRegistry.js" as Registry
 
-// Import the folder where the popup component lives
 import "notifications" as Notifs
 
 PanelWindow {
@@ -93,12 +92,14 @@ PanelWindow {
         imageSupported: true
 
         onNotification: (n) => {
-            console.log("🔔 DING! Saving to history:", n.appName, "-", n.summary);
+            console.log("Saving to history:", n.appName, "-", n.summary);
             
             let notifData = {
                 "appName": n.appName !== "" ? n.appName : "System",
                 "summary": n.summary !== "" ? n.summary : "No Title",
-                "body": n.body !== "" ? n.body : ""
+                "body": n.body !== "" ? n.body : "",
+                "iconPath": n.appIcon !== "" ? n.appIcon : "", // <-- ADDED: Save the -i parameter path
+                "notif": n
             };
 
             // A. Insert into the permanent center
@@ -109,8 +110,7 @@ PanelWindow {
             let popupData = Object.assign({ "uid": masterWindow._popupCounter }, notifData);
             activePopupsModel.append(popupData);
         }
-    }
-    
+    }    
     property var notifModel: globalNotificationHistory
     
     // --- INSTANTIATE THE POPUP OVERLAY ---

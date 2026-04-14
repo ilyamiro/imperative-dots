@@ -174,7 +174,27 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: masterWindow.removePopup(model.uid)
+                        
+                        onClicked: {
+                            // 1. Intercept custom scripts and open the FOLDER natively in QML
+                            if ((model.appName === "Screenshot" || model.appName === "Screen Recorder") && model.iconPath !== "") {
+                                // Extract the folder path by cutting off everything after the last '/'
+                                let folderPath = model.iconPath.substring(0, model.iconPath.lastIndexOf('/'))
+                                Quickshell.execDetached(["xdg-open", folderPath])
+                            } 
+                            // 2. Standard Freedesktop action for regular apps
+                            else {
+                                if (model.notif && typeof model.notif.invokeAction === "function") {
+                                    model.notif.invokeAction("default")
+                                }
+                            }
+
+                            // 3. Clean up and close
+                            if (model.notif && typeof model.notif.close === "function") {
+                                model.notif.close()
+                            }
+                            masterWindow.removePopup(model.uid)
+                        }
                         
                         Rectangle {
                             anchors.fill: parent
@@ -184,7 +204,6 @@ PanelWindow {
                             Behavior on opacity { NumberAnimation { duration: 250 } }
                         }
                     }
-
                     ColumnLayout {
                         id: contentCol
                         anchors.left: parent.left
@@ -258,4 +277,3 @@ PanelWindow {
         }
     }
 }
-
