@@ -1,3 +1,4 @@
+//@ pragma UseQApplication
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -965,11 +966,13 @@ Variants {
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                                         onClicked: mouse => {
                                             if (mouse.button === Qt.LeftButton) {
-                                                modelData.activate();
+                                                if (modelData.onlyMenu) {
+                                                    menuAnchor.open();
+                                                }
                                             } else if (mouse.button === Qt.MiddleButton) {
                                                 modelData.secondaryActivate();
                                             } else if (mouse.button === Qt.RightButton) {
-                                                if (modelData.menu) {
+                                                if (modelData.hasMenu) {
                                                     menuAnchor.open();
                                                 } else if (typeof modelData.contextMenu === "function") {
                                                     modelData.contextMenu(mouse.x, mouse.y);
