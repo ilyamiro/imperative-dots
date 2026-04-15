@@ -120,22 +120,6 @@ Variants {
                 }
             }
 
-            Process {
-                id: ethStatusPoller
-                running: barWindow.isDesktop
-                command: ["bash", "-c", "nmcli -t -f TYPE,STATE dev | grep 'ethernet' | grep -q 'connected' && echo 'Connected' || echo 'Disconnected'"]
-                stdout: StdioCollector {
-                    onStreamFinished: {
-                        let status = this.text.trim();
-                        if (status !== "") barWindow.ethStatus = status;
-                    }
-                }
-            }
-            Timer {
-                interval: 3000; running: barWindow.isDesktop; repeat: true
-                onTriggered: ethStatusPoller.running = true
-            }
-
             // Triggers layout animations immediately to feel fast
             property bool isStartupReady: false
             Timer { interval: 10; running: true; onTriggered: barWindow.isStartupReady = true }
@@ -145,7 +129,6 @@ Variants {
             Timer { interval: 1000; running: true; onTriggered: barWindow.startupCascadeFinished = true }
             
             // Data gating to prevent startup layout jumping
-            property bool sysPollerLoaded: false
             property bool fastPollerLoaded: false
             
             property bool isDataReady: fastPollerLoaded
@@ -322,54 +305,114 @@ Variants {
                     running = true;
                 }
             }
-            // Unified System Info ------------------------
+
+            // ==========================================
+            // MODULAR SYSTEM WATCHERS
+            // ==========================================
+
+            // --- KEYBOARD ---
             Process {
-                id: sysPoller
-                running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/sys_info.sh"]
+                id: kbPoller; running: true
+                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/kb_fetch.sh"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        let txt = this.text.trim();
+                        if (txt !== "" && barWindow.kbLayout !== txt) barWindow.kbLayout = txt;
+                        kbWaiter.running = true;
+                        barWindow.fastPollerLoaded = true; // Gating flag
+                    }
+                }
+            }
+            Process { id: kbWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/kb_wait.sh"]; onExited: kbPoller.running = true }
+
+            // --- AUDIO ---
+            Process {
+                id: audioPoller; running: true
+                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/audio_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
                         if (txt !== "") {
                             try {
                                 let data = JSON.parse(txt);
-                                
-                                if (barWindow.wifiStatus !== data.wifi.status) barWindow.wifiStatus = data.wifi.status;
-                                if (barWindow.wifiIcon !== data.wifi.icon) barWindow.wifiIcon = data.wifi.icon;
-                                if (barWindow.wifiSsid !== data.wifi.ssid) barWindow.wifiSsid = data.wifi.ssid;
-
-                                if (barWindow.btStatus !== data.bt.status) barWindow.btStatus = data.bt.status;
-                                if (barWindow.btIcon !== data.bt.icon) barWindow.btIcon = data.bt.icon;
-                                if (barWindow.btDevice !== data.bt.connected) barWindow.btDevice = data.bt.connected;
-
-                                let newVol = data.audio.volume.toString() + "%";
+                                let newVol = data.volume.toString() + "%";
                                 if (barWindow.volPercent !== newVol) barWindow.volPercent = newVol;
-                                if (barWindow.volIcon !== data.audio.icon) barWindow.volIcon = data.audio.icon;
-                                
-                                let newMuted = (data.audio.is_muted === "true");
+                                if (barWindow.volIcon !== data.icon) barWindow.volIcon = data.icon;
+                                let newMuted = (data.is_muted === "true");
                                 if (barWindow.isMuted !== newMuted) barWindow.isMuted = newMuted;
-
-                                let newBat = data.battery.percent.toString() + "%";
-                                if (barWindow.batPercent !== newBat) barWindow.batPercent = newBat;
-                                if (barWindow.batIcon !== data.battery.icon) barWindow.batIcon = data.battery.icon;
-                                if (barWindow.batStatus !== data.battery.status) barWindow.batStatus = data.battery.status;
-
-                                if (barWindow.kbLayout !== data.keyboard.layout) barWindow.kbLayout = data.keyboard.layout;
-
-                                barWindow.sysPollerLoaded = true;
-                                barWindow.fastPollerLoaded = true;
                             } catch(e) {}
                         }
-                        sysWaiter.running = true;
+                        audioWaiter.running = true;
                     }
                 }
             }
-            
+            Process { id: audioWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/audio_wait.sh"]; onExited: audioPoller.running = true }
+
+            // --- NETWORK ---
             Process {
-                id: sysWaiter
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/sys_waiter.sh"]
-                onExited: sysPoller.running = true 
-            }            
+                id: networkPoller; running: true
+                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/network_fetch.sh"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        let txt = this.text.trim();
+                        if (txt !== "") {
+                            try {
+                                let data = JSON.parse(txt);
+                                if (barWindow.wifiStatus !== data.status) barWindow.wifiStatus = data.status;
+                                if (barWindow.wifiIcon !== data.icon) barWindow.wifiIcon = data.icon;
+                                if (barWindow.wifiSsid !== data.ssid) barWindow.wifiSsid = data.ssid;
+                                if (barWindow.ethStatus !== data.eth_status) barWindow.ethStatus = data.eth_status;
+                            } catch(e) {}
+                        }
+                        networkWaiter.running = true;
+                    }
+                }
+            }
+	    Process { id: networkWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/network_wait.sh"]; onExited: networkPoller.running = true }
+
+            // --- BLUETOOTH ---
+            Process {
+                id: btPoller; running: true
+                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/bt_fetch.sh"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        let txt = this.text.trim();
+                        if (txt !== "") {
+                            try {
+                                let data = JSON.parse(txt);
+                                if (barWindow.btStatus !== data.status) barWindow.btStatus = data.status;
+                                if (barWindow.btIcon !== data.icon) barWindow.btIcon = data.icon;
+                                if (barWindow.btDevice !== data.connected) barWindow.btDevice = data.connected;
+                            } catch(e) {}
+                        }
+                        btWaiter.running = true;
+                    }
+                }
+            }
+            Process { id: btWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/bt_wait.sh"]; onExited: btPoller.running = true }
+
+            // --- BATTERY ---
+            Process {
+                id: batteryPoller; running: true
+                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/battery_fetch.sh"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        let txt = this.text.trim();
+                        if (txt !== "") {
+                            try {
+                                let data = JSON.parse(txt);
+                                let newBat = data.percent.toString() + "%";
+                                if (barWindow.batPercent !== newBat) barWindow.batPercent = newBat;
+                                if (barWindow.batIcon !== data.icon) barWindow.batIcon = data.icon;
+                                if (barWindow.batStatus !== data.status) barWindow.batStatus = data.status;
+                            } catch(e) {}
+                        }
+                        batteryWaiter.running = true;
+                    }
+                }
+            }
+            Process { id: batteryWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/battery_wait.sh"]; onExited: batteryPoller.running = true }
+
 
             Process {
                 id: weatherPoller
@@ -1033,7 +1076,7 @@ Variants {
                                     Text { 
                                         id: wifiText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.showEthernet ? barWindow.ethStatus : (barWindow.sysPollerLoaded ? (barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off") : "")
+                                        text: barWindow.showEthernet ? barWindow.ethStatus : ((barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"))
                                         visible: text !== ""
                                         font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black;
                                         color: barWindow.showEthernet ? (barWindow.ethStatus === "Connected" ? mocha.base : mocha.text) : (barWindow.isWifiOn ? mocha.base : mocha.text);
@@ -1084,7 +1127,7 @@ Variants {
                                     Text { 
                                         id: btText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.sysPollerLoaded ? barWindow.btDevice : ""
+                                        text: barWindow.btDevice
                                         visible: text !== ""; 
                                         font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
                                         color: barWindow.isBtOn ? mocha.base : mocha.text; 
@@ -1154,8 +1197,6 @@ Variants {
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: barWindow.s(10)
-                                    // Make the battery pill background always visible using the normal color 
-                                    // when discharging so it matches active states like Wifi/Volume without looking dimmed.
                                     opacity: 1.0 
                                     Behavior on opacity { NumberAnimation { duration: 300 } }
                                     gradient: Gradient {

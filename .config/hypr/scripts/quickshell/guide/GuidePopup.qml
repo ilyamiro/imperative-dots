@@ -175,20 +175,7 @@ Item {
             updateAvailable = compareVersions(dotsVersion, remoteVersion);
         }
     }
-     
-    Timer {
-        id: updateNotifyTimer
-        interval: 900000 // 15 minutes in milliseconds
-        running: root.updateAvailable
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            // Bash script checks a cache file for the last notification time (900 seconds = 15 mins).
-            // Uses notify-send with -t 60000 to keep the notification on screen for 60 seconds.
-            let cmd = "FILE=\"$HOME/.cache/qs_update_notified\"; NOW=$(date +%s); if [ -f \"$FILE\" ]; then LAST=$(cat \"$FILE\"); DIFF=$((NOW - LAST)); if [ $DIFF -lt 900 ]; then exit 0; fi; fi; echo $NOW > \"$FILE\"; notify-send -t 60000 -a 'Imperative Dots' -u normal 'Update Available' 'A new version is ready! Open the config guide to apply.'";
-            Quickshell.execDetached(["bash", "-c", cmd]);
-        }
-    }
+
 
     function saveAppSettings() {
         let config = {
