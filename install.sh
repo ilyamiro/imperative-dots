@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.4.0"
+DOTS_VERSION="1.4.1"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # Prevent the TTY/Console from falling asleep (black screen) during long package builds
