@@ -61,11 +61,15 @@ Item {
         event.accepted = true;
     }
     Keys.onTabPressed: {
-        currentTab = (currentTab + 1) % tabNames.length;
+        let next = (currentTab + 1) % tabNames.length;
+        if (next === 1) next = 2; // Skip Settings Tab visually
+        currentTab = next;
         event.accepted = true;
     }
     Keys.onBacktabPressed: {
-        currentTab = (currentTab - 1 + tabNames.length) % tabNames.length;
+        let prev = (currentTab - 1 + tabNames.length) % tabNames.length;
+        if (prev === 1) prev = 0; // Skip Settings Tab visually
+        currentTab = prev;
         event.accepted = true;
     }
     Keys.onLeftPressed: {
@@ -130,39 +134,11 @@ Item {
     property color ambientBlue: Qt.tint(root.blue, Qt.rgba(root.sapphire.r, root.sapphire.g, root.sapphire.b, colorBlend))
 
     // -------------------------------------------------------------------------
-    // SSOT GLOBAL SETTINGS & UPDATES
+    // GLOBALS
     // -------------------------------------------------------------------------
-    property real setUiScale: 1.0
-    property bool setOpenGuideAtStartup: true
-    property bool setTopbarHelpIcon: true
-    property string setWallpaperDir: {
-        const dir = Quickshell.env("WALLPAPER_DIR")
-        return (dir && dir !== "") 
-        ? dir 
-        : Quickshell.env("HOME") + "/Pictures/Wallpapers"
-    }
-    property string setLanguage: ""
-    property string setKbOptions: "grp:alt_shift_toggle"
     property string dotsVersion: "Loading..."
     property string remoteVersion: ""
     property bool updateAvailable: false
-
-    property var kbToggleModelArr: [
-        { label: "Alt + Shift", val: "grp:alt_shift_toggle" },
-        { label: "Win + Space", val: "grp:win_space_toggle" },
-        { label: "Caps Lock", val: "grp:caps_toggle" },
-        { label: "Ctrl + Shift", val: "grp:ctrl_shift_toggle" },
-        { label: "Ctrl + Alt", val: "grp:ctrl_alt_toggle" },
-        { label: "Right Alt", val: "grp:toggle" },
-        { label: "No Toggle", val: "" }
-    ]
-
-    function getKbToggleLabel(val) {
-        for (let i = 0; i < root.kbToggleModelArr.length; i++) {
-            if (root.kbToggleModelArr[i].val === val) return root.kbToggleModelArr[i].label;
-        }
-        return "Alt + Shift";
-    }
 
     onDotsVersionChanged: {
         if (remoteVersion !== "" && dotsVersion !== "Loading...") {
@@ -174,23 +150,6 @@ Item {
         if (remoteVersion !== "" && dotsVersion !== "Loading...") {
             updateAvailable = compareVersions(dotsVersion, remoteVersion);
         }
-    }
-
-
-    function saveAppSettings() {
-        let config = {
-            "uiScale": root.setUiScale,
-            "openGuideAtStartup": root.setOpenGuideAtStartup,
-            "topbarHelpIcon": root.setTopbarHelpIcon,
-            "wallpaperDir": root.setWallpaperDir,
-            "language": root.setLanguage,
-            "kbOptions": root.setKbOptions
-        };
-        let jsonString = JSON.stringify(config, null, 2);
-        
-        let cmd = "mkdir -p ~/.config/hypr/ && echo '" + jsonString + "' > ~/.config/hypr/settings.json && notify-send 'Quickshell' 'Settings Applied Successfully!'";
-                  
-        Quickshell.execDetached(["bash", "-c", cmd]);
     }
 
     Process {
@@ -213,45 +172,6 @@ Item {
             onStreamFinished: {
                 let out = this.text ? this.text.trim() : "";
                 if (out !== "") root.remoteVersion = out;
-            }
-        }
-    }
-
-    Process {
-        id: hyprLangReader
-        command: ["bash", "-c", "grep -m1 '^ *kb_layout *=' ~/.config/hypr/hyprland.conf | cut -d'=' -f2 | tr -d ' '"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let out = this.text ? this.text.trim() : "";
-                if (out.length > 0 && root.setLanguage === "") {
-                    root.setLanguage = out;
-                }
-            }
-        }
-    }
-
-    Process {
-        id: settingsReader
-        command: ["bash", "-c", "cat ~/.config/hypr/settings.json 2>/dev/null || echo '{}'"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    if (this.text && this.text.trim().length > 0 && this.text.trim() !== "{}") {
-                        let parsed = JSON.parse(this.text);
-                        if (parsed.uiScale !== undefined) root.setUiScale = parsed.uiScale;
-                        if (parsed.openGuideAtStartup !== undefined) root.setOpenGuideAtStartup = parsed.openGuideAtStartup;
-                        if (parsed.topbarHelpIcon !== undefined) root.setTopbarHelpIcon = parsed.topbarHelpIcon;
-                        if (parsed.wallpaperDir !== undefined) root.setWallpaperDir = parsed.wallpaperDir;
-                        if (parsed.language !== undefined && parsed.language !== "") root.setLanguage = parsed.language;
-                        if (parsed.kbOptions !== undefined) root.setKbOptions = parsed.kbOptions;
-                    } else {
-                        root.saveAppSettings();
-                    }
-                } catch (e) {
-                    console.log("Error parsing global settings:", e);
-                }
             }
         }
     }
@@ -380,6 +300,7 @@ Item {
             }
         }
     }
+
     // -------------------------------------------------------------------------
     // NETWORK SPEEDTEST PIPELINE
     // -------------------------------------------------------------------------
@@ -782,7 +703,13 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.currentTab = index 
+                            onClicked: {
+                                if (index === 1) { // 1 = Settings Tab
+                                    Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "toggle", "settings"]);
+                                } else {
+                                    root.currentTab = index;
+                                }
+                            } 
                         }
                     }
                 }
@@ -913,7 +840,10 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.s(20)
+                    anchors.topMargin: root.s(15) // Fixed offset matching the sidebar
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     spacing: root.s(20)
 
                     // ENHANCED DEVICE INFO BLOCK
@@ -1200,9 +1130,9 @@ Item {
                         
                         Repeater {
                             model: [ 
-                                { name: "Settings", icon: "", color: "mauve", targetTab: 1 }, 
-                                { name: "Resources", icon: "󰣖", color: "green", targetTab: 2 }, 
-                                { name: "Modules", icon: "󰣆", color: "blue", targetTab: 3 } 
+                                { name: "Settings", icon: "", color: "mauve", targetTab: 1, isToggle: true }, 
+                                { name: "Resources", icon: "󰣖", color: "green", targetTab: 2, isToggle: false }, 
+                                { name: "Modules", icon: "󰣆", color: "blue", targetTab: 3, isToggle: false } 
                             ]
                             
                             Rectangle {
@@ -1230,7 +1160,13 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.currentTab = modelData.targetTab 
+                                    onClicked: {
+                                        if (modelData.isToggle) {
+                                            Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "toggle", "settings"]);
+                                        } else {
+                                            root.currentTab = modelData.targetTab;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1306,794 +1242,6 @@ Item {
             }
 
             // ------------------------------------------
-            // TAB 1: SETTINGS (SSOT Implementation)
-            // ------------------------------------------
-            Item {
-                id: settingsTab
-                anchors.fill: parent
-                visible: root.currentTab === 1
-                opacity: visible ? 1.0 : 0.0
-                property real slideY: visible ? 0 : root.s(10)
-                
-                Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-                transform: Translate { y: slideY }
-                Behavior on opacity { NumberAnimation { duration: 250 } }
-
-                ListModel {
-                    id: langModel
-                    ListElement { code: "us"; name: "English (US)" }
-                    ListElement { code: "gb"; name: "English (UK)" }
-                    ListElement { code: "au"; name: "English (Australia)" }
-                    ListElement { code: "ca"; name: "English/French (Canada)" }
-                    ListElement { code: "ie"; name: "English (Ireland)" }
-                    ListElement { code: "nz"; name: "English (New Zealand)" }
-                    ListElement { code: "za"; name: "English (South Africa)" }
-                    ListElement { code: "fr"; name: "French" }
-                    ListElement { code: "be"; name: "Belgian" }
-                    ListElement { code: "ch"; name: "Swiss" }
-                    ListElement { code: "de"; name: "German" }
-                    ListElement { code: "at"; name: "Austrian" }
-                    ListElement { code: "nl"; name: "Dutch" }
-                    ListElement { code: "lu"; name: "Luxembourgish" }
-                    ListElement { code: "es"; name: "Spanish" }
-                    ListElement { code: "pt"; name: "Portuguese" }
-                    ListElement { code: "br"; name: "Portuguese (Brazil)" }
-                    ListElement { code: "it"; name: "Italian" }
-                    ListElement { code: "gr"; name: "Greek" }
-                    ListElement { code: "mt"; name: "Maltese" }
-                    ListElement { code: "se"; name: "Swedish" }
-                    ListElement { code: "no"; name: "Norwegian" }
-                    ListElement { code: "dk"; name: "Danish" }
-                    ListElement { code: "fi"; name: "Finnish" }
-                    ListElement { code: "is"; name: "Icelandic" }
-                    ListElement { code: "pl"; name: "Polish" }
-                    ListElement { code: "cz"; name: "Czech" }
-                    ListElement { code: "sk"; name: "Slovak" }
-                    ListElement { code: "hu"; name: "Hungarian" }
-                    ListElement { code: "ro"; name: "Romanian" }
-                    ListElement { code: "bg"; name: "Bulgarian" }
-                    ListElement { code: "ru"; name: "Russian" }
-                    ListElement { code: "ua"; name: "Ukrainian" }
-                    ListElement { code: "by"; name: "Belarusian" }
-                    ListElement { code: "rs"; name: "Serbian" }
-                    ListElement { code: "hr"; name: "Croatian" }
-                    ListElement { code: "si"; name: "Slovenian" }
-                    ListElement { code: "mk"; name: "Macedonian" }
-                    ListElement { code: "ba"; name: "Bosnian" }
-                    ListElement { code: "me"; name: "Montenegrin" }
-                    ListElement { code: "lt"; name: "Lithuanian" }
-                    ListElement { code: "lv"; name: "Latvian" }
-                    ListElement { code: "ee"; name: "Estonian" }
-                    ListElement { code: "am"; name: "Armenian" }
-                    ListElement { code: "ge"; name: "Georgian" }
-                    ListElement { code: "kz"; name: "Kazakh" }
-                    ListElement { code: "kg"; name: "Kyrgyz" }
-                    ListElement { code: "tj"; name: "Tajik" }
-                    ListElement { code: "tm"; name: "Turkmen" }
-                    ListElement { code: "uz"; name: "Uzbek" }
-                    ListElement { code: "mn"; name: "Mongolian" }
-                    ListElement { code: "il"; name: "Hebrew" }
-                    ListElement { code: "ara"; name: "Arabic" }
-                    ListElement { code: "ir"; name: "Persian (Farsi)" }
-                    ListElement { code: "iq"; name: "Iraqi" }
-                    ListElement { code: "sy"; name: "Syrian" }
-                    ListElement { code: "in"; name: "Indian" }
-                    ListElement { code: "pk"; name: "Pakistani" }
-                    ListElement { code: "bd"; name: "Bangla" }
-                    ListElement { code: "th"; name: "Thai" }
-                    ListElement { code: "vn"; name: "Vietnamese" }
-                    ListElement { code: "la"; name: "Lao" }
-                    ListElement { code: "mm"; name: "Burmese" }
-                    ListElement { code: "kh"; name: "Khmer" }
-                    ListElement { code: "cn"; name: "Chinese" }
-                    ListElement { code: "jp"; name: "Japanese" }
-                    ListElement { code: "kr"; name: "Korean" }
-                    ListElement { code: "tw"; name: "Taiwanese" }
-                    ListElement { code: "ng"; name: "Nigerian" }
-                    ListElement { code: "ma"; name: "Moroccan" }
-                    ListElement { code: "dz"; name: "Algerian" }
-                    ListElement { code: "et"; name: "Ethiopian" }
-                    ListElement { code: "latam"; name: "Spanish (Latin America)" }
-                    ListElement { code: "al"; name: "Albanian" }
-                    ListElement { code: "fo"; name: "Faroese" }
-                }
-
-                ListModel { id: pathSuggestModel }
-                ListModel { id: langSearchModel }
-
-                function updateLangSearch(query) {
-                    langSearchModel.clear();
-                    let q = query.trim().toLowerCase();
-                    if (q === "") return;
-                    for (let i = 0; i < langModel.count; i++) {
-                        let item = langModel.get(i);
-                        if (item.code.toLowerCase().includes(q) || item.name.toLowerCase().includes(q)) {
-                            langSearchModel.append({ code: item.code, name: item.name });
-                        }
-                    }
-                }
-
-                Process {
-                    id: pathSuggestProc
-                    property string query: ""
-                    command: ["bash", "-c", "eval ls -dp " + query + "* 2>/dev/null | grep '/$' | head -n 5 || true"]
-                    stdout: StdioCollector {
-                        onStreamFinished: {
-                            pathSuggestModel.clear();
-                            if (this.text) {
-                                let lines = this.text.trim().split('\n');
-                                for (let i = 0; i < lines.length; i++) {
-                                    if (lines[i].length > 0) {
-                                        pathSuggestModel.append({ path: lines[i] });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ColumnLayout {
-                    id: settingsMainCol
-                    anchors.fill: parent
-                    anchors.margins: root.s(20)
-                    spacing: root.s(15)
-
-                    property real iconColWidth: root.s(32)
-                    property real controlColWidth: root.s(240)
-
-                    // --- HEADER & APPLY BUTTON ---
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text { 
-                            text: "Settings"
-                            font.family: "JetBrains Mono"
-                            font.weight: Font.Black
-                            font.pixelSize: root.s(28)
-                            color: root.text
-                            Layout.alignment: Qt.AlignVCenter 
-                        }
-                        
-                        Item { Layout.fillWidth: true } 
-
-                        Rectangle {
-                            Layout.preferredWidth: root.s(110)
-                            Layout.preferredHeight: root.s(44)
-                            radius: root.s(22)
-                            color: mainSaveMa.containsMouse ? Qt.alpha(root.green, 0.9) : Qt.alpha(root.green, 0.7)
-                            border.color: root.green
-                            border.width: 1
-                            scale: mainSaveMa.pressed ? 0.95 : (mainSaveMa.containsMouse ? 1.05 : 1.0)
-                            
-                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            RowLayout {
-                                anchors.centerIn: parent
-                                spacing: root.s(8)
-                                Text { text: "󰆓"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.base }
-                                Text { text: "APPLY"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(14); color: root.base }
-                            }
-                            
-                            MouseArea { 
-                                id: mainSaveMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.saveAppSettings() 
-                            }
-                        }
-                    }
-
-                    // --- SETTINGS LIST (VISUAL BOXES) ---
-                    
-                    // Setting Box 1: Startup & Topbar Icon
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: root.s(121)
-                        radius: root.s(8)
-                        color: Qt.alpha(root.surface0, 0.4)
-                        border.color: root.surface1
-                        border.width: 1
-                        
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 0
-                            
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.s(60)
-                                
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: root.s(15)
-                                    spacing: root.s(20)
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.iconColWidth
-                                        Layout.alignment: Qt.AlignVCenter
-                                        Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.peach }
-                                    }
-                                    
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: root.s(4)
-                                        Text { text: "Open guide at startup"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                                        Text { text: "Automatically launch this configuration guide when logging in."; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; elide: Text.ElideRight; Layout.fillWidth: true }
-                                    }
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.controlColWidth
-                                        Layout.fillHeight: true
-                                        
-                                        Rectangle {
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: root.s(46)
-                                            height: root.s(26)
-                                            radius: root.s(13)
-                                            color: root.setOpenGuideAtStartup ? root.peach : root.surface2
-                                            
-                                            Behavior on color { ColorAnimation { duration: 200 } }
-                                            
-                                            Rectangle {
-                                                width: root.s(20)
-                                                height: root.s(20)
-                                                radius: root.s(10)
-                                                color: root.base
-                                                y: root.s(3)
-                                                x: root.setOpenGuideAtStartup ? root.s(23) : root.s(3)
-                                                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                            }
-                                            
-                                            MouseArea { 
-                                                anchors.fill: parent
-                                                onClicked: root.setOpenGuideAtStartup = !root.setOpenGuideAtStartup
-                                                cursorShape: Qt.PointingHandCursor 
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.surface1, 0.5) }
-
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.s(60)
-                                
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: root.s(15)
-                                    spacing: root.s(20)
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.iconColWidth
-                                        Layout.alignment: Qt.AlignVCenter
-                                        Text { anchors.centerIn: parent; text: "󰋖"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.blue }
-                                    }
-                                    
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: root.s(4)
-                                        Text { text: "Show a help icon button on the very left of the topbar to toggle a guide popup"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                                    }
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.controlColWidth
-                                        Layout.fillHeight: true
-                                        
-                                        Rectangle {
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: root.s(46)
-                                            height: root.s(26)
-                                            radius: root.s(13)
-                                            color: root.setTopbarHelpIcon ? root.peach : root.surface2
-                                            
-                                            Behavior on color { ColorAnimation { duration: 200 } }
-                                            
-                                            Rectangle {
-                                                width: root.s(20)
-                                                height: root.s(20)
-                                                radius: root.s(10)
-                                                color: root.base
-                                                y: root.s(3)
-                                                x: root.setTopbarHelpIcon ? root.s(23) : root.s(3)
-                                                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                            }
-                                            
-                                            MouseArea { 
-                                                anchors.fill: parent
-                                                onClicked: root.setTopbarHelpIcon = !root.setTopbarHelpIcon
-                                                cursorShape: Qt.PointingHandCursor 
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Setting Box 2: UI Scale
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: root.s(60)
-                        radius: root.s(8)
-                        color: Qt.alpha(root.surface0, 0.4)
-                        border.color: root.surface1
-                        border.width: 1
-                        
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: root.s(15)
-                            spacing: root.s(20)
-                            
-                            Item {
-                                Layout.preferredWidth: settingsMainCol.iconColWidth
-                                Layout.alignment: Qt.AlignVCenter
-                                Text { anchors.centerIn: parent; text: "󰁦"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.blue }
-                            }
-                            
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: root.s(4)
-                                Text { text: "Global UI scale factor"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                                Text { text: "Adjust the base sizing scalar for all quickshell components."; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; elide: Text.ElideRight; Layout.fillWidth: true }
-                            }
-                            
-                            Item {
-                                Layout.preferredWidth: settingsMainCol.controlColWidth
-                                Layout.fillHeight: true
-                                
-                                RowLayout {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    spacing: root.s(10)
-                                    
-                                    Rectangle {
-                                        width: root.s(30)
-                                        height: root.s(30)
-                                        radius: root.s(6)
-                                        color: sMinusMa.pressed ? root.surface2 : root.surface1
-                                        Text { anchors.centerIn: parent; text: "-"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(14); color: root.text }
-                                        MouseArea { id: sMinusMa; anchors.fill: parent; onClicked: root.setUiScale = Math.max(0.5, (root.setUiScale - 0.1).toFixed(1)) }
-                                    }
-                                    
-                                    Text { 
-                                        text: root.setUiScale.toFixed(1) + "x"
-                                        font.family: "JetBrains Mono"
-                                        font.weight: Font.Black
-                                        font.pixelSize: root.s(14)
-                                        color: root.text
-                                        Layout.minimumWidth: root.s(40)
-                                        horizontalAlignment: Text.AlignHCenter 
-                                    }
-                                    
-                                    Rectangle {
-                                        width: root.s(30)
-                                        height: root.s(30)
-                                        radius: root.s(6)
-                                        color: sPlusMa.pressed ? root.surface2 : root.surface1
-                                        Text { anchors.centerIn: parent; text: "+"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(14); color: root.text }
-                                        MouseArea { id: sPlusMa; anchors.fill: parent; onClicked: root.setUiScale = Math.min(2.0, (root.setUiScale + 0.1).toFixed(1)) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Setting Box 3: Keyboard Language & Switcher
-                    Rectangle {
-                        z: 10
-                        Layout.fillWidth: true
-                        implicitHeight: kbCol.implicitHeight
-                        radius: root.s(8)
-                        color: Qt.alpha(root.surface0, 0.4)
-                        border.color: root.surface1
-                        border.width: 1
-                        
-                        ColumnLayout {
-                            id: kbCol
-                            anchors.fill: parent
-                            spacing: 0
-                            
-                            // --- Part 1: Language ---
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: langBoxContent.implicitHeight + root.s(30)
-
-                                RowLayout {
-                                    id: langBoxContent
-                                    anchors.top: parent.top
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.margins: root.s(15)
-                                    spacing: root.s(20)
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.iconColWidth
-                                        Layout.alignment: Qt.AlignTop
-                                        Layout.topMargin: root.s(5)
-                                        Text { anchors.centerIn: parent; text: "󰌌"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.green }
-                                    }
-                                    
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignTop
-                                        spacing: root.s(4)
-                                        Text { text: "System keyboard layouts"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                                        Text { text: "Active layouts matched directly to hyprland.conf. Click ✖ to remove."; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                                        
-                                        Flow {
-                                            Layout.fillWidth: true
-                                            spacing: root.s(8)
-                                            Layout.topMargin: root.s(5)
-                                            
-                                            Repeater {
-                                                model: root.setLanguage ? root.setLanguage.split(",").filter(x => x.trim() !== "") : []
-                                                
-                                                Rectangle {
-                                                    width: langChipLayout.implicitWidth + root.s(24)
-                                                    height: root.s(30)
-                                                    radius: root.s(15)
-                                                    color: root.surface1
-                                                    border.color: root.surface2
-                                                    border.width: 1
-                                                    
-                                                    RowLayout {
-                                                        id: langChipLayout
-                                                        anchors.centerIn: parent
-                                                        spacing: root.s(8)
-                                                        
-                                                        Text { 
-                                                            text: modelData
-                                                            font.family: "JetBrains Mono"
-                                                            font.weight: Font.Bold
-                                                            font.pixelSize: root.s(13)
-                                                            color: root.text 
-                                                        }
-                                                        
-                                                        Text { 
-                                                            text: "✖"
-                                                            font.family: "JetBrains Mono"
-                                                            font.pixelSize: root.s(14)
-                                                            color: chipMa.containsMouse ? root.red : root.subtext0
-                                                            Behavior on color { ColorAnimation { duration: 150 } } 
-                                                        }
-                                                    }
-                                                    
-                                                    MouseArea {
-                                                        id: chipMa
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            let arr = root.setLanguage.split(",").filter(x => x.trim() !== "");
-                                                            arr.splice(index, 1);
-                                                            root.setLanguage = arr.join(",");
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.controlColWidth
-                                        Layout.fillHeight: true
-                                        Layout.alignment: Qt.AlignTop
-                                        
-                                        Rectangle {
-                                            anchors.top: parent.top
-                                            anchors.right: parent.right
-                                            anchors.topMargin: root.s(5)
-                                            width: parent.width
-                                            height: root.s(32)
-                                            radius: root.s(6)
-                                            color: root.surface0
-                                            border.color: langInput.activeFocus ? root.green : root.surface2
-                                            border.width: 1
-                                            
-                                            TextInput {
-                                                id: langInput
-                                                anchors.fill: parent
-                                                anchors.margins: root.s(8)
-                                                verticalAlignment: TextInput.AlignVCenter
-                                                font.family: "JetBrains Mono"
-                                                font.pixelSize: root.s(12)
-                                                color: root.text
-                                                clip: true
-                                                selectByMouse: true
-                                                onTextChanged: { settingsTab.updateLangSearch(text); }
-                                                Text { text: "Search to add..."; color: root.subtext0; visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter }
-                                            }
-                                            
-                                            Rectangle {
-                                                width: parent.width
-                                                height: Math.min(root.s(150), langSearchModel.count * root.s(30))
-                                                y: parent.height + root.s(4)
-                                                radius: root.s(6)
-                                                color: root.surface0
-                                                border.color: root.green
-                                                border.width: 1
-                                                visible: langInput.activeFocus && langSearchModel.count > 0 && langInput.text.trim() !== ""
-                                                clip: true
-                                                
-                                                ListView {
-                                                    anchors.fill: parent
-                                                    model: langSearchModel
-                                                    interactive: true
-                                                    ScrollBar.vertical: ScrollBar { active: true; policy: ScrollBar.AsNeeded }
-                                                    delegate: Rectangle {
-                                                        width: parent.width
-                                                        height: root.s(30)
-                                                        color: sMa.containsMouse ? root.surface2 : "transparent"
-                                                        RowLayout {
-                                                            anchors.fill: parent
-                                                            anchors.leftMargin: root.s(10)
-                                                            anchors.rightMargin: root.s(10)
-                                                            spacing: root.s(8)
-                                                            Text { text: model.code; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(12); color: root.text }
-                                                            Text { text: model.name; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; elide: Text.ElideRight; Layout.fillWidth: true }
-                                                        }
-                                                        MouseArea {
-                                                            id: sMa
-                                                            anchors.fill: parent
-                                                            hoverEnabled: true
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            onClicked: {
-                                                                let arr = root.setLanguage ? root.setLanguage.split(",").filter(x => x.trim() !== "") : [];
-                                                                if (!arr.includes(model.code)) {
-                                                                    arr.push(model.code);
-                                                                    root.setLanguage = arr.join(",");
-                                                                }
-                                                                langInput.text = "";
-                                                                langInput.focus = false;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.surface1, 0.5) }
-
-                            // --- Part 2: Layout Switcher ---
-                            Item {
-                                id: layoutSwitcherBox
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.s(60)
-                                property bool isDropdownOpen: false
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: root.s(15)
-                                    spacing: root.s(20)
-
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.iconColWidth
-                                        Layout.alignment: Qt.AlignVCenter
-                                        Text { anchors.centerIn: parent; text: "󰌌"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.green }
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        spacing: root.s(4)
-                                        Text { text: "Layout switcher shortcut"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                                        Text { text: "Choose a key combination to switch between layouts."; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                                    }
-
-                                    Item {
-                                        Layout.preferredWidth: settingsMainCol.controlColWidth
-                                        Layout.fillHeight: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        
-                                        Rectangle {
-                                            id: kbToggleSelector
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width
-                                            height: root.s(32)
-                                            radius: root.s(6)
-                                            color: root.surface0
-                                            border.color: layoutSwitcherBox.isDropdownOpen ? root.green : root.surface2
-                                            border.width: 1
-                                            
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.margins: root.s(8)
-                                                Text { 
-                                                    text: root.getKbToggleLabel(root.setKbOptions)
-                                                    font.family: "JetBrains Mono"
-                                                    font.pixelSize: root.s(12)
-                                                    color: root.text
-                                                    Layout.fillWidth: true 
-                                                }
-                                                Text { 
-                                                    text: layoutSwitcherBox.isDropdownOpen ? "▴" : "▾"
-                                                    font.pixelSize: root.s(14)
-                                                    color: root.subtext0 
-                                                }
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: layoutSwitcherBox.isDropdownOpen = !layoutSwitcherBox.isDropdownOpen
-                                            }
-
-                                            Rectangle {
-                                                width: parent.width
-                                                height: root.kbToggleModelArr.length * root.s(30)
-                                                y: parent.height + root.s(4)
-                                                radius: root.s(6)
-                                                color: root.surface0
-                                                border.color: root.green
-                                                border.width: 1
-                                                visible: layoutSwitcherBox.isDropdownOpen
-                                                clip: true
-
-                                                ListView {
-                                                    anchors.fill: parent
-                                                    model: root.kbToggleModelArr
-                                                    interactive: false
-                                                    delegate: Rectangle {
-                                                        width: parent.width
-                                                        height: root.s(30)
-                                                        color: toggleMa.containsMouse ? root.surface2 : "transparent"
-                                                        RowLayout {
-                                                            anchors.fill: parent
-                                                            anchors.leftMargin: root.s(10)
-                                                            anchors.rightMargin: root.s(10)
-                                                            Text { 
-                                                                text: modelData.label
-                                                                font.family: "JetBrains Mono"
-                                                                font.pixelSize: root.s(11)
-                                                                color: root.setKbOptions === modelData.val ? root.green : root.text
-                                                                Layout.fillWidth: true 
-                                                            }
-                                                        }
-                                                        MouseArea {
-                                                            id: toggleMa
-                                                            anchors.fill: parent
-                                                            hoverEnabled: true
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            onClicked: {
-                                                                root.setKbOptions = modelData.val;
-                                                                layoutSwitcherBox.isDropdownOpen = false;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Setting Box 4: Wallpaper Directory
-                    Rectangle {
-                        z: 5 
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: root.s(60)
-                        radius: root.s(8)
-                        color: Qt.alpha(root.surface0, 0.4)
-                        border.color: wpDirInput.activeFocus ? root.mauve : root.surface1
-                        border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: root.s(15)
-                            spacing: root.s(20)
-                            
-                            Item {
-                                Layout.preferredWidth: settingsMainCol.iconColWidth
-                                Layout.alignment: Qt.AlignVCenter
-                                Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(20); color: root.mauve }
-                            }
-                            
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: root.s(4)
-                                Text { text: "Wallpaper directory"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                                Text { text: "Set source path for the background engine. Use absolute paths."; font.family: "JetBrains Mono"; font.pixelSize: root.s(11); color: root.subtext0; elide: Text.ElideRight; Layout.fillWidth: true }
-                            }
-                            
-                            Item {
-                                Layout.preferredWidth: settingsMainCol.controlColWidth
-                                Layout.fillHeight: true
-                                
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width
-                                    height: root.s(32)
-                                    radius: root.s(6)
-                                    color: root.surface0
-                                    border.color: root.surface2
-                                    border.width: 1
-                                    
-                                    TextInput {
-                                        id: wpDirInput
-                                        anchors.fill: parent
-                                        anchors.margins: root.s(8)
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        text: root.setWallpaperDir
-                                        font.family: "JetBrains Mono"
-                                        font.pixelSize: root.s(12)
-                                        color: root.text
-                                        clip: true
-                                        selectByMouse: true
-                                        onTextChanged: { 
-                                            root.setWallpaperDir = text; 
-                                            if (activeFocus) { 
-                                                pathSuggestProc.query = text; 
-                                                pathSuggestProc.running = false; 
-                                                pathSuggestProc.running = true; 
-                                            } 
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        width: parent.width
-                                        height: pathSuggestModel.count * root.s(28)
-                                        y: parent.height + root.s(4)
-                                        radius: root.s(6)
-                                        color: root.surface0
-                                        border.color: root.mauve
-                                        border.width: 1
-                                        visible: pathSuggestModel.count > 0 && wpDirInput.activeFocus
-                                        clip: true
-                                        
-                                        ListView {
-                                            anchors.fill: parent
-                                            model: pathSuggestModel
-                                            interactive: false
-                                            delegate: Rectangle {
-                                                width: parent.width
-                                                height: root.s(28)
-                                                color: suggestMa.containsMouse ? root.surface2 : "transparent"
-                                                Text { 
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    x: root.s(8)
-                                                    text: model.path
-                                                    font.family: "JetBrains Mono"
-                                                    font.pixelSize: root.s(11)
-                                                    color: root.text
-                                                    elide: Text.ElideMiddle
-                                                    width: parent.width - root.s(16) 
-                                                }
-                                                MouseArea {
-                                                    id: suggestMa
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { 
-                                                        wpDirInput.text = model.path; 
-                                                        pathSuggestModel.clear(); 
-                                                        wpDirInput.focus = false; 
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Item { Layout.fillHeight: true }
-                }
-            }
-
-            // ------------------------------------------
             // TAB 2: RESOURCES 
             // ------------------------------------------
             Item {
@@ -2108,6 +1256,10 @@ Item {
 
                 ScrollView {
                     anchors.fill: parent
+                    anchors.topMargin: root.s(15) // Applied safely to ScrollView, preventing crash!
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     contentWidth: availableWidth
                     clip: true
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -2479,7 +1631,6 @@ Item {
                             }
                         }
                     }
-                    Item { Layout.fillHeight: true }
                 }
             }
 
@@ -2498,7 +1649,10 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.s(20)
+                    anchors.topMargin: root.s(15)
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     spacing: root.s(20)
 
                     RowLayout {
@@ -2689,7 +1843,10 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.s(20)
+                    anchors.topMargin: root.s(15)
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     spacing: root.s(20)
 
                     Text { text: "Navigation & Control"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(28); color: root.text; Layout.alignment: Qt.AlignVCenter }
@@ -2839,7 +1996,10 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.s(20)
+                    anchors.topMargin: root.s(15)
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     spacing: root.s(20)
 
                     Text { text: "Theming Engine"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(28); color: root.text; Layout.alignment: Qt.AlignVCenter }
@@ -3067,16 +2227,16 @@ Item {
                 property string selectedUnit: "metric"
                 property bool apiKeyVisible: false
 
-        function saveWeatherConfig() {
-            var cache_weather = Quickshell.env("HOME") + "/.cache/quickshell/weather";
+                function saveWeatherConfig() {
+                    var cache_weather = Quickshell.env("HOME") + "/.cache/quickshell/weather";
                     var file = Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/calendar/.env";
                     var cmds = [
                         "mkdir -p $(dirname " + file + ")",
                         "echo '# OpenWeather API Configuration (OVERWRITE, not add)' > " + file,
                         "echo 'OPENWEATHER_KEY=" + apiKeyInput.text + "' >> " + file,
                         "echo 'OPENWEATHER_CITY_ID=" + cityIdInput.text + "' >> " + file,
-            "echo 'OPENWEATHER_UNIT=" + weatherTab.selectedUnit + "' >> " + file,
-            "rm -r " + cache_weather,
+                        "echo 'OPENWEATHER_UNIT=" + weatherTab.selectedUnit + "' >> " + file,
+                        "rm -r " + cache_weather,
                         "notify-send 'Weather' 'API configuration saved successfully!'"
                     ];
                     var finalCmd = cmds.join(" && ");
@@ -3085,7 +2245,10 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.s(20)
+                    anchors.topMargin: root.s(15)
+                    anchors.leftMargin: root.s(20)
+                    anchors.rightMargin: root.s(20)
+                    anchors.bottomMargin: root.s(20)
                     spacing: root.s(15)
 
                     Text { text: "Weather Configuration"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(28); color: root.text; Layout.alignment: Qt.AlignVCenter }

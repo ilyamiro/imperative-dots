@@ -642,6 +642,32 @@ Variants {
                         }
                     }
 
+                    // --- NEW: Settings Button ---
+                    Rectangle {
+                        property bool isHovered: settingsMouse.containsMouse
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.95) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                        radius: barWindow.s(14); border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, isHovered ? 0.15 : 0.05)
+                        Layout.preferredHeight: parent.moduleHeight; Layout.preferredWidth: barWindow.barHeight
+                        
+                        scale: isHovered ? 1.05 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        
+                        Text {
+                            anchors.centerIn: parent
+                            text: ""
+                            font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(24)
+                            color: parent.isHovered ? mocha.blue : mocha.text
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                        }
+                        MouseArea {
+                            id: settingsMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle settings"])
+                        }
+                    }
+
                     // --- NEW: Update Button ---
                     Rectangle {
                         id: updateButton
@@ -1033,16 +1059,22 @@ Variants {
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                                         onClicked: mouse => {
                                             if (mouse.button === Qt.LeftButton) {
-                                                if (modelData.onlyMenu) {
+                                                if (modelData.isMenuOnly || modelData.onlyMenu) {
                                                     menuAnchor.open();
+                                                } else if (typeof modelData.activate === "function") {
+                                                    modelData.activate(); // PROPERLY TRIGGERS APP OPEN
                                                 }
                                             } else if (mouse.button === Qt.MiddleButton) {
-                                                modelData.secondaryActivate();
+                                                if (typeof modelData.secondaryActivate === "function") {
+                                                    modelData.secondaryActivate();
+                                                }
                                             } else if (mouse.button === Qt.RightButton) {
-                                                if (modelData.hasMenu) {
+                                                if (modelData.menu) { // EXPLICIT DBUS MENU CHECK
                                                     menuAnchor.open();
                                                 } else if (typeof modelData.contextMenu === "function") {
                                                     modelData.contextMenu(mouse.x, mouse.y);
+                                                } else {
+                                                    modelData.activate(); // Fallback
                                                 }
                                             }
                                         }
