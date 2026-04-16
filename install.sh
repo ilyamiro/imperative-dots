@@ -94,7 +94,7 @@ ARCH_PKGS=(
     "pavucontrol" "alsa-utils" "awww" "networkmanager-dmenu-git"
     "wl-clipboard" "fd" "qt6-multimedia" "qt6-5compat" "ripgrep"
     "cliphist" "jq" "socat" "inotify-tools" "pamixer" "brightnessctl" "acpi" "iw"
-    "bluez" "bluez-utils" "libnotify" "networkmanager" "lm_sensors" "bc" 
+    "bluez" "bluez-utils" "blueman" "libnotify" "networkmanager" "lm_sensors" "bc"
     "pipewire" "wireplumber" "pipewire-pulse" "pipewire-alsa" "pipewire-jack" "libpulse" "python"
     "imagemagick" "wget" "file" "git" "psmisc"
     "matugen-bin" "ffmpeg" "fastfetch" "quickshell-git" "unzip" "python-websockets" "qt6-websockets"
