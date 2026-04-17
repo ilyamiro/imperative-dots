@@ -4,22 +4,22 @@
 # Init Script
 # ==============================================================================
 
-APP_NAME="TRANQUILAND"
-TEMPORAL=$(mktemp -d)
+#APP_NAME="TRANQUILAND"
+#TEMPORAL=$(mktemp -d)
 
-echo "Iniciando $APP_NAME..."
-git clone https://github.com/Duban-sg/tranquiland-dots.git $TEMPORAL
-cd $TEMPORAL
+#echo "Iniciando $APP_NAME..."
+#git clone https://github.com/Duban-sg/tranquiland-dots.git $TEMPORAL
+#cd $TEMPORAL
 
 # ==============================================================================
 # clean temporals 
 # ==============================================================================
 
-limpiar() {
-  echo "Eliminando archivos temporales..."
-  rm -rf "$TEMPORAL"
-}
-trap limpiar EXIT
+#limpiar() {
+#  echo "Eliminando archivos temporales..."
+#  rm -rf "$TEMPORAL"
+#}
+#trap limpiar EXIT
 
 
 # ==============================================================================
@@ -36,15 +36,8 @@ source ./modules/show_overview.sh
 source ./modules/install_modules/install_process.sh
 
 
-# ==============================================================================
-# Menu 
-# ==============================================================================
-
-clear
-while true; do
-    draw_header
-    
-    # Progress checkmarks for submenus
+menu_full_install(){
+        # Progress checkmarks for submenus
     S_PKG=$( [ "$VISITED_PKGS" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_OVW=$( [ "$VISITED_OVERVIEW" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_WTH=$( [ "$VISITED_WEATHER" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
@@ -71,7 +64,7 @@ while true; do
         --border=rounded \
         --margin=1,2 \
         --height=16 \
-        --prompt=" Main Menu > " \
+        --prompt=" Menu full install > " \
         --pointer=">" \
         --header=" Navigate with ARROWS. Select with ENTER. ")
 
@@ -88,10 +81,44 @@ while true; do
                 continue
             fi
             prompt_optional_features
-            init_install
+            init_full_install
             break 
             ;;
-        *"7"*) clear; exit 0 ;;
+        *"7"*) break ;;
+        *) break ;;
+    esac
+}
+
+
+# ==============================================================================
+# Menu 
+# ==============================================================================
+
+clear
+while true; do
+    draw_header
+    MENU_ITEMS="1. ${C_GREEN}Full Install${RESET} [Install packages and .configs]\n"
+    MENU_ITEMS+="2. ${C_CYAN}Install Only Config${RESET} [Install .configs]\n"
+    MENU_ITEMS+="3. ${DIM}Exit${RESET}"
+
+    OPTION_INSTALL=$(echo -e "$MENU_ITEMS" | fzf \
+        --ansi \
+        --layout=reverse \
+        --border=rounded \
+        --margin=1,2 \
+        --height=16 \
+        --prompt=" Main Menu > " \
+        --pointer=">" \
+        --header=" Navigate with ARROWS. Select with ENTER. ")
+
+
+    case "$OPTION_INSTALL" in
+        *"1"*) menu_full_install ;;
+        *"2"*) 
+            init_install_theme_and_config 
+            break
+            ;;
+        *"3"*) clear; exit 0 ;;
         *) exit 0 ;;
     esac
 done

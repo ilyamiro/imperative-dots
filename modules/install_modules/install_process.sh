@@ -106,7 +106,7 @@ EOF
 # ==============================================================================
 # Installation Process
 # ==============================================================================
-init_install() {
+init_full_install() {
 
     TOTAL_STEPS=11
 
@@ -157,6 +157,28 @@ init_install() {
 
     # --- 9. Final Output ---
     show_progress 11 $TOTAL_STEPS
+    finish_display
+
+}
+
+# ==============================================================================
+# Installation Process
+# ==============================================================================
+init_install_theme_and_config() {
+
+    TOTAL_STEPS=2
+
+    init_display
+
+    show_progress 1 $TOTAL_STEPS
+    # Pre-authenticate sudo to prevent password prompts from breaking during piped commands
+    echo -e "${C_CYAN}[ INFO ]${RESET} Requesting sudo privileges for installation..."
+    sudo -v
+
+    # --- 2. Copying Dotfiles & Backups ---
+    show_progress 2 $TOTAL_STEPS
+    copy_dotfiles
+
     finish_display
 
 }

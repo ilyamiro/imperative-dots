@@ -27,6 +27,7 @@ VISITED_OVERVIEW=false
 VISITED_WEATHER=false
 VISITED_DRIVERS=false
 VISITED_KEYBOARD=false
+REPO_DIR="$(pwd)"
 
 # Keyboard State Defaults
 KB_LAYOUTS="us"
@@ -70,7 +71,7 @@ ARCH_PKGS=(
     "cliphist" "jq" "socat" "inotify-tools" "pamixer" "brightnessctl" "acpi" "iw"
     "bluez" "bluez-utils" "libnotify" "networkmanager" "lm_sensors" "bc" 
     "pipewire" "wireplumber" "pipewire-pulse" "pipewire-alsa" "pipewire-jack" "libpulse" "python"
-    "imagemagick" "wget" "file" "git" "psmisc"
+    "imagemagick" "wget" "file" "git" "psmisc" "firefox"
     "matugen-bin" "ffmpeg" "fastfetch" "quickshell-git" "unzip" "python-websockets" "qt6-websockets"
     "grim" "playerctl" "satty" "yq" "xdg-desktop-portal-gtk" "slurp" "mpvpaper"
     "wmctrl" "power-profiles-daemon" "easyeffects" "swayosd-git" "nautilus" "lsp-plugins"
