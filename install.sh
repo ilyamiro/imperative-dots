@@ -43,10 +43,23 @@ menu_full_install(){
     S_WTH=$( [ "$VISITED_WEATHER" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_DRV=$( [ "$VISITED_DRIVERS" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_YELLOW}[-]${RESET}" )
     S_KBD=$( [ "$VISITED_KEYBOARD" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${C_RED}[ ]${RESET}" )
+    S_TEL=$( [ "$ENABLE_TELEMETRY" = true ] && echo -e "${C_GREEN}[ON]${RESET}" || echo -e "${DIM}[OFF]${RESET}" )
 
-    if [[ -z "$WEATHER_API_KEY" ]]; then API_DISPLAY="Not Set"
+    if [[ -z "$WEATHER_API_KEY" ]]; then
+        if [ -f "$HOME/.config/hypr/scripts/quickshell/calendar/.env" ]; then
+            API_DISPLAY="Set (from .env file)"
+        else
+            API_DISPLAY="Not Set"
+        fi
     elif [[ "$WEATHER_API_KEY" == "Skipped" ]]; then API_DISPLAY="Skipped"
     else API_DISPLAY="Set ($WEATHER_UNIT, ID: $WEATHER_CITY_ID)"; fi
+
+    # Determine label for the install button
+    if [ "$LOCAL_VERSION" != "Not Installed" ] && [ -n "$LOCAL_VERSION" ]; then
+        INSTALL_LABEL="UPDATE"
+    else
+        INSTALL_LABEL="START"
+    fi
 
     # Build the color-coded menu string
     MENU_ITEMS="1. $S_PKG ${C_GREEN}Manage Packages${RESET} [${#PKGS[@]} queued, Optional]\n"
@@ -54,8 +67,9 @@ menu_full_install(){
     MENU_ITEMS+="3. $S_WTH ${C_YELLOW}Set Weather API Key${RESET} [${API_DISPLAY}, Optional]\n"
     MENU_ITEMS+="4. $S_DRV ${C_RED}[ DRIVERS ] Setup${RESET} [${DRIVER_CHOICE}, Optional]\n"
     MENU_ITEMS+="5. $S_KBD ${C_BLUE}Keyboard Layout Setup${RESET} [${KB_LAYOUTS_DISPLAY:-$KB_LAYOUTS}]\n"
-    MENU_ITEMS+="6. ${BOLD}${C_MAGENTA}START INSTALLATION${RESET}\n"
-    MENU_ITEMS+="7. ${DIM}Exit${RESET}"
+    MENU_ITEMS+="6. $S_TEL ${C_CYAN}Telemetry Settings${RESET}\n"
+    MENU_ITEMS+="7. ${BOLD}${C_MAGENTA}${INSTALL_LABEL}${RESET}\n"
+    MENU_ITEMS+="8. ${DIM}Exit${RESET}"
 
     # We use --ansi flag in fzf so the color codes render properly inside the menu list
     MENU_OPTION=$(echo -e "$MENU_ITEMS" | fzf \
@@ -68,13 +82,15 @@ menu_full_install(){
         --pointer=">" \
         --header=" Navigate with ARROWS. Select with ENTER. ")
 
+    # FIXED: Added the dot and matched exactly against the list prefix
     case "$MENU_OPTION" in
-        *"1"*) manage_packages ;;
-        *"2"*) show_overview ;;
-        *"3"*) set_weather_api ;;
-        *"4"*) manage_drivers ;;
-        *"5"*) manage_keyboard ;;
-        *"6"*) 
+        *"1."*) manage_packages ;;
+        *"2."*) show_overview ;;
+        *"3."*) set_weather_api ;;
+        *"4."*) manage_drivers ;;
+        *"5."*) manage_keyboard ;;
+        *"6."*) manage_telemetry ;;
+        *"7."*) 
             if [ "$VISITED_KEYBOARD" = false ]; then
                 echo -e "\n${C_RED}[!] You must configure your Keyboard Layouts in the submenu before starting.${RESET}"
                 sleep 2.5

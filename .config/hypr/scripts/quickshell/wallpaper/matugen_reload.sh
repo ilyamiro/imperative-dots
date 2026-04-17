@@ -4,7 +4,7 @@
 # 1. Flatten Matugen v4.0 Nested JSON for Quickshell
 # ------------------------------------------------------------------------------
 # Updated to match your config.toml output path
-QS_JSON="/tmp/qs_colors.json"
+QS_JSON="~/.config/hypr/scripts/quickshell/qs_colors.json"
 
 python3 -c '
 import json
@@ -66,10 +66,11 @@ done
 killall -USR1 kitty
 
 # Reload CAVA
+# ALWAYS rebuild the final config file from the base and newly generated colors
+cat ~/.config/cava/config_base ~/.config/cava/colors > ~/.config/cava/config 2>/dev/null
+
+# Tell CAVA to reload the config ONLY if it is currently running
 if pgrep -x "cava" > /dev/null; then
-    # Rebuild the final config file from the base and newly generated colors
-    cat ~/.config/cava/config_base ~/.config/cava/colors > ~/.config/cava/config 2>/dev/null
-    # Tell CAVA to reload the config
     killall -USR1 cava
 fi
 
@@ -78,9 +79,7 @@ if command -v swaync-client &> /dev/null; then
     swaync-client -rs
 fi
 
-# Putting swayosd reload into the background to not clutter the reloading process
-if systemctl --user is-active --quiet swayosd.service; then
-    systemctl --user restart swayosd.service &
-fi
-
-wait
+# Restart swayosd-server in the background and disown it so the script doesn't hang
+killall swayosd-server 2>/dev/null
+swayosd-server --top-margin 0.9 --style "$HOME/.config/swayosd/style.css" > /dev/null 2>&1 &
+disown

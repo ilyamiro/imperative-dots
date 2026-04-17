@@ -1,39 +1,50 @@
 #!/usr/bin/env bash
 
-# Use LC_ALL=C to prevent nmcli from translating "connected" to other languages
-# Redirect stderr to /dev/null to cleanly handle scenarios where NetworkManager isn't running
-ETH_DEV=$(LC_ALL=C nmcli -t -f DEVICE,TYPE,STATE d 2>/dev/null | awk -F: '$2=="ethernet" && $3=="connected" {print $1; exit}')
+# Use LC_ALL=C to prevent nmcli from translating output
+# Find the first ethernet device regardless of state
+ETH_DEV=$(LC_ALL=C nmcli -t -f DEVICE,TYPE d 2>/dev/null | awk -F: '$2=="ethernet" {print $1; exit}')
 
-# If no device is connected, return offline state
+# If absolutely no ethernet device exists on the system
 if [[ -z "$ETH_DEV" ]]; then
-    jq -nc --arg power "off" '{ "power": $power, "connected": null }'
+    jq -nc --arg power "off" '{ "power": $power, "device": "", "connected": null }'
     exit 0
 fi
 
-# Fetch connection statistics
-IP=$(ip -4 addr show dev "$ETH_DEV" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
-[ -z "$IP" ] && IP="No IP"
+# Fetch the specific state of that device
+STATE=$(LC_ALL=C nmcli -t -f DEVICE,STATE d 2>/dev/null | awk -F: -v dev="$ETH_DEV" '$1==dev {print $2; exit}')
 
-SPEED=$(cat /sys/class/net/"$ETH_DEV"/speed 2>/dev/null)
-[ -n "$SPEED" ] && SPEED="${SPEED} Mbps" || SPEED="Unknown"
+if [[ "$STATE" == "connected" || "$STATE" == "connecting" ]]; then
+    POWER="on"
+    
+    # Fetch connection statistics
+    IP=$(ip -4 addr show dev "$ETH_DEV" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+    [ -z "$IP" ] && IP="No IP"
 
-MAC=$(cat /sys/class/net/"$ETH_DEV"/address 2>/dev/null)
+    SPEED=$(cat /sys/class/net/"$ETH_DEV"/speed 2>/dev/null)
+    [ -n "$SPEED" ] && SPEED="${SPEED} Mbps" || SPEED="Unknown"
 
-# Apply LC_ALL=C here as well to ensure consistent parsing
-PROFILE=$(LC_ALL=C nmcli -t -f NAME,DEVICE c show --active 2>/dev/null | grep "$ETH_DEV" | cut -d: -f1 | head -n1)
-[ -z "$PROFILE" ] && PROFILE="Wired Connection"
+    MAC=$(cat /sys/class/net/"$ETH_DEV"/address 2>/dev/null)
 
-# Use jq -nc (-c for compact) to output a clean, single-line JSON string natively
-CONNECTED_JSON=$(jq -nc \
-    --arg id "$ETH_DEV" \
-    --arg name "$PROFILE" \
-    --arg icon "󰈀" \
-    --arg ip "$IP" \
-    --arg speed "$SPEED" \
-    --arg mac "$MAC" \
-    '{id: $id, name: $name, icon: $icon, ip: $ip, speed: $speed, mac: $mac}')
+    # Apply LC_ALL=C here as well to ensure consistent parsing
+    PROFILE=$(LC_ALL=C nmcli -t -f NAME,DEVICE c show --active 2>/dev/null | grep ":$ETH_DEV$" | cut -d: -f1 | head -n1)
+    [ -z "$PROFILE" ] && PROFILE="Wired Connection"
 
+    CONNECTED_JSON=$(jq -nc \
+        --arg id "$ETH_DEV" \
+        --arg name "$PROFILE" \
+        --arg icon "󰈀" \
+        --arg ip "$IP" \
+        --arg speed "$SPEED" \
+        --arg mac "$MAC" \
+        '{id: $id, name: $name, icon: $icon, ip: $ip, speed: $speed, mac: $mac}')
+else
+    POWER="off"
+    CONNECTED_JSON="null"
+fi
+
+# Output JSON cleanly, including the device name even if offline
 jq -nc \
-    --arg power "on" \
+    --arg power "$POWER" \
+    --arg device "$ETH_DEV" \
     --argjson connected "$CONNECTED_JSON" \
-    '{power: $power, connected: $connected}'
+    '{power: $power, device: $device, connected: $connected}'

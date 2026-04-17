@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
@@ -9,6 +10,18 @@ import "../"
 
 Item {
     id: root
+
+    // --- Responsive Scaling Logic ---
+    Scaler {
+        id: scaler
+        // Uses the physical screen width so the popup scales synchronously
+        currentWidth: Screen.width
+    }
+    
+    // Helper function scoped to the root Item for easy access
+    function s(val) { 
+        return scaler.s(val); 
+    }
 
     // Theme Colors
     MatugenColors { id: _theme }
@@ -317,7 +330,7 @@ Item {
         // Deepened scale effect and introduced a gentle Y-axis translation for the main container
         scale: 0.92 + (0.08 * root.introMain)
         opacity: root.introMain
-        transform: Translate { y: 15 * (1 - root.introMain) }
+        transform: Translate { y: root.s(15) * (1 - root.introMain) }
 
         // OUTER ANIMATED BORDER WITH PROPER CLIPPING
         Item {
@@ -330,11 +343,11 @@ Item {
                 layer.enabled: true
                 preferredRendererType: Shape.GeometryRenderer // Fixes lag by hardware accelerating the stroke
 
-                property real sw: 6
-                property real inset: (sw / 2) + 0.5 
+                property real sw: root.s(6)
+                property real inset: (sw / 2) + root.s(0.5) 
                 property real w: width
                 property real h: height
-                property real r: 14 - inset
+                property real r: root.s(14) - inset
                 
                 // Mathematical perimeter
                 property real straightLines: 2 * (w - 2 * inset - 2 * r) + 2 * (h - 2 * inset - 2 * r)
@@ -436,9 +449,9 @@ Item {
         Rectangle {
             id: innerBg
             anchors.fill: parent
-            anchors.margins: 3
+            anchors.margins: root.s(3)
             color: root.base
-            radius: 10
+            radius: root.s(10)
 
             // FIX: This forces the entire background to render as a single hardware texture,
             // preventing the UI from dragging and causing "shadow boxes" during the StackView transition!
@@ -448,7 +461,7 @@ Item {
             Rectangle {
                 id: innerBgMask
                 anchors.fill: parent
-                radius: 10
+                radius: root.s(10)
                 visible: false
                 
                 // FIX: Masks in MultiEffect strictly require layer.enabled to correctly capture the radius during scaling!
@@ -480,8 +493,8 @@ Item {
                 // LAYER 1.5: Flowing Orbits
                 Rectangle {
                     width: parent.width * 0.8; height: width; radius: width / 2
-                    x: (parent.width / 2 - width / 2) + Math.cos(root.globalOrbitAngle * 2) * 150
-                    y: (parent.height / 2 - height / 2) + Math.sin(root.globalOrbitAngle * 2) * 100
+                    x: (parent.width / 2 - width / 2) + Math.cos(root.globalOrbitAngle * 2) * root.s(150)
+                    y: (parent.height / 2 - height / 2) + Math.sin(root.globalOrbitAngle * 2) * root.s(100)
                     
                     // Fixed: Hides orbits when stopped
                     opacity: root.musicData.status === "Playing" ? 0.08 : (root.musicData.status === "Paused" ? 0.04 : 0.0)
@@ -492,8 +505,8 @@ Item {
                 
                 Rectangle {
                     width: parent.width * 0.9; height: width; radius: width / 2
-                    x: (parent.width / 2 - width / 2) + Math.sin(root.globalOrbitAngle * 1.5) * -150
-                    y: (parent.height / 2 - height / 2) + Math.cos(root.globalOrbitAngle * 1.5) * -100
+                    x: (parent.width / 2 - width / 2) + Math.sin(root.globalOrbitAngle * 1.5) * root.s(-150)
+                    y: (parent.height / 2 - height / 2) + Math.cos(root.globalOrbitAngle * 1.5) * root.s(-100)
                     
                     // Fixed: Hides orbits when stopped
                     opacity: root.musicData.status === "Playing" ? 0.08 : (root.musicData.status === "Paused" ? 0.02 : 0.0)
@@ -506,7 +519,7 @@ Item {
             // LAYER 2: UI Content
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: root.s(20)
                 spacing: 0
 
                 // ==========================================
@@ -514,18 +527,18 @@ Item {
                 // ==========================================
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 220
-                    spacing: 25
+                    Layout.preferredHeight: root.s(220)
+                    spacing: root.s(25)
 
                     // Cover Art Wrapper
                     Item {
-                        Layout.preferredWidth: 220
-                        Layout.preferredHeight: 220
+                        Layout.preferredWidth: root.s(220)
+                        Layout.preferredHeight: root.s(220)
                         Layout.alignment: Qt.AlignVCenter
 
                         opacity: root.introCover
                         // Enhanced 2D drift animation
-                        transform: Translate { x: -40 * (1 - root.introCover); y: 10 * (1 - root.introCover) }
+                        transform: Translate { x: root.s(-40) * (1 - root.introCover); y: root.s(10) * (1 - root.introCover) }
 
                         // Elastic response to play/pause state
                         scale: root.musicData.status === "Playing" ? 1.0 : 0.90
@@ -533,9 +546,9 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            radius: 110
+                            radius: root.s(110)
                             color: root.surface1
-                            border.width: 4
+                            border.width: root.s(4)
                             border.color: root.musicData.status === "Playing" ? root.mauve : root.overlay0
                             Behavior on border.color { ColorAnimation { duration: 500 } }
 
@@ -543,8 +556,8 @@ Item {
                             Rectangle {
                                 z: -1
                                 anchors.centerIn: parent
-                                width: parent.width + 20
-                                height: parent.height + 20
+                                width: parent.width + root.s(20)
+                                height: parent.height + root.s(20)
                                 radius: width / 2
                                 color: root.mauve
                                 opacity: root.musicData.status === "Playing" ? 0.5 : 0.0
@@ -559,7 +572,7 @@ Item {
 
                             Item {
                                 anchors.fill: parent
-                                anchors.margins: 4
+                                anchors.margins: root.s(4)
                                 Image {
                                     id: artImg
                                     anchors.fill: parent
@@ -593,8 +606,8 @@ Item {
                                 }
 
                                 Rectangle {
-                                    width: 40; height: 40
-                                    radius: 20; color: "#000000"
+                                    width: root.s(40); height: root.s(40)
+                                    radius: root.s(20); color: "#000000"
                                     opacity: 0.8; anchors.centerIn: parent
                                 }
                             }
@@ -611,23 +624,23 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
-                        spacing: 15
+                        spacing: root.s(15)
 
                         // TEXT INFO CHUNK
                         ColumnLayout {
-                            spacing: 6
+                            spacing: root.s(6)
                             opacity: root.introText
-                            transform: Translate { x: 30 * (1 - root.introText) }
+                            transform: Translate { x: root.s(30) * (1 - root.introText) }
                             
                             // HARD-LOCKED SEAMLESS INFINITE MARQUEE
                             Item {
                                 id: titleClipRect
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 28 
+                                Layout.preferredHeight: root.s(28) 
                                 clip: true
 
                                 // This is the distance between the end of the text and the clone
-                                property int marqueeSpacing: 60
+                                property int marqueeSpacing: root.s(60)
 
                                 Item {
                                     id: marqueeContainer
@@ -640,7 +653,7 @@ Item {
                                             text: root.musicData.title
                                             color: root.dynamicTextColor
                                             font.family: "JetBrains Mono"
-                                            font.pixelSize: 20
+                                            font.pixelSize: root.s(20)
                                             font.bold: true
                                             Behavior on color { ColorAnimation { duration: 600 } }
 
@@ -660,7 +673,7 @@ Item {
                                             text: root.musicData.title
                                             color: root.dynamicTextColor
                                             font.family: "JetBrains Mono"
-                                            font.pixelSize: 20
+                                            font.pixelSize: root.s(20)
                                             font.bold: true
                                             visible: titleTextMain.implicitWidth > titleClipRect.width
                                         }
@@ -692,33 +705,33 @@ Item {
                                 text: root.musicData.artist ? "BY " + root.musicData.artist : ""
                                 color: root.subtext0 // Better matugen match
                                 font.family: "JetBrains Mono"
-                                font.pixelSize: 14
+                                font.pixelSize: root.s(14)
                                 font.bold: true
                                 elide: Text.ElideRight
                                 maximumLineCount: 1 // Strict 1 line
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 20
+                                Layout.preferredHeight: root.s(20)
                             }
                             RowLayout {
-                                spacing: 10
+                                spacing: root.s(10)
                                 Rectangle {
                                     color: "#1AFFFFFF"
-                                    radius: 4
-                                    Layout.preferredHeight: 24
-                                    Layout.preferredWidth: pillContent.width + 20
+                                    radius: root.s(4)
+                                    Layout.preferredHeight: root.s(24)
+                                    Layout.preferredWidth: pillContent.width + root.s(20)
                                     RowLayout {
                                         id: pillContent
                                         anchors.centerIn: parent
-                                        spacing: 6
-                                        Text { text: root.musicData.deviceIcon || "󰓃"; color: root.mauve; font.family: "Iosevka Nerd Font"; font.pixelSize: 14 }
-                                        Text { text: root.musicData.deviceName || "Speaker"; color: root.overlay2; font.family: "JetBrains Mono"; font.pixelSize: 12; font.bold: true }
+                                        spacing: root.s(6)
+                                        Text { text: root.musicData.deviceIcon || "󰓃"; color: root.mauve; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(14) }
+                                        Text { text: root.musicData.deviceName || "Speaker"; color: root.overlay2; font.family: "JetBrains Mono"; font.pixelSize: root.s(12); font.bold: true }
                                     }
                                 }
                                 Text {
                                     text: "VIA " + (root.musicData.source || "Offline")
                                     color: root.overlay2 // Better matugen match
                                     font.family: "JetBrains Mono"
-                                    font.pixelSize: 12
+                                    font.pixelSize: root.s(12)
                                     font.bold: true
                                     font.italic: true
                                 }
@@ -728,14 +741,14 @@ Item {
                         // PROGRESS AREA CHUNK
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 5
+                            spacing: root.s(5)
                             opacity: root.introControls
-                            transform: Translate { x: 20 * (1 - root.introControls); y: 10 * (1 - root.introControls) }
+                            transform: Translate { x: root.s(20) * (1 - root.introControls); y: root.s(10) * (1 - root.introControls) }
 
                             Slider {
                                 id: progBar
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 20 
+                                Layout.preferredHeight: root.s(20) 
                                 from: 0; to: 100
 
                                 Connections {
@@ -773,14 +786,14 @@ Item {
 
                                 background: Item {
                                     x: progBar.leftPadding
-                                    y: progBar.topPadding + (progBar.availableHeight - 12) / 2
+                                    y: progBar.topPadding + (progBar.availableHeight - root.s(12)) / 2
                                     width: progBar.availableWidth
-                                    height: 12
+                                    height: root.s(12)
 
                                     // Shadows mimicking the EQ slider background
                                     Rectangle {
                                         anchors.fill: parent
-                                        radius: 6
+                                        radius: root.s(6)
                                         // Dynamic tint: surface0 with 70% opacity for a softer dark look
                                         color: Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.7)
 
@@ -809,16 +822,16 @@ Item {
                                             id: sliderFillMask
                                             width: parent.width
                                             height: parent.height
-                                            radius: 6
+                                            radius: root.s(6)
                                             visible: false
                                             layer.enabled: true 
                                         }
 
                                         Rectangle {
-                                            width: 2000
+                                            width: root.s(2000)
                                             height: parent.height
                                             // Sliding the gradient perfectly by exactly half its width (1000px)
-                                            x: -(root.catppuccinFlowOffset * 1000) 
+                                            x: -(root.catppuccinFlowOffset * root.s(1000)) 
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
                                                 // Mathematically precise loops with lighter, cooler colors & theme change support
@@ -837,10 +850,10 @@ Item {
                                 handle: Rectangle {
                                     x: progBar.leftPadding + progBar.visualPosition * (progBar.availableWidth - width)
                                     y: progBar.topPadding + (progBar.availableHeight - height) / 2
-                                    implicitWidth: 18 
-                                    implicitHeight: 18
-                                    width: 18; height: 18
-                                    radius: 9; color: root.text
+                                    implicitWidth: root.s(18) 
+                                    implicitHeight: root.s(18)
+                                    width: root.s(18); height: root.s(18)
+                                    radius: root.s(9); color: root.text
                                     scale: progBar.pressed ? 1.3 : 1.0
                                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                                 }
@@ -848,28 +861,28 @@ Item {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: root.musicData.positionStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: 13 }
+                                Text { text: root.musicData.positionStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: root.s(13) }
                                 Item { Layout.fillWidth: true }
-                                Text { text: root.musicData.lengthStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: 13 }
+                                Text { text: root.musicData.lengthStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: root.s(13) }
                             }
                         }
 
                         // MEDIA CONTROLS CHUNK
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
-                            spacing: 30
+                            spacing: root.s(30)
                             opacity: root.introControls
-                            transform: Translate { y: 20 * (1 - root.introControls) }
+                            transform: Translate { y: root.s(20) * (1 - root.introControls) }
 
                             MouseArea {
-                                width: 30; height: 30
+                                width: root.s(30); height: root.s(30)
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.execCmd("playerctl previous")
-                                Text { anchors.centerIn: parent; text: ""; color: parent.pressed ? root.text : root.overlay2; font.family: "Iosevka Nerd Font"; font.pixelSize: 24 }
+                                Text { anchors.centerIn: parent; text: ""; color: parent.pressed ? root.text : root.overlay2; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(24) }
                             }
                             MouseArea {
                                 id: playPauseBtn
-                                width: 50; height: 50
+                                width: root.s(50); height: root.s(50)
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     root.userToggledPlay = true;
@@ -919,17 +932,17 @@ Item {
                                     text: root.musicData.status === "Playing" ? "" : ""
                                     color: parent.pressed ? root.pink : root.mauve
                                     font.family: "Iosevka Nerd Font"
-                                    font.pixelSize: 42 
+                                    font.pixelSize: root.s(42) 
                                     scale: parent.pressed ? 0.8 : 1.0
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                                 }
                             }
                             MouseArea {
-                                width: 30; height: 30
+                                width: root.s(30); height: root.s(30)
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: root.execCmd("playerctl next")
-                                Text { anchors.centerIn: parent; text: ""; color: parent.pressed ? root.text : root.overlay2; font.family: "Iosevka Nerd Font"; font.pixelSize: 24 }
+                                Text { anchors.centerIn: parent; text: ""; color: parent.pressed ? root.text : root.overlay2; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(24) }
                             }
                         }
                     }
@@ -940,14 +953,14 @@ Item {
                 // ==========================================
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 2
-                    Layout.topMargin: 20
-                    Layout.bottomMargin: 20
+                    Layout.preferredHeight: root.s(2)
+                    Layout.topMargin: root.s(20)
+                    Layout.bottomMargin: root.s(20)
                     color: "#1AFFFFFF"
-                    radius: 1
+                    radius: root.s(1)
 
                     opacity: root.introSeparator
-                    transform: Translate { y: 15 * (1 - root.introSeparator) }
+                    transform: Translate { y: root.s(15) * (1 - root.introSeparator) }
                 }
 
                 // ==========================================
@@ -955,21 +968,21 @@ Item {
                 // ==========================================
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 15
+                    spacing: root.s(15)
 
                     // Header Row
                     RowLayout {
                         Layout.fillWidth: true
                         opacity: root.introEqHeader
-                        transform: Translate { y: 15 * (1 - root.introEqHeader) }
+                        transform: Translate { y: root.s(15) * (1 - root.introEqHeader) }
 
-                        Text { text: "Equalizer"; color: root.mauve; font.family: "JetBrains Mono"; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
+                        Text { text: "Equalizer"; color: root.mauve; font.family: "JetBrains Mono"; font.pixelSize: root.s(16); font.bold: true; Layout.fillWidth: true }
                         
                         // Redesigned Apply Button
                         Rectangle {
-                            Layout.preferredHeight: 28
-                            Layout.preferredWidth: applyTxt.width + 30
-                            radius: 10
+                            Layout.preferredHeight: root.s(28)
+                            Layout.preferredWidth: applyTxt.width + root.s(30)
+                            radius: root.s(10)
                             color: root.eqData.pending ? root.mauve : root.surface1
                             border.color: root.eqData.pending ? root.mauve : root.surface2
                             border.width: 1
@@ -988,7 +1001,7 @@ Item {
                                 text: root.eqData.pending ? "Apply" : "Saved"
                                 color: root.eqData.pending ? root.base : root.subtext0
                                 font.family: "JetBrains Mono"
-                                font.pixelSize: 12
+                                font.pixelSize: root.s(12)
                                 font.bold: true
                                 Behavior on color { ColorAnimation { duration: 300 } }
                             }
@@ -1010,13 +1023,13 @@ Item {
                                 }
                             }
                         }
-                        Text { text: root.eqData.preset || "Flat"; color: root.subtext0; font.family: "JetBrains Mono"; font.pixelSize: 14; font.bold: true; Layout.leftMargin: 15 }
+                        Text { text: root.eqData.preset || "Flat"; color: root.subtext0; font.family: "JetBrains Mono"; font.pixelSize: root.s(14); font.bold: true; Layout.leftMargin: root.s(15) }
                     }
 
                     // Eq Sliders Container with Canvas Lightning Overlay
                     Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 180
+                        Layout.preferredHeight: root.s(180)
 
                         Row {
                             id: eqSliderRow
@@ -1038,7 +1051,7 @@ Item {
                                     // --- ENHANCED SLIDER CASCADING ANIMATION ---
                                     opacity: root.introEqSliders
                                     transform: Translate {
-                                        y: 30 * (1 - root.introEqSliders) + (index * 8 * (1 - root.introEqSliders))
+                                        y: root.s(30) * (1 - root.introEqSliders) + (index * root.s(8) * (1 - root.introEqSliders))
                                     }
 
                                     // Mathematical evaluation mapping to the exact timeline of the strike
@@ -1082,7 +1095,7 @@ Item {
 
                                     ColumnLayout {
                                         anchors.fill: parent
-                                        spacing: 5
+                                        spacing: root.s(5)
                                         Slider {
                                             id: eqSlider
                                             Layout.fillHeight: true
@@ -1130,10 +1143,10 @@ Item {
                                                 id: trackBg
                                                 x: eqSlider.leftPadding + (eqSlider.availableWidth - width) / 2
                                                 y: eqSlider.topPadding
-                                                implicitWidth: 10 
-                                                implicitHeight: 150
-                                                width: 10; height: eqSlider.availableHeight
-                                                radius: 4; 
+                                                implicitWidth: root.s(10) 
+                                                implicitHeight: root.s(150)
+                                                width: root.s(10); height: eqSlider.availableHeight
+                                                radius: root.s(4); 
                                                 
                                                 // Dynamic tint: surface0 with 70% opacity for a softer dark look
                                                 color: Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.7)
@@ -1152,12 +1165,12 @@ Item {
                                                 Rectangle {
                                                     z: -1
                                                     anchors.centerIn: parent
-                                                    width: parent.width + 20 + sliderDelegate.ringPulse * 40
-                                                    height: parent.height + 20 + sliderDelegate.ringPulse * 60
-                                                    radius: parent.radius + 10 + sliderDelegate.ringPulse * 20
+                                                    width: parent.width + root.s(20) + sliderDelegate.ringPulse * root.s(40)
+                                                    height: parent.height + root.s(20) + sliderDelegate.ringPulse * root.s(60)
+                                                    radius: parent.radius + root.s(10) + sliderDelegate.ringPulse * root.s(20)
                                                     color: "transparent"
                                                     border.color: root.mauve
-                                                    border.width: 2 + sliderDelegate.ringPulse * 4
+                                                    border.width: root.s(2) + sliderDelegate.ringPulse * root.s(4)
                                                     opacity: sliderDelegate.ringPulse * 0.8 * (1.0 - root.eqLightningFade)
                                                     
                                                     layer.enabled: true
@@ -1179,7 +1192,7 @@ Item {
                                                     Rectangle {
                                                         id: eqFillMask
                                                         anchors.fill: parent
-                                                        radius: 4
+                                                        radius: root.s(4)
                                                         visible: false
                                                         layer.enabled: true 
                                                     }
@@ -1203,7 +1216,7 @@ Item {
                                                         // The Internal Charging Surge Bolt 
                                                         Rectangle {
                                                             width: parent.width
-                                                            height: 80 // Massive physical bolt
+                                                            height: root.s(80) // Massive physical bolt
                                                             y: (sliderDelegate.trackPulse * (parent.height + height)) - height
                                                             opacity: Math.sin(sliderDelegate.trackPulse * Math.PI) * 2.0 * (1.0 - root.eqLightningFade)
                                                             
@@ -1228,17 +1241,17 @@ Item {
                                             handle: Rectangle {
                                                 x: eqSlider.leftPadding + (eqSlider.availableWidth - width) / 2
                                                 y: eqSlider.topPadding + eqSlider.visualPosition * (eqSlider.availableHeight - height)
-                                                implicitWidth: 18
-                                                implicitHeight: 18
-                                                width: 18; height: 18
-                                                radius: 9; color: root.text
+                                                implicitWidth: root.s(18)
+                                                implicitHeight: root.s(18)
+                                                width: root.s(18); height: root.s(18)
+                                                radius: root.s(9); color: root.text
 
                                                 property var catColors: [root.mauve, root.pink, root.lavender, root.mauve, root.blue]
 
                                                 // Core glow flare that cleanly fades out matching the canvas
                                                 Rectangle {
                                                     anchors.centerIn: parent
-                                                    width: parent.width + 36 * sliderDelegate.hitPulse // Bigger bloom
+                                                    width: parent.width + root.s(36) * sliderDelegate.hitPulse // Bigger bloom
                                                     height: width
                                                     radius: width / 2
                                                     color: parent.catColors[index % parent.catColors.length]
@@ -1255,7 +1268,7 @@ Item {
                                             text: modelData.lbl
                                             color: root.overlay1
                                             font.family: "JetBrains Mono"
-                                            font.pixelSize: 10
+                                            font.pixelSize: root.s(10)
                                             font.bold: true
                                             Layout.alignment: Qt.AlignHCenter
                                         }
@@ -1311,7 +1324,7 @@ Item {
                                     var norm = 1.0 - ((val + 12) / 24);
                                     
                                     // Py uses margins rough mapping to the handles visible track
-                                    var py = 10 + norm * (height - 35); 
+                                    var py = root.s(10) + norm * (height - root.s(35)); 
                                     var px = (i - 0.5) * (width / 10);
                                     pts.push({ x: px, y: py });
                                 }
@@ -1354,8 +1367,8 @@ Item {
                                             
                                             // Combine multiple frequencies for complex branching/crackle appearance
                                             // Glow strands (0, 1) also get a sweeping sine wave applied to create distinct separating waves
-                                            var sepWaveX = (s < 2) ? Math.sin(time * 3 + i + j + s) * 10 * envelope : 0;
-                                            var sepWaveY = (s < 2) ? Math.cos(time * 2.5 + i - j - s) * 15 * envelope : 0;
+                                            var sepWaveX = (s < 2) ? Math.sin(time * 3 + i + j + s) * root.s(10) * envelope : 0;
+                                            var sepWaveY = (s < 2) ? Math.cos(time * 2.5 + i - j - s) * root.s(15) * envelope : 0;
 
                                             // Primary erratic crackle noise using high frequency combined sine/cos
                                             var noiseX = Math.sin(time * (10+s) + i + j) * Math.cos(time * 8 - i + j) * noiseAmpX * envelope * (1 - root.eqLightningFade);
@@ -1369,19 +1382,19 @@ Item {
 
                                     // Step 3: Theme and render each distinct strand
                                     if (s === 0) { // Massive Sweeping Outer Glow (Mauve)
-                                        ctx.lineWidth = 20;
+                                        ctx.lineWidth = root.s(20);
                                         ctx.strokeStyle = root.mauve;
                                         ctx.globalAlpha = 0.2;
                                     } else if (s === 1) { // Medium Sweeping Wave (Pink)
-                                        ctx.lineWidth = 8;
+                                        ctx.lineWidth = root.s(8);
                                         ctx.strokeStyle = root.pink;
                                         ctx.globalAlpha = 0.45;
                                     } else if (s === 2) { // Tight erratic core (Lavender)
-                                        ctx.lineWidth = 3.5;
+                                        ctx.lineWidth = root.s(3.5);
                                         ctx.strokeStyle = root.lavender;
                                         ctx.globalAlpha = 0.85;
                                     } else if (s === 3) { // Pure white straight hot core - heavily transparent
-                                        ctx.lineWidth = 1.0;
+                                        ctx.lineWidth = root.s(1.0);
                                         ctx.strokeStyle = "#ffffff";
                                         ctx.globalAlpha = 0.1;
                                     }
@@ -1395,14 +1408,14 @@ Item {
                     // Presets Grid
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: root.s(8)
                         
                         opacity: root.introPresets
-                        transform: Translate { y: 20 * (1 - root.introPresets) }
+                        transform: Translate { y: root.s(20) * (1 - root.introPresets) }
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 10
+                            spacing: root.s(10)
                             Repeater {
                                 model: ["Flat", "Bass", "Treble", "Vocal"]
                                 delegate: PresetButton { name: modelData }
@@ -1410,7 +1423,7 @@ Item {
                         }
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 10
+                            spacing: root.s(10)
                             Repeater {
                                 model: ["Pop", "Rock", "Jazz", "Classic"]
                                 delegate: PresetButton { name: modelData }
@@ -1426,8 +1439,8 @@ Item {
     component PresetButton : Rectangle {
         property string name: ""
         Layout.fillWidth: true
-        Layout.preferredHeight: 32
-        radius: 8
+        Layout.preferredHeight: root.s(32)
+        radius: root.s(8)
         
         property bool isActivePreset: root.eqData && root.eqData.preset === name
         property bool isHovered: hoverMa.containsMouse
@@ -1443,7 +1456,7 @@ Item {
             text: parent.name
             color: parent.isActivePreset ? root.base : (parent.isHovered ? root.text : root.subtext0)
             font.family: "JetBrains Mono"
-            font.pixelSize: 12
+            font.pixelSize: root.s(12)
             font.bold: true
             Behavior on color { ColorAnimation { duration: 200 } }
         }

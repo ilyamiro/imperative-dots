@@ -11,6 +11,18 @@ Item {
     id: window
     focus: true
 
+    // --- Responsive Scaling Logic ---
+    Scaler {
+        id: scaler
+        // Uses the physical screen width so the popup scales synchronously with the TopBar
+        currentWidth: Screen.width
+    }
+    
+    // Helper function scoped to the root Item for easy access in deeply nested elements and Canvases
+    function s(val) { 
+        return scaler.s(val); 
+    }
+
     // -------------------------------------------------------------------------
     // SHORTCUTS & AUDIO
     // -------------------------------------------------------------------------
@@ -221,11 +233,11 @@ Item {
         anchors.fill: parent
         scale: 0.95 + (0.05 * introMain)
         opacity: introMain
-        transform: Translate { y: 20 * (1 - introMain) }
+        transform: Translate { y: window.s(20) * (1 - introMain) }
 
         Rectangle {
             anchors.fill: parent
-            radius: 20
+            radius: window.s(20)
             color: window.base
             border.color: window.surface0
             border.width: 1
@@ -234,16 +246,16 @@ Item {
             // Rotating Background Blobs
             Rectangle {
                 width: parent.width * 0.8; height: width; radius: width / 2
-                x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * 150
-                y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * 2) * 100
+                x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * window.s(150)
+                y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * 2) * window.s(100)
                 opacity: 0.06
                 color: window.tabColor
                 Behavior on color { ColorAnimation { duration: 800 } }
             }
             Rectangle {
                 width: parent.width * 0.9; height: width; radius: width / 2
-                x: (parent.width / 2 - width / 2) + Math.sin(window.globalOrbitAngle * 1.5) * -150
-                y: (parent.height / 2 - height / 2) + Math.cos(window.globalOrbitAngle * 1.5) * -100
+                x: (parent.width / 2 - width / 2) + Math.sin(window.globalOrbitAngle * 1.5) * window.s(-150)
+                y: (parent.height / 2 - height / 2) + Math.cos(window.globalOrbitAngle * 1.5) * window.s(-100)
                 opacity: 0.04
                 color: Qt.lighter(window.tabColor, 1.3)
                 Behavior on color { ColorAnimation { duration: 800 } }
@@ -251,38 +263,38 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 25
-                spacing: 20
+                anchors.margins: window.s(25)
+                spacing: window.s(20)
 
                 // ==========================================
                 // HERO ORB & MASTER SLIDER (TOP SECTION)
                 // ==========================================
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 150
+                    Layout.preferredHeight: window.s(150)
                     opacity: introHeader
-                    transform: Translate { y: 30 * (1.0 - introHeader) }
+                    transform: Translate { y: window.s(30) * (1.0 - introHeader) }
 
                     RowLayout {
                         anchors.fill: parent
-                        spacing: 25
+                        spacing: window.s(25)
 
                         // 1. The Orb
                         Item {
-                            Layout.preferredWidth: 130
-                            Layout.preferredHeight: 130
+                            Layout.preferredWidth: window.s(130)
+                            Layout.preferredHeight: window.s(130)
                             scale: masterOrbMa.pressed ? 0.95 : (masterOrbMa.containsMouse ? 1.05 : 1.0)
                             Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
 
                             // Outermost border pulse ring
                             Rectangle {
                                 anchors.centerIn: parent
-                                width: parent.width + 15
+                                width: parent.width + window.s(15)
                                 height: width
                                 radius: width / 2
                                 color: "transparent"
                                 border.color: window.activeMute ? window.red : window.tabColor
-                                border.width: 3
+                                border.width: window.s(3)
                                 z: -2
 
                                 property real pulseOp: 0.0
@@ -305,7 +317,7 @@ Item {
                             // Solid pulsing background ring
                             Rectangle {
                                 anchors.centerIn: parent
-                                width: parent.width + 40
+                                width: parent.width + window.s(40)
                                 height: width
                                 radius: width / 2
                                 color: window.activeMute ? window.red : window.tabColor
@@ -328,7 +340,7 @@ Item {
                                 shadowColor: "#000000"
                                 shadowOpacity: 0.5
                                 shadowBlur: 1.2
-                                shadowVerticalOffset: 6
+                                shadowVerticalOffset: window.s(6)
                                 z: -1
                             }
 
@@ -384,7 +396,7 @@ Item {
                                         ctx.moveTo(0, fillY);
                                         
                                         if (fillRatio < 0.99) {
-                                            var waveAmp = 8 * Math.sin(fillRatio * Math.PI); 
+                                            var waveAmp = window.s(8) * Math.sin(fillRatio * Math.PI); 
                                             var cp1y = fillY + Math.sin(wavePhase) * waveAmp;
                                             var cp2y = fillY + Math.cos(wavePhase + Math.PI) * waveAmp;
                                             ctx.bezierCurveTo(width * 0.33, cp2y, width * 0.66, cp1y, width, fillY);
@@ -419,7 +431,7 @@ Item {
                                     anchors.centerIn: parent
                                     font.family: "JetBrains Mono"
                                     font.weight: Font.Black
-                                    font.pixelSize: 32
+                                    font.pixelSize: window.s(32)
                                     color: window.activeMute ? window.red : window.text
                                     text: window.activeMute ? "MUTE" : window.activeVol + "%"
                                     Behavior on color { ColorAnimation { duration: 200 } }
@@ -434,7 +446,7 @@ Item {
 
                                     // Calculate the exact wave offset at the center of the orb using the Bezier formula
                                     property real fillRatio: window.activeVol / 100.0
-                                    property real waveAmp: fillRatio < 0.99 ? 8 * Math.sin(fillRatio * Math.PI) : 0
+                                    property real waveAmp: fillRatio < 0.99 ? window.s(8) * Math.sin(fillRatio * Math.PI) : 0
                                     property real waveCenterOffset: 0.375 * waveAmp * (Math.sin(orbWave.wavePhase) - Math.cos(orbWave.wavePhase))
                                     property real baseClipHeight: parent.height * fillRatio
 
@@ -447,7 +459,7 @@ Item {
                                         y: (centralCore.height / 2) - (height / 2) - (centralCore.height - waveClipItem.height)
                                         font.family: "JetBrains Mono"
                                         font.weight: Font.Black
-                                        font.pixelSize: 32
+                                        font.pixelSize: window.s(32)
                                         color: window.crust
                                         text: window.activeMute ? "MUTE" : window.activeVol + "%"
                                     }
@@ -471,19 +483,19 @@ Item {
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            spacing: 10
+                            spacing: window.s(10)
 
                             ColumnLayout {
-                                spacing: 2
+                                spacing: window.s(2)
                                 Text {
                                     Layout.fillWidth: true; elide: Text.ElideRight
-                                    font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 20
+                                    font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: window.s(20)
                                     color: window.text
                                     text: window.activeName
                                 }
                                 Text {
                                     Layout.fillWidth: true; elide: Text.ElideRight
-                                    font.family: "JetBrains Mono"; font.pixelSize: 13
+                                    font.family: "JetBrains Mono"; font.pixelSize: window.s(13)
                                     color: window.subtext0
                                     text: window.activeTab === "apps" ? "Master Output Volume" : window.activeDesc
                                 }
@@ -493,12 +505,12 @@ Item {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 15
+                                spacing: window.s(15)
 
                                 // Slider
                                 Item {
                                     Layout.fillWidth: true
-                                    height: 24
+                                    height: window.s(24)
 
                                     Timer {
                                         id: masterCmdThrottle
@@ -517,14 +529,14 @@ Item {
                                     }
 
                                     Rectangle {
-                                        anchors.fill: parent; radius: 12
+                                        anchors.fill: parent; radius: window.s(12)
                                         color: "#0dffffff"; border.color: "#1affffff"; border.width: 1
                                         clip: true
 
                                         Rectangle {
                                             height: parent.height
                                             width: parent.width * (Math.min(100, window.activeVol) / 100)
-                                            radius: 12
+                                            radius: window.s(12)
                                             opacity: window.activeMute ? 0.3 : (masterSliderMa.containsMouse ? 1.0 : 0.85)
                                             Behavior on opacity { NumberAnimation { duration: 200 } }
                                             Behavior on width { enabled: !window.draggingMaster; NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
@@ -563,23 +575,23 @@ Item {
                 // ==========================================
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 54
-                    radius: 14
+                    Layout.preferredHeight: window.s(54)
+                    radius: window.s(14)
                     color: "#0dffffff" 
                     border.color: "#1affffff"
                     border.width: 1
                     opacity: introHeader
-                    transform: Translate { y: 20 * (1.0 - introHeader) }
+                    transform: Translate { y: window.s(20) * (1.0 - introHeader) }
 
                     Rectangle {
-                        width: (parent.width - 2) / 3 
-                        height: parent.height - 2
-                        y: 1
-                        radius: 10
+                        width: (parent.width - window.s(2)) / 3 
+                        height: parent.height - window.s(2)
+                        y: window.s(1)
+                        radius: window.s(10)
                         x: {
-                            if (window.activeTab === "outputs") return 1;
-                            if (window.activeTab === "inputs") return width + 1;
-                            return (width * 2) + 1;
+                            if (window.activeTab === "outputs") return window.s(1);
+                            if (window.activeTab === "inputs") return width + window.s(1);
+                            return (width * 2) + window.s(1);
                         }
                         Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
                         
@@ -607,15 +619,15 @@ Item {
                                 
                                 RowLayout {
                                     anchors.centerIn: parent
-                                    spacing: 8
+                                    spacing: window.s(8)
                                     Text {
-                                        font.family: "Iosevka Nerd Font"; font.pixelSize: 18
+                                        font.family: "Iosevka Nerd Font"; font.pixelSize: window.s(18)
                                         color: window.activeTab === tabId ? window.crust : (tabMa.containsMouse ? window.text : window.subtext0)
                                         text: icon
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                     Text {
-                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 13
+                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: window.s(13)
                                         color: window.activeTab === tabId ? window.crust : (tabMa.containsMouse ? window.text : window.subtext0)
                                         text: label
                                         Behavior on color { ColorAnimation { duration: 200 } }
@@ -641,12 +653,12 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     opacity: introContent
-                    transform: Translate { y: 20 * (1.0 - introContent) }
+                    transform: Translate { y: window.s(20) * (1.0 - introContent) }
 
                     ListView {
                         id: contentList
                         anchors.fill: parent
-                        spacing: 12
+                        spacing: window.s(12)
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
 
@@ -670,9 +682,9 @@ Item {
                             visible: contentList.count === 0
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                spacing: 10
-                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "Iosevka Nerd Font"; font.pixelSize: 32; color: window.surface2; text: "󰖁" }
-                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.pixelSize: 14; color: window.overlay0; text: "No active streams" }
+                                spacing: window.s(10)
+                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "Iosevka Nerd Font"; font.pixelSize: window.s(32); color: window.surface2; text: "󰖁" }
+                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.pixelSize: window.s(14); color: window.overlay0; text: "No active streams" }
                             }
                         }
 
@@ -690,16 +702,16 @@ Item {
 
                             // Intro transforms
                             opacity: isLoaded ? 1.0 : 0.0
-                            transform: Translate { y: isLoaded ? 0 : 15 }
+                            transform: Translate { y: isLoaded ? 0 : window.s(15) }
                             Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                             Behavior on transform { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
 
                             // Dynamic Height: The active hero element collapses its bottom slider row
                             property bool isActiveNode: model.is_default && window.activeTab !== "apps"
-                            height: isActiveNode ? 60 : 100
+                            height: isActiveNode ? window.s(60) : window.s(100)
                             Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
-                            radius: 14
+                            radius: window.s(14)
                             
                             property bool isHovered: cardMa.containsMouse && !isActiveNode
 
@@ -726,19 +738,19 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 16
-                                anchors.rightMargin: 16
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: isActiveNode ? 12 : 16 // Prevent slider crowding bottom bounds
-                                spacing: 12
+                                anchors.leftMargin: window.s(16)
+                                anchors.rightMargin: window.s(16)
+                                anchors.topMargin: window.s(12)
+                                anchors.bottomMargin: isActiveNode ? window.s(12) : window.s(16) // Prevent slider crowding bottom bounds
+                                spacing: window.s(12)
 
                                 // Top row: Text info and Icon
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 12
+                                    spacing: window.s(12)
 
                                     Text {
-                                        font.family: "Iosevka Nerd Font"; font.pixelSize: 22
+                                        font.family: "Iosevka Nerd Font"; font.pixelSize: window.s(22)
                                         color: isActiveNode ? window.crust : window.text
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                         text: {
@@ -751,16 +763,16 @@ Item {
 
                                     ColumnLayout {
                                         Layout.fillWidth: true
-                                        spacing: 2
+                                        spacing: window.s(2)
                                         Text {
                                             Layout.fillWidth: true; elide: Text.ElideRight
-                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 14
+                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: window.s(14)
                                             color: isActiveNode ? window.crust : window.text
                                             text: model.description
                                         }
                                         Text {
                                             Layout.fillWidth: true; elide: Text.ElideRight
-                                            font.family: "JetBrains Mono"; font.pixelSize: 11
+                                            font.family: "JetBrains Mono"; font.pixelSize: window.s(11)
                                             color: isActiveNode ? Qt.darker(window.crust, 1.5) : window.subtext0
                                             text: isActiveNode ? "Active Default" : model.name
                                         }
@@ -770,20 +782,20 @@ Item {
                                 // Bottom row: Custom Slider & Mute (Hides if it's the active node)
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 15
+                                    spacing: window.s(15)
                                     visible: !isActiveNode
                                     opacity: isActiveNode ? 0.0 : 1.0
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
 
                                     Rectangle {
-                                        Layout.preferredWidth: 32; Layout.preferredHeight: 32; radius: 16
+                                        Layout.preferredWidth: window.s(32); Layout.preferredHeight: window.s(32); radius: window.s(16)
                                         color: muteMa.containsMouse ? "#1affffff" : "transparent"
                                         border.color: muteMa.containsMouse ? (model.mute ? window.overlay0 : window.tabColor) : "transparent"
                                         Behavior on color { ColorAnimation { duration: 150 } }
 
                                         Text {
                                             anchors.centerIn: parent
-                                            font.family: "Iosevka Nerd Font"; font.pixelSize: 18
+                                            font.family: "Iosevka Nerd Font"; font.pixelSize: window.s(18)
                                             color: model.mute ? window.overlay0 : window.subtext0
                                             text: model.mute || model.volume === 0 ? "󰖁" : (model.volume > 50 ? "󰕾" : "󰖀")
                                             Behavior on color { ColorAnimation { duration: 200 } }
@@ -804,7 +816,7 @@ Item {
                                     // Local Slider
                                     Item {
                                         Layout.fillWidth: true
-                                        height: 14 // Slightly thinner than master slider for hierarchy
+                                        height: window.s(14) // Slightly thinner than master slider for hierarchy
                                         
                                         Timer {
                                             id: volCmdThrottle
@@ -826,14 +838,14 @@ Item {
                                         }
 
                                         Rectangle {
-                                            anchors.fill: parent; radius: 7
+                                            anchors.fill: parent; radius: window.s(7)
                                             color: "#0dffffff"; border.color: "#1affffff"; border.width: 1
                                             clip: true
 
                                             Rectangle {
                                                 height: parent.height
                                                 width: parent.width * (Math.min(100, model.volume) / 100)
-                                                radius: 7
+                                                radius: window.s(7)
                                                 
                                                 // Heavily dimmed if muted, slightly dimmed if background node
                                                 opacity: model.mute ? 0.3 : (volSliderMa.containsMouse ? 0.7 : 0.4)
@@ -873,8 +885,8 @@ Item {
                                     }
 
                                     Text {
-                                        Layout.preferredWidth: 35
-                                        font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 12
+                                        Layout.preferredWidth: window.s(35)
+                                        font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: window.s(12)
                                         color: window.subtext0
                                         text: model.volume + "%"
                                         horizontalAlignment: Text.AlignRight

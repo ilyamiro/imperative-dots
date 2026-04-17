@@ -1079,8 +1079,13 @@ Item {
                         if (monitorsModel.count === 1) {
                             let mon = monitorsModel.get(0);
                             let monitorStr = mon.name + "," + mon.resW + "x" + mon.resH + "@" + mon.rate + ",0x0," + mon.sysScale;
-                            Quickshell.execDetached(["notify-send", "Display Update", "Applied: " + mon.resW + "x" + mon.resH + " @ " + mon.rate + "Hz"]);
-                            Quickshell.execDetached(["sh", "-c", "hyprctl keyword monitor " + monitorStr]);
+                            let monitorBlock = "monitor=" + monitorStr;
+                            
+                            // AWK script: Finds the first `monitor=` block, injects the new config, and ignores old monitor lines
+                            let saveCmd = "awk -v new_mons='" + monitorBlock + "' '/^monitor[[:space:]]*=/ { if (!done) { print new_mons; done=1; } next; } {print}' ~/.config/hypr/hyprland.conf > ~/.config/hypr/hyprland.conf.tmp && mv ~/.config/hypr/hyprland.conf.tmp ~/.config/hypr/hyprland.conf";
+                            
+                            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved: " + mon.resW + "x" + mon.resH + " @ " + mon.rate + "Hz"]);
+                            Quickshell.execDetached(["sh", "-c", "hyprctl keyword monitor " + monitorStr + " ; " + saveCmd]);
                         } else {
                             let rects = [];
                             for (let i = 0; i < monitorsModel.count; i++) {
@@ -1146,6 +1151,8 @@ Item {
                             
                             let batchCmds = [];
                             let summaryString = "";
+                            let monitorBlockArray = [];
+
                             for (let i = 0; i < rects.length; i++) {
                                 let r = rects[i];
                                 
@@ -1156,14 +1163,18 @@ Item {
                                 let monitorStr = r.name + "," + r.resW + "x" + r.resH + "@" + r.rate + "," + r.x + "x" + r.y + "," + r.sysScale;
                                 batchCmds.push("keyword monitor " + monitorStr);
                                 summaryString += r.name + " ";
+                                
+                                monitorBlockArray.push("monitor=" + monitorStr);
                             }
                             
-                            let fullCommand = "hyprctl --batch '" + batchCmds.join(" ; ") + "'";
+                            let monitorBlock = monitorBlockArray.join("\\n");
+                            let saveCmd = "awk -v new_mons='" + monitorBlock + "' '/^monitor[[:space:]]*=/ { if (!done) { print new_mons; done=1; } next; } {print}' ~/.config/hypr/hyprland.conf > ~/.config/hypr/hyprland.conf.tmp && mv ~/.config/hypr/hyprland.conf.tmp ~/.config/hypr/hyprland.conf";
                             
+                            let fullCommand = "hyprctl --batch '" + batchCmds.join(" ; ") + "'";
                             let postReloadCmd = "swww kill ; sleep 0.2 ; swww-daemon &";
                             
-                            Quickshell.execDetached(["sh", "-c", fullCommand + " ; " + postReloadCmd]);
-                            Quickshell.execDetached(["notify-send", "Display Update", "Applied layout for: " + summaryString]);
+                            Quickshell.execDetached(["sh", "-c", fullCommand + " ; " + saveCmd + " ; " + postReloadCmd]);
+                            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved layout for: " + summaryString]);
                         }
                     }
                 }

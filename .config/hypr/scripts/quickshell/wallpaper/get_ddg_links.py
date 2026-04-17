@@ -3,6 +3,7 @@ import sys, json, time, re, os
 import urllib.request, urllib.parse, http.cookiejar
 
 LOG_FILE = "/tmp/qs_python_scraper.log"
+CONTROL_FILE = "/tmp/ddg_search_control"
 
 def log(msg):
     try:
@@ -10,6 +11,13 @@ def log(msg):
             f.write(f"{time.strftime('%H:%M:%S')} - {msg}\n")
     except:
         pass
+
+def get_state():
+    try:
+        with open(CONTROL_FILE, "r") as f:
+            return f.read().strip()
+    except:
+        return "run"
 
 def main():
     log("=== NEW SEARCH STARTING (Safe Search: OFF) ===")
@@ -31,7 +39,6 @@ def main():
         "Referer": "https://duckduckgo.com/"
     }
 
-    # Added kp=-1 to the initial search URL to influence the session/vqd
     search_url = f"https://duckduckgo.com/?q={urllib.parse.quote(query)}&iar=images&iax=images&ia=images&kp=-1"
     vqd = None
 
@@ -63,22 +70,30 @@ def main():
     links_found = 0
     
     for page in range(5): 
+        # Check state before making the next HTTP request
+        state = get_state()
+        if state == "stop":
+            log("Stop signal detected. Exiting cleanly.")
+            break
+            
+        while state == "pause":
+            time.sleep(1)
+            state = get_state()
+
         log(f"Fetching JSON page {page + 1}...")
 
-        # Constructing parameters: 'p': '-1' disables Safe Search
         params = {
             "l": "us-en",
             "o": "json",
             "q": query,
             "vqd": vqd,
             "f": ",,,",
-            "p": "-1",  # -1 = Off, 1 = Moderate, 2 = Strict
+            "p": "-1",
             "ex": "-1"
         }
 
         if next_url:
             url = "https://duckduckgo.com" + next_url
-            # Ensure safe search stays off on subsequent page loads
             if "p=-1" not in url: url += "&p=-1"
             if "vqd=" not in url: url += f"&vqd={vqd}"
         else:
@@ -86,7 +101,9 @@ def main():
 
         try:
             req = urllib.request.Request(url, headers=headers)
-            data = json.loads(urllib.request.urlopen(req, timeout=10).read().decode("utf-8"))
+            # Catch HTTP errors specifically so token expiry doesn't crash us violently
+            response = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(response.read().decode("utf-8"))
             results = data.get("results", [])
             log(f"Successfully parsed JSON. Found {len(results)} raw image results.")
             
@@ -112,7 +129,7 @@ def main():
         except BrokenPipeError:
             os._exit(0)
         except Exception as e: 
-            log(f"Error: {str(e)}")
+            log(f"Error fetching page {page + 1}: {str(e)}. Assuming session expired or blocked.")
             break
             
     log(f"=== SEARCH COMPLETE. Total FHD links: {links_found} ===")

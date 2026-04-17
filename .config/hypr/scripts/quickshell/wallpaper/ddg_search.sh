@@ -13,7 +13,7 @@ echo "=== Starting search for: $QUERY ===" > "$LOG_FILE"
 # 1. Guarantee directory exists
 mkdir -p "$SEARCH_DIR"
 
-# 2. Force unbuffered output so the loop gets data INSTANTLY
+# 2. The Pipe: Python provides links, OS provides backpressure
 python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb_url full_url; do
     
     # 3. Safely read control file
@@ -32,10 +32,7 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
     if [ -z "$thumb_url" ] || [ -z "$full_url" ]; then continue; fi
 
     # =========================================================================
-    # NEW: PRE-FLIGHT CHECK ON THE FULL URL
-    # We fetch ONLY the headers (-I) of the full image URL. 
-    # -L follows redirects, -m 3 prevents hanging on dead sites.
-    # If the final destination isn't an image, we drop it immediately.
+    # PRE-FLIGHT CHECK ON THE FULL URL
     # =========================================================================
     target_headers=$(curl -s -I -L -m 3 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$full_url")
     target_type=$(echo "$target_headers" | grep -i "content-type:" | tail -n 1 | tr -d '\r')
@@ -64,10 +61,10 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
 
     echo "Downloading Thumb: $thumb_url -> $filename" >> "$LOG_FILE"
 
-    # Download the thumbnail to a temporary file first
-    curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$thumb_url" -o "$tmppath"
+    # 4. TIMEOUT ADDED: -m 5 prevents permanent freezing on stalled connections
+    curl -s -L -m 5 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$thumb_url" -o "$tmppath"
 
-    # 4. Check state again AFTER the long curl block
+    # 5. Check state again AFTER the curl block
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
     if [[ "$state" == "stop" ]]; then 
         echo "Stop signal received during download. Discarding." >> "$LOG_FILE"
@@ -75,7 +72,7 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
         exit 0 
     fi
 
-    # 5. Verify the thumbnail itself is valid and not corrupted
+    # 6. Verify the thumbnail itself is valid and not corrupted
     if [ -s "$tmppath" ]; then
         actual_mime=$(file -b --mime-type "$tmppath")
         

@@ -67,6 +67,12 @@ require("lazy").setup({
 _G.reload_matugen_colors = function()
   -- vim.schedule ensures this massive UI update runs safely on the main event loop
   vim.schedule(function()
+    -- FIX: Prevent warning on first lazy.nvim run before Catppuccin is downloaded
+    local check_cat_installed = pcall(require, "catppuccin")
+    if not check_cat_installed then
+      return
+    end
+
     local matugen_path = vim.fn.stdpath("config") .. "/matugen_colors.lua"
     local overrides = {}
     
@@ -80,9 +86,9 @@ _G.reload_matugen_colors = function()
       end
     end
 
-    -- Aggressively clear ALL catppuccin and lualine modules from cache
+    -- FIX: Only clear catppuccin. Do NOT clear lualine, or it will leak highlight groups!
     for k, _ in pairs(package.loaded) do
-      if k:match("^catppuccin") or k:match("^lualine") then
+      if k:match("^catppuccin") then
         package.loaded[k] = nil
       end
     end
@@ -119,10 +125,10 @@ _G.reload_matugen_colors = function()
           },
         },
       })
-      pcall(vim.cmd, "colorscheme catppuccin")
+      vim.cmd("colorscheme catppuccin")
     end
     
-    -- Reload lualine dynamically
+    -- Reload lualine dynamically safely
     local ok_lualine, lualine = pcall(require, "lualine")
     if ok_lualine then
       lualine.setup { options = { theme = 'catppuccin' } }

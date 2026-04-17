@@ -1,13 +1,27 @@
-/* SwayOSD Matugen Theme 
-   Dynamic Colors
-*/
+/* SwayOSD Matugen Theme */
 
+/* Make the base GTK window completely transparent */
+window {
+    background: transparent;
+}
+
+/* Make the SwayOSD root window completely transparent so shadows don't clip */
+window#osd {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Apply your original styling to the inner container */
+/* (Including both #container and your original #osd-container just to be safe) */
+window#osd #container,
 window#osd-container {
     background-color: {{colors.surface.default.hex}}; 
     border: 2px solid {{colors.primary.default.hex}}; 
     border-radius: 32px; 
-    padding: 24px;
-    margin: 24px;
+    padding: 16px;
+    margin: 16px; /* This margin gives the shadow room to render inside the transparent window */
+    min-width: 250px; 
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); 
 }
 
@@ -17,15 +31,20 @@ trough {
     border-radius: 99px;
     border: none;
     min-height: 12px;
+    min-width: 200px; 
 }
 
 /* The filled part of the progress bar */
 progress {
-    /* Primary to Secondary Gradient */
     background-image: linear-gradient(to right, {{colors.primary.default.hex}}, {{colors.secondary.default.hex}}); 
     border-radius: 99px;
     border: none;
     min-height: 12px;
+    
+    /* GTK warning fix */
+    margin: 0px;
+    padding: 0px;
+    min-width: 0px;
 }
 
 /* Text Label styling */

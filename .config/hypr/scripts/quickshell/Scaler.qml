@@ -1,33 +1,54 @@
 import QtQuick
+import Quickshell
+import Quickshell.Io
+import "WindowRegistry.js" as LayoutMath 
 
-QtObject {
+Item {
     id: root
+    visible: false
 
-    // Bind this to the width of the window or screen in your widgets
     property real currentWidth: 1920.0
-    // The baseline resolution you designed your UI around
-    property real referenceWidth: 1920.0
+    property real uiScale: 1.0
 
-    property real baseScale: {
-        if (currentWidth <= 0) return 1.0;
-        let r = currentWidth / referenceWidth; 
-        
-        if (r <= 1.0) {
-            // SCALING DOWN:
-            // Using Math.pow(r, 0.85) makes the bar shrink "slower" than the screen does.
-            // On a 1280px screen (r=0.66), a linear scale is 0.66, 
-            // but this power scale keeps it at ~0.70.
-            return Math.max(0.35, Math.pow(r, 0.85));
-        } else {
-            // SCALING UP:
-            // Keeps the existing progressive scaling for 2K/4K so it doesn't get huge.
-            return Math.pow(r, 0.6);
+    property real baseScale: LayoutMath.getScale(currentWidth, uiScale)
+    
+    function s(val) { 
+        return LayoutMath.s(val, baseScale); 
+    }
+
+    Process {
+        id: scaleReader
+        command: ["bash", "-c", "cat ~/.config/hypr/settings.json 2>/dev/null || echo '{}'"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    if (this.text && this.text.trim().length > 0 && this.text.trim() !== "{}") {
+                        let parsed = JSON.parse(this.text);
+                        if (parsed.uiScale !== undefined && root.uiScale !== parsed.uiScale) {
+                            root.uiScale = parsed.uiScale;
+                        }
+                    }
+                } catch (e) {}
+            }
         }
     }
-    
-    // Helper function to dynamically scale any pixel value
-    function s(val) { 
-        return Math.round(val * baseScale); 
+
+    // EVENT-DRIVEN WATCHER
+    Process {
+        id: scaleWatcher
+        // -qq keeps it completely silent. It waits for the file to exist, listens for a write, and then exits.
+        command: ["bash", "-c", "while [ ! -f ~/.config/hypr/settings.json ]; do sleep 1; done; inotifywait -qq -e modify,close_write ~/.config/hypr/settings.json"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // 1. Read the new data
+                scaleReader.running = false;
+                scaleReader.running = true;
+                // 2. Restart the watcher for the next event
+                scaleWatcher.running = false;
+                scaleWatcher.running = true;
+            }
+        }
     }
 }
-

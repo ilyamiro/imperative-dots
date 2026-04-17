@@ -49,7 +49,7 @@ cd() {
 
 # Dynamic Fastfetch with Matugen Colors
 function fetch() {
-    local color_file="/tmp/qs_colors.json"
+    local color_file="$HOME/.config/hypr/scripts/quickshell/qs_colors.json"
     local config_path="/tmp/qs_fastfetch.jsonc"
     
     # Only rebuild the config if the Matugen colors changed or the config is missing
