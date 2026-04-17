@@ -175,9 +175,21 @@ init_install_theme_and_config() {
     echo -e "${C_CYAN}[ INFO ]${RESET} Requesting sudo privileges for installation..."
     sudo -v
 
-    # --- 2. Copying Dotfiles & Backups ---
+    # --- 2. Repository Cloning & Wallpapers ---
     show_progress 2 $TOTAL_STEPS
+    config_wallpapers
+
+    # --- 3. Copying Dotfiles & Backups ---
+    show_progress 3 $TOTAL_STEPS
     copy_dotfiles
+
+    # --- 4. Fonts ---
+    show_progress 4 $TOTAL_STEPS
+    config_fonts
+
+    # --- 5. Setup SDDM Theme and Config ---
+    show_progress 5 $TOTAL_STEPS
+    config_theme
 
     finish_display
 
