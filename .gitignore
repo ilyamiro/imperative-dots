@@ -1,3 +1,4 @@
 # IDEs
 .idea
 .vscode
+.config/hypr/colors.conf
