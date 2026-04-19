@@ -48,3 +48,7 @@ output_path = "~/.config/qt5ct/qss/matugen-style.qss"
 [templates.qt6_style]
 input_path = "~/.config/matugen/templates/qt-style.qss.template"
 output_path = "~/.config/qt6ct/qss/matugen-style.qss"
+
+[templates.hyprland]
+input_path = '~/.config/matugen/templates/hyprland.conf'
+output_path = '~/.config/hypr/colors.conf'
