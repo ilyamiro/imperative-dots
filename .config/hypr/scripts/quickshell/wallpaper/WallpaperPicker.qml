@@ -124,17 +124,18 @@ Item {
                         export RELOAD_SCRIPT="${escapeBash(reloadScript)}"
                         
                         cp "$DEST_FILE" /tmp/lock_bg.png || true
+                        echo "$DEST_FILE" > "$HOME/.cache/current_wallpaper" || true
                         pkill mpvpaper || true
-                        
+
                         ${ensureDaemonCmd}
-                        
+
                         # Run matugen completely detached so it doesn't block swww execution
                         ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
                         MATUGEN_PID=$!
                         
                         # DETERMINISTIC LOOP
                         for i in {1..20}; do
-                            if ${renderOverride}swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
+                            if ${renderOverride}awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
                                 break
                             fi
                             sleep 0.05
@@ -174,16 +175,17 @@ Item {
                             echo 'close' > /tmp/qs_widget_state
                             
                             cp "$DEST_FILE" /tmp/lock_bg.png || true
+                            echo "$DEST_FILE" > "$HOME/.cache/current_wallpaper" || true
                             pkill mpvpaper || true
-                            
+
                             ${ensureDaemonCmd}
-                            
+
                             ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
                             MATUGEN_PID=$!
                             
                             # DETERMINISTIC LOOP
                             for i in {1..20}; do
-                                if ${renderOverride}swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
+                                if ${renderOverride}awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
                                     break
                                 fi
                                 sleep 0.05
@@ -208,31 +210,35 @@ Item {
         const escThumb = escapeBash(thumbFile);
         const escReload = escapeBash(reloadScript);
 
+        let saveBgCmd = ""
         if (isVideo) {
             wallpaperCmd = `mpvpaper -o 'loop --no-audio --hwdec=auto --profile=high-quality --video-sync=display-resample --interpolation --tscale=oversample' '*' "$WALL_FILE"`
             lockBgCmd = `cp "$THUMB_FILE" /tmp/lock_bg.png`
+            saveBgCmd = `echo "$WALL_FILE" > "$HOME/.cache/current_wallpaper"`
         } else {
             wallpaperCmd = `
                 ${ensureDaemonCmd}
                 for i in {1..20}; do
-                    if ${renderOverride}swww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
+                    if ${renderOverride}awww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
                         break
                     fi
                     sleep 0.05
                 done
             `
             lockBgCmd = `cp "$WALL_FILE" /tmp/lock_bg.png`
+            saveBgCmd = `echo "$WALL_FILE" > "$HOME/.cache/current_wallpaper"`
         }
 
         const fullScript = `
             (
                 echo 'close' > /tmp/qs_widget_state
-                
+
                 export WALL_FILE="${escOriginal}"
                 export THUMB_FILE="${escThumb}"
                 export RELOAD_SCRIPT="${escReload}"
-                
+
                 ${lockBgCmd} || true
+                ${saveBgCmd} || true
                 pkill mpvpaper || true
                 
                 ( matugen image "$THUMB_FILE" || true; bash "$RELOAD_SCRIPT" || true ) &
