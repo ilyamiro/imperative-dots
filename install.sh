@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.5.3"
+DOTS_VERSION="1.6.0"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # ==============================================================================
@@ -1363,48 +1363,83 @@ if [ "$DO_FULL_INSTALL" = true ]; then
 else
     # Partial Update Logic (Git Diff)
     CHANGED_FILES=""
+    DELETED_FILES=""
+    
     if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
+        # 'AM' catches Added and Modified files
         CHANGED_FILES=$(git -C "$REPO_DIR" diff --name-only --diff-filter=AM "$OLD_COMMIT" "$NEW_COMMIT" | grep "^\.config/")
+        # 'D' catches Deleted files (this handles files that were removed or moved/renamed upstream)
+        DELETED_FILES=$(git -C "$REPO_DIR" diff --name-only --diff-filter=D "$OLD_COMMIT" "$NEW_COMMIT" | grep "^\.config/")
     fi
 
-    if [ -n "$CHANGED_FILES" ]; then
+    if [ -n "$CHANGED_FILES" ] || [ -n "$DELETED_FILES" ]; then
         echo -e "  -> Performing ${C_GREEN}Partial Update${RESET} based on upstream changes..."
-        echo "$CHANGED_FILES" | while IFS= read -r file; do
-            FOLDER_NAME=$(echo "$file" | cut -d'/' -f2)
+        
+        # 1. Handle Deleted/Moved files first to clear out obsolete configurations
+        if [ -n "$DELETED_FILES" ]; then
+            echo "$DELETED_FILES" | while IFS= read -r file; do
+                FOLDER_NAME=$(echo "$file" | cut -d'/' -f2)
+                
+                valid_folder=false
+                for f in "${CONFIG_FOLDERS[@]}"; do
+                    if [ "$f" == "$FOLDER_NAME" ]; then
+                        valid_folder=true
+                        break
+                    fi
+                done
 
-            # Check if this changed file belongs to the folders we actually manage
-            valid_folder=false
-            for f in "${CONFIG_FOLDERS[@]}"; do
-                if [ "$f" == "$FOLDER_NAME" ]; then
-                    valid_folder=true
-                    break
+                if [ "$valid_folder" = true ]; then
+                    TARGET_FILE="$HOME/$file"
+                    REL_PATH="${file#\.config/}"
+                    
+                    if [ -f "$TARGET_FILE" ]; then
+                        # Backup the file before deleting it from the user's active system
+                        mkdir -p "$(dirname "$BACKUP_DIR/$REL_PATH")"
+                        cp "$TARGET_FILE" "$BACKUP_DIR/$REL_PATH"
+                        rm -f "$TARGET_FILE"
+                        echo "    -> Removed obsolete file: $file"
+                    fi
                 fi
             done
+        fi
 
-            if [ "$valid_folder" = true ]; then
-                SOURCE_FILE="$REPO_DIR/$file"
-                TARGET_FILE="$HOME/$file"
-                REL_PATH="${file#\.config/}"
+        # 2. Handle Added/Modified files
+        if [ -n "$CHANGED_FILES" ]; then
+            echo "$CHANGED_FILES" | while IFS= read -r file; do
+                FOLDER_NAME=$(echo "$file" | cut -d'/' -f2)
 
-                # Never overwrite settings.json from upstream during a partial update —
-                # the adaptability phase at the end of the script is the sole writer for
-                # the fields it manages, and all other fields belong to the user.
-                if [[ "$file" == *"settings.json" ]]; then
-                    echo "    -> Skipped (user-owned): $file"
-                    continue
+                # Check if this changed file belongs to the folders we actually manage
+                valid_folder=false
+                for f in "${CONFIG_FOLDERS[@]}"; do
+                    if [ "$f" == "$FOLDER_NAME" ]; then
+                        valid_folder=true
+                        break
+                    fi
+                done
+
+                if [ "$valid_folder" = true ]; then
+                    SOURCE_FILE="$REPO_DIR/$file"
+                    TARGET_FILE="$HOME/$file"
+                    REL_PATH="${file#\.config/}"
+
+                    # Never overwrite settings.json from upstream during a partial update
+                    if [[ "$file" == *"settings.json" ]]; then
+                        echo "    -> Skipped (user-owned): $file"
+                        continue
+                    fi
+
+                    if [ -f "$TARGET_FILE" ]; then
+                        # Backup specifically modified files retaining the folder structure
+                        mkdir -p "$(dirname "$BACKUP_DIR/$REL_PATH")"
+                        cp "$TARGET_FILE" "$BACKUP_DIR/$REL_PATH"
+                    fi
+
+                    mkdir -p "$(dirname "$TARGET_FILE")"
+                    cp "$SOURCE_FILE" "$TARGET_FILE"
+                    echo "    -> Updated: $file"
                 fi
-
-                if [ -f "$TARGET_FILE" ]; then
-                    # Backup specifically modified files retaining the folder structure
-                    mkdir -p "$(dirname "$BACKUP_DIR/$REL_PATH")"
-                    cp "$TARGET_FILE" "$BACKUP_DIR/$REL_PATH"
-                fi
-
-                mkdir -p "$(dirname "$TARGET_FILE")"
-                cp "$SOURCE_FILE" "$TARGET_FILE"
-                echo "    -> Updated: $file"
-            fi
-        done
+            done
+        fi
         printf "  -> Partial update complete %-21s ${C_GREEN}[ OK ]${RESET}\n" ""
     else
         echo "  -> No target config files were changed upstream. Local files kept intact."
@@ -1677,34 +1712,93 @@ else
 fi
 
 # -> Sync settings.json: write only the fields the installer owns.
-# All other fields the user may have set (uiScale, openGuideAtStartup, etc.)
-# are preserved by jq's merging strategy (existing file is read first, then
-# only the three installer-owned keys are overwritten).
 echo -e "  -> Syncing installer-owned fields to settings.json..."
+
+# 1. Parse keybindings.conf dynamically into a JSON array
+KEYBINDS_CONF="$TARGET_CONFIG_DIR/hypr/config/keybindings.conf"
+KEYBINDS_JSON="[]"
+
+if [ -f "$KEYBINDS_CONF" ]; then
+    echo -e "  -> Parsing $KEYBINDS_CONF into settings.json..."
+    KEYBINDS_JSON="["
+    
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*#.*$ ]] && continue
+        [[ -z "${line// }" ]] && continue
+        [[ ! "$line" =~ ^[[:space:]]*bind ]] && continue
+
+        # Extract bind type (e.g., bind, bindm, bindel)
+        bind_type="${line%%=*}"
+        bind_type="${bind_type// /}"
+
+        # Extract everything after the '='
+        rest="${line#*=}"
+
+        # Split strictly into 4 parts using commas. 
+        # The remainder of the line goes into 'cmd', safely preserving any internal commas!
+        IFS=',' read -r mods key disp cmd <<< "$rest"
+
+        # Trim leading/trailing whitespace
+        mods=$(echo "$mods" | xargs)
+        key=$(echo "$key" | xargs)
+        disp=$(echo "$disp" | xargs)
+        cmd=$(echo "$cmd" | xargs)
+
+        # Safely encode into JSON object using jq
+        obj=$(jq -n \
+            --arg t "$bind_type" \
+            --arg m "$mods" \
+            --arg k "$key" \
+            --arg d "$disp" \
+            --arg c "$cmd" \
+            '{type: $t, mods: $m, key: $k, dispatcher: $d, command: $c}')
+
+        KEYBINDS_JSON="$KEYBINDS_JSON$obj,"
+    done < "$KEYBINDS_CONF"
+
+    # Clean up trailing comma and close array
+    if [ "$KEYBINDS_JSON" != "[" ]; then
+        KEYBINDS_JSON="${KEYBINDS_JSON%,}]"
+    else
+        KEYBINDS_JSON="[]"
+    fi
+else
+    echo -e "  -> \e[33mkeybindings.conf not found. Skipping keybind parsing.\e[0m"
+fi
+
+# 2. Inject the parsed array into settings.json
 if [ -f "$SETTINGS_FILE" ]; then
     tmp_json=$(mktemp)
+    # Merge existing user fields, overwriting installer variables and the new keybinds array
     jq --arg langs "$KB_LAYOUTS" \
        --arg wpdir "$WALLPAPER_DIR" \
        --arg kbopt "$KB_OPTIONS" \
-       '.language = $langs | .wallpaperDir = $wpdir | .kbOptions = $kbopt' \
+       --argjson binds "$KEYBINDS_JSON" \
+       '.language = $langs | .wallpaperDir = $wpdir | .kbOptions = $kbopt | .keybinds = $binds' \
        "$SETTINGS_FILE" > "$tmp_json" && mv "$tmp_json" "$SETTINGS_FILE"
+       
     printf "  -> settings.json updated (user fields preserved) %-3s ${C_GREEN}[ OK ]${RESET}\n" ""
 else
-    # File does not exist yet — generate the full default structure.
+    # File does not exist yet — generate the full default structure dynamically
     mkdir -p "$(dirname "$SETTINGS_FILE")"
-    cat <<EOF > "$SETTINGS_FILE"
-{
-  "uiScale": 1.0,
-  "openGuideAtStartup": true,
-  "topbarHelpIcon": true,
-  "wallpaperDir": "$WALLPAPER_DIR",
-  "language": "$KB_LAYOUTS",
-  "kbOptions": "$KB_OPTIONS"
-}
-EOF
-    printf "  -> settings.json created with defaults %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
+    jq -n \
+       --arg langs "$KB_LAYOUTS" \
+       --arg wpdir "$WALLPAPER_DIR" \
+       --arg kbopt "$KB_OPTIONS" \
+       --argjson binds "$KEYBINDS_JSON" \
+       '{
+         uiScale: 1.0,
+         openGuideAtStartup: true,
+         topbarHelpIcon: true,
+         wallpaperDir: $wpdir,
+         language: $langs,
+         kbOptions: $kbopt,
+         keybinds: $binds
+       }' > "$SETTINGS_FILE"
+       
+    printf "  -> settings.json created with defaults and parsed keybinds %-13s ${C_GREEN}[ OK ]${RESET}\n" ""
 fi
-
 # 4. Patch WallpaperPicker.qml dynamically
 if [ -f "$WP_QML" ]; then
 
@@ -1716,7 +1810,7 @@ if [ -f "$WP_QML" ]; then
 fi
 
 if [ -d "$TARGET_CONFIG_DIR/hypr/scripts" ]; then
-    find "$TARGET_CONFIG_DIR/hypr/scripts" -type f -exec sed -i 's/swww/awww/g' {} +
+    find "$TARGET_CONFIG_DIR/hypr/scripts" -type f -exec sed -i -e 's/swww-daemon/awww-daemon/g' -e 's/swww/awww/g' {} +
 fi
 
 # 6. Zsh Dynamism

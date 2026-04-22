@@ -63,6 +63,26 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # ---------------------------------------------------------
+# MULTI-MONITOR GEOMETRY FIX (HYPRLAND)
+# ---------------------------------------------------------
+# Convert local coordinates from the Quickshell overlay to global Wayland coordinates
+if [ -n "$GEOMETRY" ]; then
+    # Fetch the X and Y global offset of the currently focused monitor
+    OFFSET=$(hyprctl -j monitors | python3 -c "import sys,json; print(next((f\"{m['x']} {m['y']}\" for m in json.load(sys.stdin) if m.get('focused')), '0 0'))" 2>/dev/null)
+    read -r MON_X MON_Y <<< "${OFFSET:-0 0}"
+    
+    # Parse the local geometry passed from QML (Format: "X,Y WxH")
+    IFS=', x' read -r LOCAL_X LOCAL_Y W H <<< "$GEOMETRY"
+    
+    # Calculate true global coordinates
+    GLOBAL_X=$((LOCAL_X + MON_X))
+    GLOBAL_Y=$((LOCAL_Y + MON_Y))
+    
+    # Re-assemble for grim
+    GEOMETRY="${GLOBAL_X},${GLOBAL_Y} ${W}x${H}"
+fi
+
+# ---------------------------------------------------------
 # INSTANT QR SCANNING EXECUTION
 # ---------------------------------------------------------
 if [ "$SCAN_QR_MODE" = true ]; then
@@ -213,7 +233,7 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         MIC_DEV="${MIC_DEV:-default}"
 
         # Reverted back to the portal method for reliable security clearance
-        GSR_ARGS=(-w "portal" -c "mp4" -f "60")
+        GSR_ARGS=(-w "portal" -c "mp4" -f "60" -ac "aac")
 
         AUDIO_MIX=""
 

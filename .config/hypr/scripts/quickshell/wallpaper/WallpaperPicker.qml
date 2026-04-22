@@ -12,7 +12,6 @@ Item {
     id: window
     width: Screen.width
 
-    // --- Responsive Scaling Logic ---
     Scaler {
         id: scaler
         currentWidth: Screen.width
@@ -24,44 +23,42 @@ Item {
 
     MatugenColors { id: _theme }
 
-    // -------------------------------------------------------------------------
-    // PROPERTIES & IPC RECEIVER
-    // -------------------------------------------------------------------------
     property string widgetArg: ""
     property string targetWallName: ""
     property bool initialFocusSet: false
     property int visibleItemCount: -1
     property int scrollAccum: 0
-    property real scrollThreshold: window.s(300) 
+    property real scrollThreshold: window.s(300)
 
-    // Filter System Properties
     property string currentFilter: "All"
     property string _lastFilter: "All"
     property string searchQuery: ""
     property bool isOnlineSearch: false
     property bool isSearchPaused: false
-    property bool hasSearched: false 
+    property bool hasSearched: false
     property var colorMap: ({})
     property int cacheVersion: 0 
     
-    // Download and Status Tracking Properties
     property bool isDownloadingWallpaper: false
     property string currentDownloadName: ""
     
-    // STRICT ARCHITECTURAL LOCK
-    property bool isApplying: false 
+    property bool isApplying: false
+    property bool isMonitorSelectorOpen: false
     
-    // Reactive Status Properties
+    Timer {
+        id: applyUnlockTimer
+        interval: 250
+        onTriggered: window.isApplying = false
+    }
+    
     property bool isStartup: localFolderModel.status === FolderListModel.Loading || srcModel.status === FolderListModel.Loading
     property bool isReady: visible && localFolderModel.status === FolderListModel.Ready
     property bool isSearchActive: window.currentFilter === "Search" && window.hasSearched && searchFolderModel.status === FolderListModel.Loading
     
-    // Memory Properties for Search
     property string lastSearchName: ""
     property bool isModelChanging: false
     property bool searchIndexRestored: false
     
-    // Lock scrolling/interaction while actively streaming search results.
     property bool isScrollingBlocked: window.currentFilter === "Search" && window.hasSearched && window.isSearchActive && !window.isSearchPaused
     property bool jumpToLastOnFilterChange: false
 
@@ -79,29 +76,82 @@ Item {
         { name: "Search", hex: "", label: "Search" } 
     ]
 
-    // -------------------------------------------------------------------------
-    // GLOBAL ACTION: APPLY WALLPAPER
-    // -------------------------------------------------------------------------
+    ListModel { id: monitorModel }
+
+    Process {
+        id: monitorProc
+        command: ["sh", "-c", "export PATH=$PATH:/usr/bin:/usr/local/bin:/run/current-system/sw/bin && hyprctl monitors -j"]
+        running: false
+        
+        stdout: StdioCollector {
+            onStreamFinished: {
+                console.log("[MonitorSync] Process finished. Reading stdout directly.");
+                let response = this.text; 
+                
+                if (response && response.trim().length > 0) {
+                    try {
+                        var monitors = JSON.parse(response);
+                        console.log("[MonitorSync] JSON parsed successfully. Found " + monitors.length + " monitors.");
+                        
+                        monitorModel.clear();
+                        for (var i = 0; i < monitors.length; i++) {
+                            monitorModel.append({ "name": monitors[i].name, "selected": true });
+                            console.log("[MonitorSync] -> Injected: " + monitors[i].name);
+                        }
+                    } catch(e) {
+                        console.log("[MonitorSync] ERROR parsing JSON: " + e);
+                        console.log("[MonitorSync] RAW TEXT DUMP: " + response);
+                    }
+                } else {
+                    console.log("[MonitorSync] ERROR: stdout was empty.");
+                }
+            }
+        }
+    }
+
+    function loadMonitors() {
+        console.log("[MonitorSync] Starting native hyprctl process...");
+        monitorProc.running = true;
+    }
+
+    function getMonitorOutputs() {
+        if (monitorModel.count <= 1) return "all"; 
+        
+        let selected = [];
+        for (let i = 0; i < monitorModel.count; i++) {
+            if (monitorModel.get(i).selected) {
+                selected.push(monitorModel.get(i).name);
+            }
+        }
+        
+        if (selected.length === 0) return "none";
+        if (selected.length === monitorModel.count) return "all";
+        
+        return selected.join(",");
+    }
+
     function applyWallpaper(safeFileName, isVideo) {
         if (!safeFileName || window.isApplying) return;
         
-        // 1. STRICT LOCK: Instantly block all further mouse and keyboard input
-        window.isApplying = true; 
+        let outputs = window.getMonitorOutputs();
+        if (outputs === "none") return;
         
-        window.targetWallName = safeFileName
-        let cleanName = window.getCleanName(safeFileName)
-        let reloadScript = Qt.resolvedUrl("matugen_reload.sh").toString()
+        window.isApplying = true;
+        applyUnlockTimer.restart();
+        
+        window.targetWallName = safeFileName;
+        let cleanName = window.getCleanName(safeFileName);
+        let reloadScript = Qt.resolvedUrl("matugen_reload.sh").toString();
         
         if (reloadScript.startsWith("file://")) {
-            reloadScript = decodeURIComponent(reloadScript.substring(7))
+            reloadScript = decodeURIComponent(reloadScript.substring(7));
         }
 
         const escapeBash = (str) => String(str).replace(/(["\\$`])/g, '\\$1');
-        
         const randomTransition = window.transitions[Math.floor(Math.random() * window.transitions.length)];
+        const escOutputs = escapeBash(outputs);
         
-        // 3. AUTO-REVIVE COMMAND: Ensure daemon is alive before sending IPC commands
-        const ensureDaemonCmd = `if ! pgrep -x "awww-daemon" > /dev/null; then awww-daemon >/dev/null 2>&1 & sleep 0.2; fi`;
+        const logFile = "/tmp/qs_swww_debug.log";
         
         if (window.currentFilter === "Search" && window.hasSearched) {
             let alreadyExists = window.isDownloaded(safeFileName);
@@ -112,35 +162,24 @@ Item {
 
             if (alreadyExists) {
                 const applyScript = `
-                    (
-                        # Command UI to close immediately
-                        echo 'close' > /tmp/qs_widget_state
-                        
-                        export DEST_FILE="${escapeBash(destFile)}"
-                        export FINAL_THUMB="${escapeBash(finalThumb)}"
-                        export RELOAD_SCRIPT="${escapeBash(reloadScript)}"
-                        
-                        cp "$DEST_FILE" /tmp/lock_bg.png || true
-                        pkill mpvpaper || true
-                        
-                        ${ensureDaemonCmd}
-                        
-                        # Run matugen completely detached so it doesn't block swww execution
-                        ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
-                        MATUGEN_PID=$!
-                        
-                        # GRACEFUL FALLBACK LOOP: Try Vulkan first, fallback to default immediately if it fails
-                        for i in {1..20}; do
-                            if env WGPU_BACKEND=vulkan swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                                break
-                            elif swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                                break
-                            fi
-                            sleep 0.05
-                        done
-                        
-                        wait $MATUGEN_PID
-                    ) </dev/null >/dev/null 2>&1 & disown
+                    export DEST_FILE="${escapeBash(destFile)}"
+                    export FINAL_THUMB="${escapeBash(finalThumb)}"
+                    export RELOAD_SCRIPT="${escapeBash(reloadScript)}"
+                    export TARGET_MONITORS="${escOutputs}"
+                    
+                    cp "$DEST_FILE" /tmp/lock_bg.png || true
+                    pkill mpvpaper || true
+                    
+                    echo "" >> ${logFile}
+                    echo "[$(date +'%H:%M:%S.%3N')] APPLYING CACHED SEARCH: $DEST_FILE TO $TARGET_MONITORS" >> ${logFile}
+                    
+                    if [ "$TARGET_MONITORS" = "all" ]; then
+                        swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                    else
+                        swww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                    fi
+                    
+                    ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
                 `;
                 Quickshell.execDetached(["bash", "-c", applyScript]);
             } else {
@@ -154,105 +193,88 @@ Item {
                     export TEMP_THUMB="${escapeBash(tempThumb)}"
                     export RELOAD_SCRIPT="${escapeBash(reloadScript)}"
                     export MAP_FILE="${escapeBash(mapFile)}"
+                    export TARGET_MONITORS="${escOutputs}"
                     
-                    (
-                        URL=$(awk -F'|' -v fname="$SAFE_NAME" '$1 == fname {print $2; exit}' "$MAP_FILE")
-                        if [ -n "$URL" ]; then
-                            curl -s -L -A "Mozilla/5.0" "$URL" -o "$DEST_FILE.tmp"
-                            
-                            if file "$DEST_FILE.tmp" | grep -iq "webp"; then
-                                magick "$DEST_FILE.tmp" "$DEST_FILE"
-                                rm -f "$DEST_FILE.tmp"
-                            else
-                                mv "$DEST_FILE.tmp" "$DEST_FILE"
-                            fi
-                            
-                            cp "$TEMP_THUMB" "$FINAL_THUMB"
-                            magick "$DEST_FILE" -resize x420 -quality 70 "$FINAL_THUMB" || true
-                            
-                            echo 'close' > /tmp/qs_widget_state
-                            
-                            cp "$DEST_FILE" /tmp/lock_bg.png || true
-                            pkill mpvpaper || true
-                            
-                            ${ensureDaemonCmd}
-                            
-                            ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
-                            MATUGEN_PID=$!
-                            
-                            # GRACEFUL FALLBACK LOOP
-                            for i in {1..20}; do
-                                if env WGPU_BACKEND=vulkan swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                                    break
-                                elif swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                                    break
-                                fi
-                                sleep 0.05
-                            done
-                            
-                            wait $MATUGEN_PID
+                    URL=$(awk -F'|' -v fname="$SAFE_NAME" '$1 == fname {print $2; exit}' "$MAP_FILE")
+                    if [ -n "$URL" ]; then
+                        curl -s -L -A "Mozilla/5.0" "$URL" -o "$DEST_FILE.tmp"
+                        
+                        if file "$DEST_FILE.tmp" | grep -iq "webp"; then
+                            magick "$DEST_FILE.tmp" "$DEST_FILE"
+                            rm -f "$DEST_FILE.tmp"
+                        else
+                            mv "$DEST_FILE.tmp" "$DEST_FILE"
                         fi
-                    ) </dev/null >/dev/null 2>&1 & disown
+                        
+                        cp "$TEMP_THUMB" "$FINAL_THUMB"
+                        magick "$DEST_FILE" -resize x420 -quality 70 "$FINAL_THUMB" || true
+                        
+                        cp "$DEST_FILE" /tmp/lock_bg.png || true
+                        pkill mpvpaper || true
+                        
+                        echo "" >> ${logFile}
+                        echo "[$(date +'%H:%M:%S.%3N')] APPLYING NEW DOWNLOAD: $DEST_FILE TO $TARGET_MONITORS" >> ${logFile}
+                        
+                        if [ "$TARGET_MONITORS" = "all" ]; then
+                            swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                        else
+                            swww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                        fi
+                        
+                        ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
+                    fi
                 `;
                 Quickshell.execDetached(["bash", "-c", downloadScript]);
             }
             return;
         }
 
-        const originalFile = window.srcDir + "/" + cleanName
-        const thumbFile = Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs/" + safeFileName 
-        
-        let wallpaperCmd = ""
-        let lockBgCmd = ""
+        const originalFile = window.srcDir + "/" + cleanName;
+        const thumbFile = Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs/" + safeFileName;
         
         const escOriginal = escapeBash(originalFile);
         const escThumb = escapeBash(thumbFile);
         const escReload = escapeBash(reloadScript);
 
+        let wallpaperCmd = "";
+        
         if (isVideo) {
-            wallpaperCmd = `mpvpaper -o 'loop --no-audio --hwdec=auto --profile=high-quality --video-sync=display-resample --interpolation --tscale=oversample' '*' "$WALL_FILE"`
-            lockBgCmd = `cp "$THUMB_FILE" /tmp/lock_bg.png`
+            wallpaperCmd = `
+                echo "" >> ${logFile}
+                echo "[$(date +'%H:%M:%S.%3N')] APPLYING LOCAL VIDEO: ${escOriginal} TO ${escOutputs}" >> ${logFile}
+                
+                if [ "${escOutputs}" = "all" ]; then
+                    mpvpaper -o 'loop --no-audio --hwdec=auto --profile=high-quality --video-sync=display-resample --interpolation --tscale=oversample' '*' "${escOriginal}" >> ${logFile} 2>&1 &
+                else
+                    IFS=',' read -ra MON_ARR <<< "${escOutputs}"
+                    for mon in "\${MON_ARR[@]}"; do
+                        mpvpaper -o 'loop --no-audio --hwdec=auto --profile=high-quality --video-sync=display-resample --interpolation --tscale=oversample' "\$mon" "${escOriginal}" >> ${logFile} 2>&1 &
+                    done
+                fi
+            `;
         } else {
             wallpaperCmd = `
-                ${ensureDaemonCmd}
-                # GRACEFUL FALLBACK LOOP
-                for i in {1..20}; do
-                    if env WGPU_BACKEND=vulkan swww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                        break
-                    elif swww img "$WALL_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >/dev/null 2>&1; then
-                        break
-                    fi
-                    sleep 0.05
-                done
-            `
-            lockBgCmd = `cp "$WALL_FILE" /tmp/lock_bg.png`
+                echo "" >> ${logFile}
+                echo "[$(date +'%H:%M:%S.%3N')] APPLYING LOCAL IMAGE: ${escOriginal} TO ${escOutputs}" >> ${logFile}
+                
+                if [ "${escOutputs}" = "all" ]; then
+                    swww img "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                else
+                    swww img -o "${escOutputs}" "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                fi
+            `;
         }
 
         const fullScript = `
-            (
-                echo 'close' > /tmp/qs_widget_state
-                
-                export WALL_FILE="${escOriginal}"
-                export THUMB_FILE="${escThumb}"
-                export RELOAD_SCRIPT="${escReload}"
-                
-                ${lockBgCmd} || true
-                pkill mpvpaper || true
-                
-                ( matugen image "$THUMB_FILE" || true; bash "$RELOAD_SCRIPT" || true ) &
-                MATUGEN_PID=$!
-                
-                ${wallpaperCmd}
-                
-                wait $MATUGEN_PID
-            ) </dev/null >/dev/null 2>&1 & disown
-        `
-        Quickshell.execDetached(["bash", "-c", fullScript])
-    }         
+            cp "${isVideo ? escThumb : escOriginal}" /tmp/lock_bg.png || true
+            pkill mpvpaper || true
+            
+            ${wallpaperCmd}
+            ( matugen image "${escThumb}" || true; bash "${escReload}" || true ) &
+        `;
+        Quickshell.execDetached(["bash", "-c", fullScript]);
+    }
     
-    // -------------------------------------------------------------------------
-    // PERSISTENT SETTINGS
-    // -------------------------------------------------------------------------
     Settings {
         id: searchState
         category: "QS_WallpaperPicker"
@@ -265,14 +287,12 @@ Item {
         Quickshell.execDetached(["bash", "-c", "echo '" + (isSearchPaused ? "pause" : "run") + "' > /tmp/ddg_search_control"]);
     }
 
-    // -------------------------------------------------------------------------
-    // VISIBILITY LOGIC
-    // -------------------------------------------------------------------------
     onVisibleChanged: {
         if (!visible) {
             window.initialFocusSet = false;
             window.searchIndexRestored = false;
-            window.isApplying = false; // Free the lock strictly when hidden
+            window.isApplying = false;
+            window.isMonitorSelectorOpen = false;
             
             if (window.hasSearched) {
                 window.isSearchPaused = true;
@@ -281,7 +301,6 @@ Item {
             window.isFilterAnimating = true;
             filterAnimationTimer.restart();
 
-            // Re-apply focus rules when re-opening
             if (window.currentFilter !== "Search") {
                 window.applyFilters(true);
             } else if (window.hasSearched) {
@@ -293,9 +312,6 @@ Item {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // NOTIFICATION & LABEL STATE LOGIC
-    // -------------------------------------------------------------------------
     property bool isLoading: localFolderModel.status === FolderListModel.Loading || 
                              srcModel.status === FolderListModel.Loading ||
                              (window.currentFilter === "Search" && searchFolderModel.status === FolderListModel.Loading)
@@ -311,8 +327,7 @@ Item {
             if (!window.hasSearched) return "Type something to search...";
             if (window.isSearchPaused) return "Search Paused";
             if (window.visibleItemCount === 0) return "Searching DDG (FHD+)...";
-            // If it's not paused and has items, it is actively generating thumbnails
-            return "Generating thumbnails..."; 
+            return "Generating thumbnails...";
         }
 
         if (isLoading) return "Generating thumbnails...";
@@ -324,7 +339,6 @@ Item {
         return window.currentFilter;
     }
     
-    // Block the notification flag during initial load to stop UI shifting
     property bool showNotification: !window.isStartup && currentNotification !== ""
 
     function getCleanName(name) {
@@ -344,7 +358,7 @@ Item {
     onWidgetArgChanged: {
         if (widgetArg !== "") {
             targetWallName = widgetArg;
-            initialFocusSet = false; 
+            initialFocusSet = false;
             tryFocus();
         }
     }
@@ -412,7 +426,7 @@ Item {
         }
         
         if (searchFolderModel.status === FolderListModel.Ready && searchProxyModel.count === searchFolderModel.count) {
-             window.searchIndexRestored = true; 
+             window.searchIndexRestored = true;
         }
     }
 
@@ -452,11 +466,11 @@ Item {
         }
         window.isModelChanging = false;
 
-        window.searchIndexRestored = true; 
+        window.searchIndexRestored = true;
         window.isOnlineSearch = true;
         window.hasSearched = true;
         
-        window.visibleItemCount = 0; 
+        window.visibleItemCount = 0;
         
         searchState.searched = true;
         searchState.query = searchInput.text.trim();
@@ -481,7 +495,7 @@ Item {
                 fi
             done
             pkill -f "[g]et_ddg_links.py" || true
-            sleep 0.2 
+            sleep 0.2
             
             echo "Clearing old cache..."
             rm -rf "${rawSearchDir}"/* || true
@@ -504,13 +518,13 @@ Item {
     readonly property string thumbDir: homeDir + "/.cache/wallpaper_picker/thumbs"
     readonly property string searchDir: homeDir + "/.cache/wallpaper_picker/search_thumbs"
     readonly property string srcDir: {
-    	const dir = Quickshell.env("WALLPAPER_DIR")
-    	return (dir && dir !== "") 
+        const dir = Quickshell.env("WALLPAPER_DIR")
+        return (dir && dir !== "") 
         ? dir 
         : Quickshell.env("HOME") + "/Pictures/Wallpapers"
     }
 
-    readonly property var transitions: ["grow", "outer", "any", "wipe", "wave", "pixel", "center"]
+    readonly property var transitions: ["simple", "fade", "left", "right", "top", "bottom", "wipe", "grow", "center", "outer", "random", "wave"]
 
     readonly property real itemWidth: window.s(400)
     readonly property real itemHeight: window.s(420)
@@ -520,7 +534,7 @@ Item {
 
     Timer {
         id: scrollThrottle
-        interval: 150 
+        interval: 150
     }
 
     property bool isFilterAnimating: false
@@ -537,9 +551,6 @@ Item {
         onTriggered: window.isItemAnimating = false
     }
 
-    // -------------------------------------------------------------------------
-    // COLOR FILTERING MATH & NATIVE FILE SYSTEM CACHE
-    // -------------------------------------------------------------------------
     function getHexBucket(hexStr) {
         if (!hexStr) return "Monochrome";
         
@@ -570,7 +581,7 @@ Item {
             }
             h /= 6;
         }
-        h = h * 360; 
+        h = h * 360;
 
         if (s < 0.05 || v < 0.08) return "Monochrome";
 
@@ -586,7 +597,7 @@ Item {
     }
 
     function checkItemMatchesFilter(fileName, isVid, cv, filter) {
-        if (filter === "Search") return true; 
+        if (filter === "Search") return true;
 
         if (filter === "All") return true;
         if (filter === "Video") return isVid;
@@ -636,7 +647,7 @@ Item {
             }
         }
         window.colorMap = newMap;
-        window.cacheVersion++; 
+        window.cacheVersion++;
         window.updateVisibleCount();
     }
 
@@ -761,7 +772,7 @@ Item {
 
         if (window.currentFilter === "Search") {
             window.updateVisibleCount();
-            return; 
+            return;
         }
 
         let firstValidIndex = -1;
@@ -807,7 +818,7 @@ Item {
     onCurrentFilterChanged: {
         window.isFilterAnimating = true;
         filterAnimationTimer.restart();
-        window.isModelChanging = true; 
+        window.isModelChanging = true;
         let returningFromSearch = (window._lastFilter === "Search" && window.currentFilter !== "Search");
         window._lastFilter = window.currentFilter;
         
@@ -820,7 +831,7 @@ Item {
 
             if (window.currentFilter === "Search") {
                 if (window.hasSearched) {
-                    window.searchIndexRestored = false; 
+                    window.searchIndexRestored = false;
                     window.trySearchFocus();
                 }
             } else {
@@ -830,9 +841,6 @@ Item {
         });
     }
 
-    // -------------------------------------------------------------------------
-    // SHORTCUTS
-    // -------------------------------------------------------------------------
     Shortcut { 
         sequence: "Left"; 
         enabled: !window.isScrollingBlocked && !window.isApplying
@@ -846,7 +854,6 @@ Item {
     
     Shortcut { 
         sequence: "Return"
-        // Bind the lock firmly to the shortcut to stop multiple keyboard fires
         enabled: !searchInput.activeFocus && !window.isScrollingBlocked && !window.isApplying
         onActivated: { 
             let targetModel = window.getModelForFilter(window.currentFilter);
@@ -864,9 +871,6 @@ Item {
     Shortcut { sequence: "Tab"; enabled: !window.isApplying; onActivated: window.cycleFilter(1) }
     Shortcut { sequence: "Backtab"; enabled: !window.isApplying; onActivated: window.cycleFilter(-1) }
 
-    // -------------------------------------------------------------------------
-    // CONTENT & DUAL MODELS
-    // -------------------------------------------------------------------------
     ListModel { id: localProxyModel }
     ListModel { id: searchProxyModel }
     
@@ -877,7 +881,7 @@ Item {
         folder: window.thumbDir
         nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.mp4", "*.mkv", "*.mov", "*.webm"]
         showDirs: false
-        sortField: FolderListModel.Name 
+        sortField: FolderListModel.Name
         
         onCountChanged: window.syncLocalModel()
         onStatusChanged: { if (status === FolderListModel.Ready) window.syncLocalModel() }
@@ -894,12 +898,17 @@ Item {
             window.isModelChanging = false;
         }
 
+        let batch = [];
         for (let i = startIdx; i < endIdx; i++) {
             let fn = localFolderModel.get(i, "fileName");
             let fu = localFolderModel.get(i, "fileUrl");
             if (fn !== undefined) {
-                localProxyModel.append({ "fileName": fn, "fileUrl": String(fu) });
+                batch.push({ "fileName": fn, "fileUrl": String(fu) });
             }
+        }
+        
+        if (batch.length > 0) {
+            localProxyModel.append(batch);
         }
 
         if (window.currentFilter !== "Search") window.updateVisibleCount();
@@ -907,23 +916,6 @@ Item {
         if (!window.initialFocusSet && window.currentFilter !== "Search" && localProxyModel.count > 0) {
             window.tryFocus();
         }
-    }
-
-    FolderListModel {
-        id: searchFolderModel
-        folder: window.searchDir
-        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.mp4", "*.mkv", "*.mov", "*.webm"]
-        showDirs: false
-        sortField: FolderListModel.Name 
-        
-        onFolderChanged: {
-            window.isModelChanging = true;
-            searchProxyModel.clear()
-            window.isModelChanging = false;
-        }
-        
-        onCountChanged: window.syncSearchModel()
-        onStatusChanged: { if (status === FolderListModel.Ready) window.syncSearchModel() }
     }
 
     function syncSearchModel() {
@@ -937,12 +929,17 @@ Item {
             window.isModelChanging = false;
         }
 
+        let batch = [];
         for (let i = startIdx; i < endIdx; i++) {
             let fn = searchFolderModel.get(i, "fileName");
             let fu = searchFolderModel.get(i, "fileUrl");
             if (fn !== undefined) {
-                searchProxyModel.append({ "fileName": fn, "fileUrl": String(fu) });
+                batch.push({ "fileName": fn, "fileUrl": String(fu) });
             }
+        }
+        
+        if (batch.length > 0) {
+            searchProxyModel.append(batch);
         }
 
         if (window.currentFilter === "Search") window.updateVisibleCount();
@@ -959,20 +956,37 @@ Item {
             }
         }
     }
+    FolderListModel {
+        id: searchFolderModel
+        folder: window.searchDir
+        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.mp4", "*.mkv", "*.mov", "*.webm"]
+        showDirs: false
+        sortField: FolderListModel.Name
+        
+        onFolderChanged: {
+            window.isModelChanging = true;
+            searchProxyModel.clear()
+            window.isModelChanging = false;
+        }
+        
+        onCountChanged: window.syncSearchModel()
+        onStatusChanged: { if (status === FolderListModel.Ready) window.syncSearchModel() }
+    }
 
+     
     ListView {
         id: view
         anchors.fill: parent
         
         opacity: window.isReady ? 1.0 : 0.0
-        anchors.margins: window.isReady ? 0 : window.s(40) 
+        anchors.margins: window.isReady ? 0 : window.s(40)
         
         Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutQuart } }
         Behavior on anchors.margins { NumberAnimation { duration: 700; easing.type: Easing.OutExpo } }
 
         spacing: 0
         orientation: ListView.Horizontal
-        clip: false 
+        clip: false
 
         interactive: !window.isScrollingBlocked && !window.isApplying
         cacheBuffer: 2000
@@ -1020,7 +1034,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            acceptedButtons: Qt.NoButton 
+            acceptedButtons: Qt.NoButton
 
             onWheel: (wheel) => {
                 if (window.isScrollingBlocked || window.isApplying) {
@@ -1062,7 +1076,7 @@ Item {
             readonly property bool matchesFilter: window.checkItemMatchesFilter(safeFileName, isVideo, window.cacheVersion, window.currentFilter)
             
             readonly property real targetWidth: isVisuallyEnlarged ? (window.itemWidth * 1.5) : (window.itemWidth * 0.5)
-            readonly property real targetHeight: isVisuallyEnlarged ? (window.itemHeight + window.s(30)) : window.itemHeight 
+            readonly property real targetHeight: isVisuallyEnlarged ? (window.itemHeight + window.s(30)) : window.itemHeight
             
             property bool isPlayingVideo: false
 
@@ -1094,13 +1108,13 @@ Item {
 
             height: matchesFilter ? targetHeight : 0
             anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: window.s(15) 
+            anchors.verticalCenterOffset: window.s(15)
 
             z: isVisuallyEnlarged ? 10 : 1
             
             Behavior on scale { enabled: window.initialFocusSet; NumberAnimation { duration: 500; easing.type: Easing.InOutQuad } }
             Behavior on width { enabled: window.initialFocusSet; NumberAnimation { duration: 500; easing.type: Easing.InOutQuad } }
-            Behavior on height { enabled: window.initialFocusSet; NumberAnimation { duration: 500; easing.type: Easing.InOutQuad } } 
+            Behavior on height { enabled: window.initialFocusSet; NumberAnimation { duration: 500; easing.type: Easing.InOutQuad } }
             Behavior on opacity { enabled: window.initialFocusSet; NumberAnimation { duration: 500; easing.type: Easing.InOutQuad } }
 
             Item {
@@ -1117,7 +1131,6 @@ Item {
                 
                 MouseArea {
                     anchors.fill: parent
-                    // Lock inputs completely on the delegate as well
                     enabled: delegateRoot.matchesFilter && !window.isScrollingBlocked && !window.isApplying
                     onClicked: {
                         view.currentIndex = index
@@ -1130,19 +1143,19 @@ Item {
                     source: fileUrl !== undefined ? fileUrl : ""
                     sourceSize: Qt.size(1, 1)
                     fillMode: Image.Stretch
-                    visible: true 
+                    visible: true
                     asynchronous: true
                 }
 
                 Item {
                     anchors.fill: parent
-                    anchors.margins: window.borderWidth 
-                    Rectangle { anchors.fill: parent; color: "black" }
+                    anchors.margins: window.borderWidth
+                    Rectangle { anchors.fill: parent; color: _theme.base }
                     clip: true
 
                     Image {
                         anchors.centerIn: parent
-                        anchors.horizontalCenterOffset: window.s(-50) 
+                        anchors.horizontalCenterOffset: window.s(-50)
                         width: (window.itemWidth * 1.5) + ((window.itemHeight + window.s(30)) * Math.abs(window.skewFactor)) + window.s(50)
                         height: window.itemHeight + window.s(30)
                         fillMode: Image.PreserveAspectCrop
@@ -1166,7 +1179,7 @@ Item {
                     VideoOutput {
                         id: previewOutput
                         anchors.centerIn: parent
-                        anchors.horizontalCenterOffset: window.s(-50) 
+                        anchors.horizontalCenterOffset: window.s(-50)
                         width: (window.itemWidth * 1.5) + ((window.itemHeight + window.s(30)) * Math.abs(window.skewFactor)) + window.s(50)
                         height: window.itemHeight + window.s(30)
                         fillMode: VideoOutput.PreserveAspectCrop
@@ -1186,7 +1199,7 @@ Item {
                         width: window.s(32)
                         height: window.s(32)
                         radius: window.s(6)
-                        color: "#60000000" 
+                        color: Qt.rgba(_theme.base.r, _theme.base.g, _theme.base.b, 0.6)
                         transform: Matrix4x4 {
                             property real s: -window.skewFactor
                             matrix: Qt.matrix4x4(1, s, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
@@ -1201,7 +1214,7 @@ Item {
                                 var ctx = getContext("2d");
                                 var s = window.s;
                                 ctx.reset();
-                                ctx.fillStyle = "#EEFFFFFF"; 
+                                ctx.fillStyle = Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.93);
                                 ctx.beginPath();
                                 ctx.moveTo(s(4), 0);
                                 ctx.lineTo(s(14), s(8));
@@ -1216,14 +1229,11 @@ Item {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // FLOATING FILTER BAR & INLINE NOTIFICATION DRAWER
-    // -------------------------------------------------------------------------
     Rectangle {
         id: filterBarBackground
         anchors.top: parent.top
         
-        anchors.topMargin: window.isReady ? window.s(40) : window.s(-100) 
+        anchors.topMargin: window.isReady ? window.s(40) : window.s(-100)
         opacity: window.isReady ? 1.0 : 0.0
         Behavior on anchors.topMargin { NumberAnimation { duration: 600; easing.type: Easing.OutExpo } }
         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
@@ -1232,10 +1242,10 @@ Item {
         z: 20
         height: window.s(56)
         width: filterRow.width + window.s(24)
-        radius: window.s(14) 
+        radius: window.s(14)
         
         color: Qt.rgba(_theme.mantle.r, _theme.mantle.g, _theme.mantle.b, 0.90)
-        border.color: Qt.rgba(_theme.surface2.r, _theme.surface2.g, _theme.surface2.b, 0.8)
+        border.color: _theme.surface2
         border.width: 1
 
         Row {
@@ -1249,12 +1259,13 @@ Item {
                 property real paddingLeft: window.showSpinner ? window.s(40) : window.s(16)
                 property real targetWidth: window.showNotification ? Math.min(notifTextDrawer.implicitWidth + paddingLeft + window.s(20), window.s(300)) : 0
                 width: targetWidth
-                visible: width > 0.1 
-                radius: window.s(10) 
+                visible: width > 0.1
+                radius: window.s(10)
                 clip: true
+                anchors.verticalCenter: parent.verticalCenter
                 
-                color: window.showNotification ? Qt.rgba(_theme.surface2.r, _theme.surface2.g, _theme.surface2.b, 0.5) : "transparent"
-                border.color: window.showNotification ? Qt.rgba(_theme.surface1.r, _theme.surface1.g, _theme.surface1.b, 0.8) : "transparent"
+                color: window.showNotification ? _theme.surface2 : "transparent"
+                border.color: window.showNotification ? _theme.surface1 : "transparent"
                 border.width: 1
 
                 Behavior on width { 
@@ -1324,6 +1335,132 @@ Item {
                 }
             }
 
+            Rectangle {
+                id: monitorDrawer
+                visible: monitorModel.count > 1
+                height: window.s(44)
+                
+                property real expandedWidth: window.s(44) + monitorListRow.width + window.s(8)
+                width: visible ? (window.isMonitorSelectorOpen ? expandedWidth : window.s(44)) : 0
+                
+                radius: window.s(10)
+                clip: true
+                anchors.verticalCenter: parent.verticalCenter
+                
+                color: window.isMonitorSelectorOpen ? _theme.surface2 : "transparent"
+                border.color: window.isMonitorSelectorOpen ? _theme.text : _theme.surface1
+                border.width: window.isMonitorSelectorOpen ? window.s(2) : 1
+                
+                Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.5 } }
+                Behavior on color { ColorAnimation { duration: 400 } }
+                Behavior on border.color { ColorAnimation { duration: 400 } }
+
+                MouseArea {
+                    id: monitorIconMouse
+                    width: window.s(44)
+                    height: window.s(44)
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    hoverEnabled: true
+                    enabled: !window.isApplying
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: window.isMonitorSelectorOpen = !window.isMonitorSelectorOpen
+                }
+
+                Canvas {
+                    id: monitorIcon
+                    width: window.s(18)
+                    height: window.s(18)
+                    anchors.centerIn: monitorIconMouse
+                    property string activeColor: window.isMonitorSelectorOpen ? _theme.text : (monitorIconMouse.containsMouse ? _theme.text : Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.7))
+                    onActiveColorChanged: requestPaint()
+                    property real scaleTrigger: window.s(1)
+                    onScaleTriggerChanged: requestPaint()
+
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        var s = window.s;
+                        ctx.reset();
+                        ctx.lineWidth = s(2);
+                        ctx.strokeStyle = activeColor;
+                        ctx.lineJoin = "round";
+                        ctx.lineCap = "round";
+                        
+                        ctx.beginPath();
+                        ctx.rect(s(2), s(3), s(14), s(9));
+                        ctx.stroke();
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(s(9), s(12));
+                        ctx.lineTo(s(9), s(16));
+                        ctx.moveTo(s(5), s(16));
+                        ctx.lineTo(s(13), s(16));
+                        ctx.stroke();
+                    }
+                }
+
+                Row {
+                    id: monitorListRow
+                    anchors.left: monitorIconMouse.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: window.s(8)
+                    
+                    opacity: window.isMonitorSelectorOpen ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
+
+                    Repeater {
+                        model: monitorModel
+                        delegate: Item {
+                            width: monitorText.contentWidth + window.s(16)
+                            height: window.s(32)
+                            anchors.verticalCenter: parent.verticalCenter
+                            
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: window.s(6)
+                                color: model.selected ? _theme.text : _theme.surface1
+                                border.color: model.selected ? _theme.text : _theme.surface2
+                                border.width: 1
+                                
+                                Behavior on color { ColorAnimation { duration: 250 } }
+                                Behavior on border.color { ColorAnimation { duration: 250 } }
+                                
+                                Text {
+                                    id: monitorText
+                                    text: model.name
+                                    anchors.centerIn: parent
+                                    color: model.selected ? _theme.base : _theme.text
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: window.s(12)
+                                    font.bold: model.selected
+                                    Behavior on color { ColorAnimation { duration: 250 } }
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: window.isMonitorSelectorOpen && !window.isApplying
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (model.selected) {
+                                        let activeCount = 0;
+                                        for (let i = 0; i < monitorModel.count; i++) {
+                                            if (monitorModel.get(i).selected) activeCount++;
+                                        }
+                                        if (activeCount > 1) {
+                                            monitorModel.setProperty(index, "selected", false);
+                                        }
+                                    } else {
+                                        monitorModel.setProperty(index, "selected", true);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Repeater {
                 model: window.filterData
 
@@ -1335,12 +1472,12 @@ Item {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: window.s(10) 
+                        radius: window.s(10)
                         color: modelData.hex === "" 
                                 ? (window.currentFilter === modelData.name ? _theme.surface2 : "transparent") 
                                 : modelData.hex
                         
-                        border.color: window.currentFilter === modelData.name ? _theme.text : Qt.rgba(_theme.surface1.r, _theme.surface1.g, _theme.surface1.b, 0.6)
+                        border.color: window.currentFilter === modelData.name ? _theme.text : _theme.surface1
                         border.width: window.currentFilter === modelData.name ? window.s(2) : 1
                         scale: window.currentFilter === modelData.name ? 1.15 : (filterMouse.containsMouse ? 1.08 : 1.0)
                         
@@ -1363,7 +1500,7 @@ Item {
                             visible: modelData.name === "Video"
                             width: window.s(14); height: window.s(16)
                             anchors.centerIn: parent
-                            anchors.horizontalCenterOffset: window.s(2) 
+                            anchors.horizontalCenterOffset: window.s(2)
                             property string activeColor: window.currentFilter === modelData.name ? _theme.text : Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.7)
                             onActiveColorChanged: requestPaint()
                             property real scaleTrigger: window.s(1)
@@ -1373,7 +1510,7 @@ Item {
                                 var ctx = getContext("2d");
                                 var s = window.s;
                                 ctx.reset();
-                                ctx.fillStyle = activeColor; 
+                                ctx.fillStyle = activeColor;
                                 ctx.beginPath();
                                 ctx.moveTo(0, 0);
                                 ctx.lineTo(s(14), s(8));
@@ -1408,8 +1545,8 @@ Item {
                     MouseArea {
                         id: filterMouse
                         anchors.fill: parent
-                        hoverEnabled: true 
-                        enabled: !window.isApplying // Lock UI interaction
+                        hoverEnabled: true
+                        enabled: !window.isApplying
                         onClicked: window.currentFilter = modelData.name
                         cursorShape: Qt.PointingHandCursor
                     }
@@ -1421,10 +1558,11 @@ Item {
                 visible: window.currentFilter === "Search" && window.hasSearched
                 width: visible ? window.s(44) : 0
                 height: window.s(44)
-                radius: window.s(10) 
+                radius: window.s(10)
                 clip: true
+                anchors.verticalCenter: parent.verticalCenter
                 color: window.isSearchPaused ? _theme.surface2 : "transparent"
-                border.color: window.isSearchPaused ? _theme.text : Qt.rgba(_theme.surface1.r, _theme.surface1.g, _theme.surface1.b, 0.6)
+                border.color: window.isSearchPaused ? _theme.text : _theme.surface1
                 border.width: window.isSearchPaused ? window.s(2) : 1
                 
                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.5 } }
@@ -1434,7 +1572,7 @@ Item {
                     id: scMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    enabled: !window.isApplying // Lock UI interaction
+                    enabled: !window.isApplying
                     cursorShape: Qt.PointingHandCursor
                     onClicked: window.isSearchPaused = !window.isSearchPaused
                 }
@@ -1472,12 +1610,13 @@ Item {
             Rectangle {
                 id: searchBox
                 height: window.s(44)
-                width: window.currentFilter === "Search" ? window.s(360) : window.s(44) 
-                radius: window.s(10) 
+                width: window.currentFilter === "Search" ? window.s(360) : window.s(44)
+                radius: window.s(10)
                 clip: true
+                anchors.verticalCenter: parent.verticalCenter
                 
                 color: window.currentFilter === "Search" ? Qt.rgba(_theme.surface2.r, _theme.surface2.g, _theme.surface2.b, 0.8) : "transparent"
-                border.color: window.currentFilter === "Search" ? Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.5) : Qt.rgba(_theme.surface1.r, _theme.surface1.g, _theme.surface1.b, 0.6)
+                border.color: window.currentFilter === "Search" ? _theme.text : _theme.surface1
                 border.width: window.currentFilter === "Search" ? window.s(2) : 1
                 
                 Behavior on width { NumberAnimation { duration: 600; easing.type: Easing.OutBack; easing.overshoot: 0.5 } }
@@ -1487,14 +1626,14 @@ Item {
                 MouseArea {
                     id: searchMouseArea
                     anchors.fill: parent
-                    hoverEnabled: true 
-                    enabled: !window.isApplying // Lock UI interaction
+                    hoverEnabled: true
+                    enabled: !window.isApplying
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (window.currentFilter !== "Search") {
                             window.currentFilter = "Search"
                         } else {
-                            window.currentFilter = "All" 
+                            window.currentFilter = "All"
                         }
                     }
                 }
@@ -1504,7 +1643,7 @@ Item {
                     width: window.s(44)
                     height: window.s(44)
                     anchors.left: parent.left
-                    anchors.leftMargin: window.currentFilter === "Search" ? window.s(5) : 0 
+                    anchors.leftMargin: window.currentFilter === "Search" ? window.s(5) : 0
                     anchors.verticalCenter: parent.verticalCenter
                     Behavior on anchors.leftMargin { NumberAnimation { duration: 500; easing.type: Easing.OutExpo } }
                     property string activeColor: window.currentFilter === "Search" ? _theme.text : (searchMouseArea.containsMouse ? _theme.text : Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.7))
@@ -1516,7 +1655,7 @@ Item {
                         var ctx = getContext("2d");
                         var s = window.s;
                         ctx.reset();
-                        ctx.lineWidth = s(3); 
+                        ctx.lineWidth = s(3);
                         ctx.strokeStyle = activeColor;
                         ctx.beginPath();
                         ctx.arc(s(18), s(18), s(7), 0, Math.PI * 2);
@@ -1531,7 +1670,7 @@ Item {
                 TextInput {
                     id: searchInput
                     anchors.left: searchIcon.right
-                    anchors.right: submitBtn.left 
+                    anchors.right: submitBtn.left
                     anchors.rightMargin: window.s(8)
                     anchors.verticalCenter: parent.verticalCenter
                     
@@ -1541,7 +1680,7 @@ Item {
                     
                     color: _theme.text
                     font.family: "JetBrains Mono"
-                    font.pixelSize: window.s(16) 
+                    font.pixelSize: window.s(16)
                     clip: true
                     
                     onTextEdited: {
@@ -1551,7 +1690,7 @@ Item {
                     
                     onAccepted: {
                         window.triggerOnlineSearch();
-                        searchInput.focus = false; 
+                        searchInput.focus = false;
                         view.forceActiveFocus();
                     }
                 }
@@ -1560,7 +1699,7 @@ Item {
                     id: submitBtn
                     width: window.s(32)
                     height: window.s(32)
-                    radius: window.s(8) 
+                    radius: window.s(8)
                     anchors.right: parent.right
                     anchors.rightMargin: window.s(8)
                     anchors.verticalCenter: parent.verticalCenter
@@ -1569,8 +1708,8 @@ Item {
                     visible: opacity > 0
                     Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuad } }
 
-                    color: submitMouseArea.containsMouse ? Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.1) : "transparent"
-                    border.color: submitMouseArea.containsMouse ? _theme.text : Qt.rgba(_theme.text.r, _theme.text.g, _theme.text.b, 0.3)
+                    color: submitMouseArea.containsMouse ? _theme.surface1 : "transparent"
+                    border.color: submitMouseArea.containsMouse ? _theme.text : _theme.surface2
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 300 } }
 
@@ -1579,7 +1718,7 @@ Item {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         hoverEnabled: true
-                        enabled: !window.isApplying // Lock UI interaction
+                        enabled: !window.isApplying
                         onClicked: {
                             window.triggerOnlineSearch();
                         }
@@ -1620,12 +1759,14 @@ Item {
     Component.onCompleted: {
         Quickshell.execDetached(["bash", "-c", "mkdir -p '" + decodeURIComponent(window.searchDir.replace("file://", "")) + "'"]);
         
+        window.loadMonitors();
+
         if (searchState.searched) {
             searchInput.text = searchState.query;
             window.searchQuery = searchState.query;
             window.hasSearched = true;
             window.lastSearchName = searchState.lastName;
-            window.isSearchPaused = true; 
+            window.isSearchPaused = true;
         }
 
         view.forceActiveFocus();

@@ -1,55 +1,120 @@
 #!/usr/bin/env bash
 
+# File paths
 SETTINGS_FILE="$HOME/.config/hypr/settings.json"
-HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
+WEATHER_SCRIPT="$(dirname "$0")/weather.sh"
+ENV_FILE="$(dirname "$0")/quickshell/calendar/.env"
+
+# Target configuration files based on the modular structure
+CONF_DIR="$HOME/.config/hypr/config"
+SETTINGS_CONF="$CONF_DIR/settings.conf"
+AUTOSTART_CONF="$CONF_DIR/autostart.conf"
+ENV_CONF="$CONF_DIR/env.conf"
+KEYBINDS_CONF="$CONF_DIR/keybindings.conf"
+MONITORS_CONF="$CONF_DIR/monitors.conf"
+
 ZSH_RC="$HOME/.zshrc"
 
-# Ensure the settings file exists before we try to watch it
+# Ensure the required files and directories exist before watching
 mkdir -p "$(dirname "$SETTINGS_FILE")"
+mkdir -p "$(dirname "$ENV_FILE")"
+mkdir -p "$CONF_DIR"
 [ ! -f "$SETTINGS_FILE" ] && echo "{}" > "$SETTINGS_FILE"
 
-echo "Started watching $SETTINGS_FILE for changes..."
+# Define cache directory for state tracking
+CACHE_DIR="$HOME/.cache/settings_watcher"
+mkdir -p "$CACHE_DIR"
 
-# Loop endlessly, triggering only when the file is saved (closed after writing)
-while inotifywait -q -e close_write "$SETTINGS_FILE"; do
-    echo "Settings updated! Applying changes..."
+echo "Started watching settings directories for changes..."
 
-    # Extract values using jq 
-    # Removed '// empty' from the boolean to prevent 'false' from evaluating to empty
-    LANG=$(jq -r '.language // empty' "$SETTINGS_FILE")
-    KB_OPT=$(jq -r '.kbOptions // empty' "$SETTINGS_FILE")
-    GUIDE_STARTUP=$(jq -r '.openGuideAtStartup' "$SETTINGS_FILE")
-    WP_DIR=$(jq -r '.wallpaperDir // empty' "$SETTINGS_FILE")
-
-    # 1. Update Keyboard Layout & Options
-    if [ -n "$LANG" ] && [ "$LANG" != "null" ]; then
-        sed -i "s/^ *kb_layout =.*/    kb_layout = $LANG/" "$HYPR_CONF"
-    fi
+inotifywait -m -q -e close_write,moved_to --format '%w%f' "$(dirname "$SETTINGS_FILE")" "$(dirname "$ENV_FILE")" | while read -r filepath; do
     
-    if [ -n "$KB_OPT" ] && [ "$KB_OPT" != "null" ]; then
-        sed -i "s/^ *kb_options =.*/    kb_options = $KB_OPT/" "$HYPR_CONF"
-    else
-        # If it's explicitly empty/null (No Toggle), clear the value entirely
-        sed -i "s/^ *kb_options =.*/    kb_options = /" "$HYPR_CONF"
-    fi
+    # ---------------------------------------------------------
+    # SETTINGS JSON TRIGGER
+    # ---------------------------------------------------------
+    if [[ "$filepath" == "$SETTINGS_FILE" ]]; then
+        echo "Settings file modified. Checking for specific changes..."
 
-    # 2. Update Guide Autostart (Comment / Uncomment)
-    if [ "$GUIDE_STARTUP" == "true" ]; then
-        # Remove any leading hash/spaces to enable the autostart
-        sed -i 's|^#*[[:space:]]*exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \&|' "$HYPR_CONF"
-    elif [ "$GUIDE_STARTUP" == "false" ]; then
-        # Add a hash to comment it out if it isn't already
-        sed -i 's|^exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|# exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \&|' "$HYPR_CONF"
-    fi
+        # 1. Capture current states as compact JSON strings
+        NEW_GENERAL=$(jq -c '{language, kbOptions, openGuideAtStartup, wallpaperDir}' "$SETTINGS_FILE" 2>/dev/null)
+        NEW_KEYBINDS=$(jq -c '.keybinds' "$SETTINGS_FILE" 2>/dev/null)
+        NEW_MONITORS=$(jq -c '.monitors' "$SETTINGS_FILE" 2>/dev/null)
 
-    # 3. Update Wallpaper Directory
-    if [ -n "$WP_DIR" ] && [ "$WP_DIR" != "null" ]; then
-        # We use '|' as the sed delimiter here to prevent path slashes from breaking the command
-        sed -i "s|^env = WALLPAPER_DIR,.*|env = WALLPAPER_DIR,$WP_DIR|" "$HYPR_CONF"
-        
-        # Keep ZSH in sync if it exists
-        if [ -f "$ZSH_RC" ]; then
-            sed -i "s|^export WALLPAPER_DIR=.*|export WALLPAPER_DIR=\"$WP_DIR\"|" "$ZSH_RC"
+        # 2. Update General Settings if changed
+        if [[ "$NEW_GENERAL" != "$(cat "$CACHE_DIR/general" 2>/dev/null)" ]]; then
+            echo "General settings changed. Applying..."
+            
+            LANG=$(jq -r '.language // empty' "$SETTINGS_FILE")
+            KB_OPT=$(jq -r '.kbOptions // empty' "$SETTINGS_FILE")
+            GUIDE_STARTUP=$(jq -r '.openGuideAtStartup' "$SETTINGS_FILE")
+            WP_DIR=$(jq -r '.wallpaperDir // empty' "$SETTINGS_FILE")
+
+            [ -n "$LANG" ] && [ "$LANG" != "null" ] && sed -i "s/^ *kb_layout =.*/    kb_layout = $LANG/" "$SETTINGS_CONF"
+            
+            if [ -n "$KB_OPT" ] && [ "$KB_OPT" != "null" ]; then
+                sed -i "s/^ *kb_options =.*/    kb_options = $KB_OPT/" "$SETTINGS_CONF"
+            else
+                sed -i "s/^ *kb_options =.*/    kb_options = /" "$SETTINGS_CONF"
+            fi
+
+            if [ "$GUIDE_STARTUP" == "true" ]; then
+                sed -i 's|^#*[[:space:]]*exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \&|' "$AUTOSTART_CONF"
+            elif [ "$GUIDE_STARTUP" == "false" ]; then
+                sed -i 's|^exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|# exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \&|' "$AUTOSTART_CONF"
+            fi
+
+            if [ -n "$WP_DIR" ] && [ "$WP_DIR" != "null" ]; then
+                sed -i "s|^env = WALLPAPER_DIR,.*|env = WALLPAPER_DIR,$WP_DIR|" "$ENV_CONF"
+                [ -f "$ZSH_RC" ] && sed -i "s|^export WALLPAPER_DIR=.*|export WALLPAPER_DIR=\"$WP_DIR\"|" "$ZSH_RC"
+            fi
+            
+            echo "$NEW_GENERAL" > "$CACHE_DIR/general"
+        fi
+
+        # 3. Update Keybindings if changed
+        if [[ "$NEW_KEYBINDS" != "$(cat "$CACHE_DIR/keybinds" 2>/dev/null)" ]]; then
+            echo "Keybinds changed. Regenerating..."
+            cat << 'EOF' > "$KEYBINDS_CONF"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  ◈ KEYBINDINGS (Auto-generated by Quickshell Settings Watcher)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ───────── Mouse & Gestures ─────────
+gesture = 3, horizontal, workspace
+
+# ───────── Dynamic Keybinds ─────────
+EOF
+            jq -r '.keybinds[]? | "\(.type // "bind") = \(.mods // ""), \(.key // ""), \(.dispatcher // "exec")\(if .command and .command != "" then ", \(.command)" else "" end)"' "$SETTINGS_FILE" >> "$KEYBINDS_CONF"
+            echo "$NEW_KEYBINDS" > "$CACHE_DIR/keybinds"
+        fi
+
+        # 4. Update Monitors if changed
+        if [[ "$NEW_MONITORS" != "$(cat "$CACHE_DIR/monitors" 2>/dev/null)" ]]; then
+            echo "Monitors changed. Regenerating..."
+            cat << 'EOF' > "$MONITORS_CONF"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  ◈ MONITORS (Auto-generated by Quickshell Settings Watcher)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EOF
+            MONITOR_COUNT=$(jq '.monitors | length' "$SETTINGS_FILE" 2>/dev/null)
+            if [[ "$MONITOR_COUNT" -gt 0 ]]; then
+                jq -r '.monitors[]? | "monitor = \(.name), \(.resW)x\(.resH)@\(.rate), \(.x)x\(.y), \(.scale)\(if .transform and .transform != 0 then ", transform, \(.transform)" else "" end)"' "$SETTINGS_FILE" >> "$MONITORS_CONF"
+            else
+                echo "monitor = , preferred, auto, 1" >> "$MONITORS_CONF"
+            fi
+            echo "$NEW_MONITORS" > "$CACHE_DIR/monitors"
+        fi
+
+    # ---------------------------------------------------------
+    # .ENV WEATHER TRIGGER
+    # ---------------------------------------------------------
+    elif [[ "$filepath" == "$ENV_FILE" ]]; then
+        echo ".env updated! Forcing weather cache refresh..."
+        if [ -x "$WEATHER_SCRIPT" ]; then
+            "$WEATHER_SCRIPT" --getdata &
+        else
+            bash "$WEATHER_SCRIPT" --getdata &
         fi
     fi
 done

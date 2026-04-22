@@ -1,8 +1,20 @@
 .pragma library
 
-function getScale(mw, userScale) {
-    if (mw <= 0) return 1.0;
-    let r = mw / 1920.0;
+function getScale(mw, mh, userScale) {
+    // FIXED: Support legacy calls missing the `mh` argument from other un-updated QML files
+    if (arguments.length === 2) {
+        userScale = mh;
+        mh = mw * (1080.0 / 1920.0);
+    }
+
+    if (mw <= 0 || mh <= 0) return 1.0;
+    
+    // FIXED: Calculate ratios based on both axes, then clamp to the smallest ratio. 
+    // This stops horizontal Ultrawides from throwing widgets off the bottom of the screen.
+    let rw = mw / 1920.0;
+    let rh = mh / 1080.0;
+    let r = Math.min(rw, rh);
+    
     let baseScale = 1.0;
     
     if (r <= 1.0) {
@@ -19,7 +31,7 @@ function s(val, scale) {
 }
 
 function getLayout(name, mx, my, mw, mh, userScale) {
-    let scale = getScale(mw, userScale);
+    let scale = getScale(mw, mh, userScale);
 
     let base = {
         "battery":   { w: s(801, scale), h: s(760, scale), rx: mw - s(821, scale), ry: s(70, scale), comp: "battery/BatteryPopup.qml" },
@@ -28,7 +40,7 @@ function getLayout(name, mx, my, mw, mh, userScale) {
         "music":     { w: s(700, scale), h: s(620, scale), rx: s(12, scale), ry: s(70, scale), comp: "music/MusicPopup.qml" },
         "network":   { w: s(900, scale), h: s(700, scale), rx: mw - s(920, scale), ry: s(70, scale), comp: "network/NetworkPopup.qml" },
         "stewart":   { w: s(800, scale), h: s(600, scale), rx: Math.floor((mw/2)-(s(800, scale)/2)), ry: Math.floor((mh/2)-(s(600, scale)/2)), comp: "stewart/stewart.qml" },
-        "monitors":  { w: s(850, scale), h: s(580, scale), rx: Math.floor((mw/2)-(s(850, scale)/2)), ry: Math.floor((mh/2)-(s(580, scale)/2)), comp: "monitors/MonitorPopup.qml" },
+        "monitors":  { w: s(850, scale), h: s(650, scale), rx: Math.floor((mw/2)-(s(850, scale)/2)), ry: Math.floor((mh/2)-(s(650, scale)/2)), comp: "monitors/MonitorPopup.qml" },
         "focustime": { w: s(900, scale), h: s(720, scale), rx: Math.floor((mw/2)-(s(900, scale)/2)), ry: Math.floor((mh/2)-(s(720, scale)/2)), comp: "focustime/FocusTimePopup.qml" },
         "guide":     { w: s(1200, scale), h: s(750, scale), rx: Math.floor((mw/2)-(s(1200, scale)/2)), ry: Math.floor((mh/2)-(s(750, scale)/2)), comp: "guide/GuidePopup.qml" },
         "settings":  { w: s(450, scale), h: mh - s(0, scale), rx: s(0, scale), ry: s(0, scale), comp: "settings/SettingsPopup.qml" },
@@ -48,8 +60,14 @@ function getLayout(name, mx, my, mw, mh, userScale) {
     return t;
 }
 
-function getPopupLayout(mw, userScale) {
-    let scale = getScale(mw, userScale);
+function getPopupLayout(mw, mh, userScale) {
+    // FIXED: Backward compatibility parsing again
+    if (arguments.length === 2) {
+        userScale = mh;
+        mh = mw * (1080.0 / 1920.0);
+    }
+    
+    let scale = getScale(mw, mh, userScale);
     return {
         w: s(350, scale),
         marginTop: s(70, scale),

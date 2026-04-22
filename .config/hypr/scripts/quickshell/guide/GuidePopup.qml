@@ -62,13 +62,13 @@ Item {
     }
     Keys.onTabPressed: {
         let next = (currentTab + 1) % tabNames.length;
-        if (next === 1) next = 2; // Skip Settings Tab visually
+        if (next === 0) next = 1; // Skip Settings Tab visually
         currentTab = next;
         event.accepted = true;
     }
     Keys.onBacktabPressed: {
         let prev = (currentTab - 1 + tabNames.length) % tabNames.length;
-        if (prev === 1) prev = 0; // Skip Settings Tab visually
+        if (prev === 0) prev = tabNames.length - 1; // Skip Settings Tab visually
         currentTab = prev;
         event.accepted = true;
     }
@@ -212,23 +212,6 @@ Item {
                     root.sysCPU = parts[4];
                     root.sysGPU = parts[5] ? parts[5] : "Integrated Graphics";
                     if (parts.length >= 7 && parts[6].trim() !== "") root.faceIconPath = parts[6].trim();
-                }
-            }
-        }
-    }
-
-    Process {
-        id: envReader
-        command: ["bash", "-c", "cat ~/.config/hypr/scripts/quickshell/calendar/.env 2>/dev/null || echo ''"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let lines = this.text ? this.text.trim().split('\n') : [];
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith("OPENWEATHER_KEY=")) apiKeyInput.text = line.substring(16).trim();
-                    else if (line.startsWith("OPENWEATHER_CITY_ID=")) cityIdInput.text = line.substring(20).trim();
-                    else if (line.startsWith("OPENWEATHER_UNIT=")) weatherTab.selectedUnit = line.substring(17).trim();
                 }
             }
         }
@@ -385,16 +368,15 @@ Item {
     // -------------------------------------------------------------------------
     // STATE MANAGEMENT & DATA
     // -------------------------------------------------------------------------
-    property int currentTab: 0
+    property int currentTab: 1
     property int selectedModuleIndex: 0
-    property var tabNames: ["System", "Settings", "Resources", "Modules", "Keybinds", "Matugen", "Weather", "Greeter", "About"]
-    property var tabIcons: ["", "", "󰣖", "󰣆", "󰌌", "󰏘", "󰖐", "󰍃", ""]
+    property var tabNames: ["Settings", "System", "Resources", "Modules", "Matugen", "About"]
+    property var tabIcons: ["", "", "󰣖", "󰣆", "󰏘", ""]
 
     property real introBase: 0.0
     property real introSidebar: 0.0
     property real introContent: 0.0
 
-    ListModel { id: dynamicKeybindsModel }
     ListModel {
         id: modulesDataModel
         ListElement { title: "Calendar & Weather"; target: "calendar"; icon: ""; desc: "Dual-sync calendar with live \nOpenWeatherMap integration."; preview: "previews/preview_calendar.png" }
@@ -408,53 +390,8 @@ Item {
         ListElement { title: "Stewart AI"; target: "stewart"; icon: "󰚩"; desc: "Voice assistant integration.\n(Reserved for future, currently disabled)"; preview: "previews/preview_stewart.png" }
     }
 
-    function buildKeybinds() {
-        dynamicKeybindsModel.clear();
-        let binds = [
-            { k1: "SUPER", k2: "RETURN", action: "Open Terminal (Kitty)", cmd: "kitty" },
-            { k1: "SUPER", k2: "D", action: "App Launcher (Drun)", cmd: "bash ~/.config/hypr/scripts/rofi_show.sh drun" },
-            { k1: "ALT", k2: "TAB", action: "Window Switcher", cmd: "bash ~/.config/hypr/scripts/rofi_show.sh window" },
-            { k1: "SUPER", k2: "C", action: "Clipboard History", cmd: "bash ~/.config/hypr/scripts/rofi_clipboard.sh" },
-            { k1: "SUPER", k2: "F", action: "Open Firefox", cmd: "firefox" },
-            { k1: "SUPER", k2: "E", action: "Open Nautilus", cmd: "nautilus" },
-            { k1: "ALT", k2: "F4", action: "Close Active Window/Widget", cmd: "bash -c 'if hyprctl activewindow | grep -q \"title: qs-master\"; then ~/.config/hypr/scripts/qs_manager.sh close; else hyprctl dispatch killactive; fi'" },
-            { k1: "SUPER+SHIFT", k2: "F", action: "Toggle Floating", cmd: "hyprctl dispatch togglefloating" },
-            { k1: "SUPER", k2: "L", action: "Lock Screen", cmd: "bash ~/.config/hypr/scripts/lock.sh" },
-            { k1: "PRINT", k2: "", action: "Screenshot", cmd: "bash ~/.config/hypr/scripts/screenshot.sh" },
-            { k1: "SHIFT", k2: "PRINT", action: "Screenshot (Edit)", cmd: "bash ~/.config/hypr/scripts/screenshot.sh --edit" },
-            { k1: "SUPER", k2: "PRINT", action: "Screenshot (Full)", cmd: "bash ~/.config/hypr/scripts/screenshot.sh --full" },
-            { k1: "SUPER+SHIFT", k2: "PRINT", action: "Screenshot (Full Edit)", cmd: "bash ~/.config/hypr/scripts/screenshot.sh --full --edit" },
-            { k1: "ALT+SHIFT", k2: "", action: "Switch Keyboard Layout", cmd: "hyprctl switchxkblayout main next" },
-            { k1: "SUPER", k2: "W", action: "Toggle Wallpaper", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle wallpaper" },
-            { k1: "SUPER", k2: "Q", action: "Toggle Music", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle music" },
-            { k1: "SUPER", k2: "B", action: "Toggle Battery", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle battery" },
-            { k1: "SUPER", k2: "S", action: "Toggle Calendar", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle calendar" },
-            { k1: "SUPER", k2: "N", action: "Toggle Network", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle network" },
-            { k1: "SUPER", k2: "V", action: "Toggle Volume", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle volume" },
-            { k1: "SUPER", k2: "M", action: "Toggle Monitors", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle monitors" },
-            { k1: "SUPER", k2: "H", action: "Toggle Guide", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle guide" },
-            { k1: "SUPER+SHIFT", k2: "S", action: "Toggle Settings", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle settings" },
-            { k1: "SUPER", k2: "R", action: "Reload System", cmd: "bash ~/.config/hypr/scripts/reload.sh" },
-            { k1: "SUPER+SHIFT", k2: "T", action: "Toggle FocusTime", cmd: "bash ~/.config/hypr/scripts/qs_manager.sh toggle focustime" },
-            { k1: "SUPER", k2: "A", action: "Toggle SwayNC Panel", cmd: "swaync-client -t -sw" },
-            { k1: "SUPER", k2: "TAB", action: "Focus Next Monitor", cmd: "bash ~/.config/hypr/scripts/focus_next_monitor.sh" },
-            { k1: "SUPER", k2: "SPACE", action: "Play/Pause Media", cmd: "playerctl play-pause" },
-            { k1: "Media", k2: "Play/Pause", action: "Play/Pause Media", cmd: "playerctl play-pause" },
-            { k1: "Media", k2: "Vol Up/Down", action: "Adjust Volume", cmd: "swayosd-client --output-volume raise" },
-            { k1: "Media", k2: "Mute", action: "Mute Volume", cmd: "swayosd-client --output-volume mute-toggle" },
-            { k1: "Media", k2: "Mic Mute", action: "Mute Microphone", cmd: "swayosd-client --input-volume mute-toggle" },
-            { k1: "Media", k2: "Brightness", action: "Adjust Brightness", cmd: "swayosd-client --brightness raise" },
-            { k1: "CAPS", k2: "LOCK", action: "Caps Lock OSD", cmd: "swayosd-client --caps-lock" },
-            { k1: "SUPER", k2: "ARROWS", action: "Move Focus", cmd: "hyprctl dispatch movefocus r" },
-            { k1: "SUPER+CTRL", k2: "ARROWS", action: "Move Window", cmd: "hyprctl dispatch movewindow r" },
-            { k1: "SUPER+SHIFT", k2: "ARROWS", action: "Resize Window", cmd: "hyprctl dispatch resizeactive 50 0" }
-        ];
-        for (let item of binds) { dynamicKeybindsModel.append(item); }
-    }
-
     Component.onCompleted: { 
         startupSequence.start(); 
-        buildKeybinds(); 
     }
 
     ParallelAnimation {
@@ -654,67 +591,83 @@ Item {
 
                 Repeater {
                     model: root.tabNames.length
-                    Rectangle {
+                    
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.s(44)
-                        radius: root.s(8)
-                        property bool isActive: root.currentTab === index
-                        color: isActive ? root.surface1 : (tabMa.containsMouse ? Qt.alpha(root.surface1, 0.5) : "transparent")
+                        spacing: 0
                         
-                        Behavior on color { ColorAnimation { duration: 150 } }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: root.s(15)
-                            spacing: root.s(12)
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: root.s(44)
+                            radius: root.s(8)
+                            property bool isActive: root.currentTab === index && index !== 0
+                            color: isActive ? root.surface1 : (tabMa.containsMouse ? Qt.alpha(root.surface1, 0.5) : "transparent")
                             
-                            Item {
-                                Layout.preferredWidth: root.s(24)
-                                Layout.alignment: Qt.AlignVCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: root.s(15)
+                                spacing: root.s(12)
+                                
+                                Item {
+                                    Layout.preferredWidth: root.s(24)
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Text { 
+                                        anchors.centerIn: parent
+                                        text: root.tabIcons[index]
+                                        font.family: "Iosevka Nerd Font"
+                                        font.pixelSize: root.s(18)
+                                        color: parent.parent.parent.isActive ? root.ambientPurple : root.subtext0
+                                        Behavior on color { ColorAnimation { duration: 150 } } 
+                                    }
+                                }
+                                
                                 Text { 
-                                    anchors.centerIn: parent
-                                    text: root.tabIcons[index]
-                                    font.family: "Iosevka Nerd Font"
-                                    font.pixelSize: root.s(18)
-                                    color: parent.parent.parent.isActive ? root.ambientPurple : root.subtext0
+                                    text: root.tabNames[index]
+                                    font.family: "JetBrains Mono"
+                                    font.weight: parent.parent.isActive ? Font.Bold : Font.Medium
+                                    font.pixelSize: root.s(13)
+                                    color: parent.parent.isActive ? root.text : root.subtext0
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
                                     Behavior on color { ColorAnimation { duration: 150 } } 
                                 }
                             }
                             
-                            Text { 
-                                text: root.tabNames[index]
-                                font.family: "JetBrains Mono"
-                                font.weight: parent.parent.isActive ? Font.Bold : Font.Medium
-                                font.pixelSize: root.s(13)
-                                color: parent.parent.isActive ? root.text : root.subtext0
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                Behavior on color { ColorAnimation { duration: 150 } } 
+                            Rectangle { 
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: root.s(3)
+                                height: parent.isActive ? root.s(20) : 0
+                                radius: root.s(2)
+                                color: root.ambientPurple
+                                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutBack } } 
+                            }
+                            
+                            MouseArea { 
+                                id: tabMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (index === 0) { // 0 = Settings Tab
+                                        Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "toggle", "settings"]);
+                                    } else {
+                                        root.currentTab = index;
+                                    }
+                                } 
                             }
                         }
                         
-                        Rectangle { 
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: root.s(3)
-                            height: parent.isActive ? root.s(20) : 0
-                            radius: root.s(2)
-                            color: root.ambientPurple
-                            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutBack } } 
-                        }
-                        
-                        MouseArea { 
-                            id: tabMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (index === 1) { // 1 = Settings Tab
-                                    Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "toggle", "settings"]);
-                                } else {
-                                    root.currentTab = index;
-                                }
-                            } 
+                        // Divider specifically below Settings (index 0)
+                        Rectangle {
+                            visible: index === 0
+                            Layout.fillWidth: true
+                            height: 1
+                            color: Qt.alpha(root.surface1, 0.5)
+                            Layout.topMargin: root.s(10)
+                            Layout.bottomMargin: root.s(10)
                         }
                     }
                 }
@@ -821,11 +774,11 @@ Item {
             transform: Translate { y: root.s(20) * (1.0 - introContent) }
 
             // ------------------------------------------
-            // TAB 0: SYSTEM OVERVIEW
+            // TAB 1: SYSTEM OVERVIEW
             // ------------------------------------------
             Item {
                 anchors.fill: parent
-                visible: root.currentTab === 0
+                visible: root.currentTab === 1
                 opacity: visible ? 1.0 : 0.0
                 property real slideY: visible ? 0 : root.s(10)
                 
@@ -1135,7 +1088,7 @@ Item {
                         
                         Repeater {
                             model: [ 
-                                { name: "Settings", icon: "", color: "mauve", targetTab: 1, isToggle: true }, 
+                                { name: "Settings", icon: "", color: "mauve", targetTab: 0, isToggle: true }, 
                                 { name: "Resources", icon: "󰣖", color: "green", targetTab: 2, isToggle: false }, 
                                 { name: "Modules", icon: "󰣆", color: "blue", targetTab: 3, isToggle: false } 
                             ]
@@ -1835,164 +1788,11 @@ Item {
             }
 
             // ------------------------------------------
-            // TAB 4: KEYBINDS
+            // TAB 4: MATUGEN ENGINE
             // ------------------------------------------
             Item {
                 anchors.fill: parent
                 visible: root.currentTab === 4
-                opacity: visible ? 1.0 : 0.0
-                property real slideY: visible ? 0 : root.s(10)
-                
-                Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-                transform: Translate { y: slideY }
-                Behavior on opacity { NumberAnimation { duration: 250 } }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.topMargin: root.s(15)
-                    anchors.leftMargin: root.s(20)
-                    anchors.rightMargin: root.s(20)
-                    anchors.bottomMargin: root.s(20)
-                    spacing: root.s(20)
-
-                    Text { text: "Navigation & Control"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(28); color: root.text; Layout.alignment: Qt.AlignVCenter }
-                    Text { text: "Click any row below to instantly execute the keybind command."; font.family: "JetBrains Mono"; font.pixelSize: root.s(14); color: root.subtext0; Layout.alignment: Qt.AlignVCenter }
-                    
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        contentWidth: availableWidth
-                        clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        
-                        GridLayout {
-                            width: parent.width
-                            columns: 2
-                            rowSpacing: root.s(10)
-                            columnSpacing: root.s(15)
-                            
-                            Rectangle {
-                                Layout.columnSpan: 2
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.s(60)
-                                radius: root.s(8)
-                                color: Qt.alpha(root.surface0, 0.4)
-                                border.color: root.surface1
-                                border.width: 1
-                                
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: root.s(10)
-                                    spacing: root.s(10)
-                                    
-                                    Text { text: "Workspaces (SUPER + 1-9)"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text; Layout.alignment: Qt.AlignVCenter }
-                                    Item { Layout.fillWidth: true }
-                                    
-                                    Repeater {
-                                        model: 9
-                                        Rectangle {
-                                            property int wsNum: index + 1
-                                            Layout.preferredWidth: root.s(32)
-                                            Layout.preferredHeight: root.s(32)
-                                            radius: root.s(6)
-                                            color: wsMa.containsMouse ? root.surface1 : root.surface0
-                                            border.color: wsMa.containsMouse ? root.peach : "transparent"
-                                            border.width: 1
-                                            Text { anchors.centerIn: parent; text: parent.wsNum; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(12); color: root.peach }
-                                            MouseArea { id: wsMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", wsNum.toString()]) }
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            Repeater {
-                                model: dynamicKeybindsModel
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: root.s(46)
-                                    radius: root.s(8)
-                                    color: bindMa.containsMouse ? root.surface1 : Qt.alpha(root.surface0, 0.4)
-                                    border.color: bindMa.containsMouse ? root.peach : "transparent"
-                                    border.width: 1
-                                    scale: bindMa.pressed ? 0.98 : 1.0
-                                    
-                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutQuart } }
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: root.s(10)
-                                        spacing: root.s(15)
-                                        
-                                        Item {
-                                            Layout.preferredWidth: root.s(220)
-                                            Layout.minimumWidth: root.s(220)
-                                            Layout.maximumWidth: root.s(220)
-                                            Layout.fillHeight: true
-                                            
-                                            Row { 
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                spacing: root.s(8)
-                                                
-                                                Rectangle { 
-                                                    width: k1Text.implicitWidth + root.s(16)
-                                                    height: root.s(26)
-                                                    radius: root.s(4)
-                                                    color: root.surface0
-                                                    border.color: root.surface2
-                                                    border.width: 1
-                                                    Text { id: k1Text; anchors.centerIn: parent; text: model.k1; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(11); color: root.peach } 
-                                                } 
-                                                
-                                                Text { text: "+"; font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: root.overlay0; visible: model.k2 !== ""; anchors.verticalCenter: parent.verticalCenter } 
-                                                
-                                                Rectangle { 
-                                                    width: k2Text.implicitWidth + root.s(16)
-                                                    height: root.s(26)
-                                                    radius: root.s(4)
-                                                    color: root.surface0
-                                                    border.color: root.surface2
-                                                    border.width: 1
-                                                    visible: model.k2 !== ""
-                                                    Text { id: k2Text; anchors.centerIn: parent; text: model.k2; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(11); color: root.peach } 
-                                                } 
-                                            }
-                                        }
-                                        
-                                        Text { 
-                                            text: model.action
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: root.s(13)
-                                            color: root.text
-                                            Layout.fillWidth: true
-                                            Layout.alignment: Qt.AlignVCenter
-                                            horizontalAlignment: Text.AlignLeft
-                                            elide: Text.ElideRight
-                                            clip: true 
-                                        }
-                                    }
-                                    
-                                    MouseArea { 
-                                        id: bindMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: Quickshell.execDetached(["bash", "-c", model.cmd]) 
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ------------------------------------------
-            // TAB 5: MATUGEN ENGINE
-            // ------------------------------------------
-            Item {
-                anchors.fill: parent
-                visible: root.currentTab === 5
                 opacity: visible ? 1.0 : 0.0
                 property real slideY: visible ? 0 : root.s(10)
                 
@@ -2056,13 +1856,13 @@ Item {
                                             y: parent.height / 2 - root.s(3)
                                             SequentialAnimation on x { 
                                                 loops: Animation.Infinite
-                                                running: root.currentTab === 5
+                                                running: root.currentTab === 4
                                                 PauseAnimation { duration: index * 400 }
                                                 NumberAnimation { from: 0; to: parent.width; duration: 1200; easing.type: Easing.InOutSine } 
                                             } 
                                             SequentialAnimation on opacity { 
                                                 loops: Animation.Infinite
-                                                running: root.currentTab === 5
+                                                running: root.currentTab === 4
                                                 PauseAnimation { duration: index * 400 }
                                                 NumberAnimation { from: 0; to: 1; duration: 300 }
                                                 PauseAnimation { duration: 600 }
@@ -2083,7 +1883,7 @@ Item {
                                 
                                 SequentialAnimation on border.width { 
                                     loops: Animation.Infinite
-                                    running: root.currentTab === 5
+                                    running: root.currentTab === 4
                                     NumberAnimation { from: root.s(1); to: root.s(4); duration: 1000; easing.type: Easing.InOutSine }
                                     NumberAnimation { from: root.s(4); to: root.s(1); duration: 1000; easing.type: Easing.InOutSine } 
                                 }
@@ -2105,7 +1905,7 @@ Item {
                                                 color: modelData
                                                 SequentialAnimation on scale { 
                                                     loops: Animation.Infinite
-                                                    running: root.currentTab === 5
+                                                    running: root.currentTab === 4
                                                     PauseAnimation { duration: index * 150 }
                                                     NumberAnimation { to: 1.3; duration: 300; easing.type: Easing.OutQuart }
                                                     NumberAnimation { to: 1.0; duration: 400; easing.type: Easing.OutQuart }
@@ -2134,13 +1934,13 @@ Item {
                                             y: parent.height / 2 - root.s(3)
                                             SequentialAnimation on x { 
                                                 loops: Animation.Infinite
-                                                running: root.currentTab === 5
+                                                running: root.currentTab === 4
                                                 PauseAnimation { duration: index * 400 }
                                                 NumberAnimation { from: 0; to: parent.width; duration: 1200; easing.type: Easing.InOutSine } 
                                             } 
                                             SequentialAnimation on opacity { 
                                                 loops: Animation.Infinite
-                                                running: root.currentTab === 5
+                                                running: root.currentTab === 4
                                                 PauseAnimation { duration: index * 400 }
                                                 NumberAnimation { from: 0; to: 1; duration: 300 }
                                                 PauseAnimation { duration: 600 }
@@ -2217,216 +2017,11 @@ Item {
             }
 
             // ------------------------------------------
-            // TAB 6: WEATHER API
-            // ------------------------------------------
-            Item {
-                id: weatherTab
-                anchors.fill: parent
-                visible: root.currentTab === 6
-                opacity: visible ? 1.0 : 0.0
-                property real slideY: visible ? 0 : root.s(10)
-                
-                Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-                transform: Translate { y: slideY }
-                Behavior on opacity { NumberAnimation { duration: 250 } }
-
-                property string selectedUnit: "metric"
-                property bool apiKeyVisible: false
-
-                function saveWeatherConfig() {
-                    var cache_weather = Quickshell.env("HOME") + "/.cache/quickshell/weather";
-                    var file = Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/calendar/.env";
-                    var cmds = [
-                        "mkdir -p $(dirname " + file + ")",
-                        "echo '# OpenWeather API Configuration (OVERWRITE, not add)' > " + file,
-                        "echo 'OPENWEATHER_KEY=" + apiKeyInput.text + "' >> " + file,
-                        "echo 'OPENWEATHER_CITY_ID=" + cityIdInput.text + "' >> " + file,
-                        "echo 'OPENWEATHER_UNIT=" + weatherTab.selectedUnit + "' >> " + file,
-                        "rm -r " + cache_weather,
-                        "notify-send 'Weather' 'API configuration saved successfully!'"
-                    ];
-                    var finalCmd = cmds.join(" && ");
-                    Quickshell.execDetached(["bash", "-c", finalCmd]);
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.topMargin: root.s(15)
-                    anchors.leftMargin: root.s(20)
-                    anchors.rightMargin: root.s(20)
-                    anchors.bottomMargin: root.s(20)
-                    spacing: root.s(15)
-
-                    Text { text: "Weather Configuration"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(28); color: root.text; Layout.alignment: Qt.AlignVCenter }
-                    Text { text: "To use the weather widget, please enter your OpenWeatherMap API Key.\nThen, search for your city's exact City ID on OpenWeatherMap and enter it below."; font.family: "JetBrains Mono"; font.pixelSize: root.s(13); color: root.subtext0; Layout.fillWidth: true; wrapMode: Text.WordWrap; Layout.alignment: Qt.AlignVCenter }
-                    
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: root.s(46)
-                        radius: root.s(8)
-                        color: root.surface0
-                        border.color: apiKeyInput.activeFocus ? root.blue : root.surface2
-                        border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: root.s(10)
-                            spacing: root.s(10)
-                            Text { text: "󰌆"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18); color: root.subtext0 }
-                            TextInput { 
-                                id: apiKeyInput
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                verticalAlignment: TextInput.AlignVCenter
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: root.s(13)
-                                color: root.text
-                                clip: true
-                                selectByMouse: true
-                                echoMode: weatherTab.apiKeyVisible ? TextInput.Normal : TextInput.Password
-                                passwordCharacter: "•"
-                                Text { text: "Enter OpenWeather API Key..."; color: root.subtext0; visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter } 
-                            }
-                            Rectangle { 
-                                width: root.s(26)
-                                height: root.s(26)
-                                radius: root.s(4)
-                                color: "transparent"
-                                Text { 
-                                    anchors.centerIn: parent
-                                    text: weatherTab.apiKeyVisible ? "󰈈" : "󰈉"
-                                    font.family: "Iosevka Nerd Font"
-                                    font.pixelSize: root.s(18)
-                                    color: eyeMa.containsMouse ? root.blue : root.subtext0
-                                    Behavior on color { ColorAnimation { duration: 150 } } 
-                                } 
-                                MouseArea { id: eyeMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: weatherTab.apiKeyVisible = !weatherTab.apiKeyVisible } 
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: root.s(46)
-                        radius: root.s(8)
-                        Layout.topMargin: root.s(10)
-                        color: root.surface0
-                        border.color: cityIdInput.activeFocus ? root.peach : root.surface2
-                        border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        
-                        TextInput { 
-                            id: cityIdInput
-                            anchors.fill: parent
-                            anchors.margins: root.s(10)
-                            verticalAlignment: TextInput.AlignVCenter
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: root.s(13)
-                            color: root.text
-                            clip: true
-                            selectByMouse: true
-                            Text { text: "City ID (e.g. 2624652)"; color: root.subtext0; visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter } 
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: root.s(15)
-                        Layout.topMargin: root.s(10)
-                        Text { text: "Units:"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13); color: root.text }
-                        
-                        RowLayout {
-                            spacing: root.s(5)
-                            Repeater {
-                                model: ["metric", "imperial", "standard"]
-                                Rectangle {
-                                    Layout.preferredWidth: root.s(80)
-                                    Layout.preferredHeight: root.s(32)
-                                    radius: root.s(6)
-                                    color: weatherTab.selectedUnit === modelData ? Qt.alpha(root.mauve, 0.2) : "transparent"
-                                    border.color: weatherTab.selectedUnit === modelData ? root.mauve : root.surface1
-                                    border.width: 1
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                                    Text { 
-                                        anchors.centerIn: parent
-                                        text: modelData
-                                        font.family: "JetBrains Mono"
-                                        font.pixelSize: root.s(11)
-                                        font.capitalization: Font.Capitalize
-                                        color: weatherTab.selectedUnit === modelData ? root.mauve : root.subtext0 
-                                    }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: weatherTab.selectedUnit = modelData }
-                                }
-                            }
-                        }
-                    }
-
-                    Item { Layout.fillHeight: true; Layout.fillWidth: true }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Item { Layout.fillWidth: true }
-                        
-                        Rectangle {
-                            Layout.preferredWidth: root.s(160)
-                            Layout.preferredHeight: root.s(46)
-                            radius: root.s(8)
-                            color: saveMa.containsMouse ? Qt.alpha(root.green, 0.8) : root.green
-                            scale: saveMa.pressed ? 0.95 : (saveMa.containsMouse ? 1.02 : 1.0)
-                            
-                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            
-                            RowLayout { 
-                                anchors.centerIn: parent
-                                spacing: root.s(8)
-                                Text { text: "󰆓"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18); color: root.base } 
-                                Text { text: "Save Config"; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(14); color: root.base } 
-                            }
-                            
-                            MouseArea { 
-                                id: saveMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: weatherTab.saveWeatherConfig() 
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ------------------------------------------
-            // TAB 7: GREETER
+            // TAB 5: ABOUT
             // ------------------------------------------
             Item {
                 anchors.fill: parent
-                visible: root.currentTab === 7
-                opacity: visible ? 1.0 : 0.0
-                property real slideY: visible ? 0 : root.s(10)
-                
-                Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-                transform: Translate { y: slideY }
-                Behavior on opacity { NumberAnimation { duration: 250 } }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "coming soon"
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: root.s(24)
-                    color: root.subtext0
-                }
-            }
-
-            // ------------------------------------------
-            // TAB 8: ABOUT
-            // ------------------------------------------
-            Item {
-                anchors.fill: parent
-                visible: root.currentTab === 8
+                visible: root.currentTab === 5
                 opacity: visible ? 1.0 : 0.0
                 property real slideY: visible ? 0 : root.s(10)
                 

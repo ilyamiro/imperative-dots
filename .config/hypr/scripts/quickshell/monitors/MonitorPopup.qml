@@ -7,6 +7,7 @@ import "../"
 
 Item {
     id: window
+    focus: true
 
     // --- Responsive Scaling Logic ---
     Scaler {
@@ -17,6 +18,12 @@ Item {
     // Helper function scoped to the root Item
     function s(val) { 
         return scaler.s(val); 
+    }
+
+    // Custom File Logger
+    function debugLog(msg) {
+        let safeMsg = msg.replace(/'/g, "'\\''");
+        Quickshell.execDetached(["sh", "-c", "echo '" + safeMsg + "' >> /tmp/monitor_popup.log"]);
     }
     
     // -------------------------------------------------------------------------
@@ -47,7 +54,7 @@ Item {
     // STATE & MATH
     // -------------------------------------------------------------------------
     property int activeEditIndex: 0
-    // Virtual mapping scale (1920px -> 192 virtual units)
+    property int activeFocusIndex: 0 // 0: Res, 1: Clock, 2: Frame, 3: Apply
     property real uiScale: 0.10 
     
     // Wayland Absolute Anchor tracking
@@ -58,11 +65,33 @@ Item {
         id: monitorsModel
     }
     
+    property var resList: [
+        {w: 3840, h: 2160, l: "4K",   accent: window.pink}, 
+        {w: 2560, h: 1440, l: "QHD",  accent: window.mauve},
+        {w: 1920, h: 1080, l: "FHD",  accent: window.blue},
+        {w: 1600, h: 900,  l: "HD+",  accent: window.teal}, 
+        {w: 1366, h: 768,  l: "WXGA", accent: window.yellow}, 
+        {w: 1280, h: 720,  l: "HD",   accent: window.peach}, 
+        {w: 1024, h: 768,  l: "XGA",  accent: window.green}, 
+        {w: 800,  h: 600,  l: "SVGA", accent: window.red} 
+    ]
+
     property color selectedResAccent: window.mauve
     property color selectedRateAccent: window.blue
 
-    property real currentSimW: monitorsModel.count > 0 ? monitorsModel.get(0).resW : 1920
-    property real currentSimH: monitorsModel.count > 0 ? monitorsModel.get(0).resH : 1080
+    property int currentTransform: monitorsModel.count > 0 ? monitorsModel.get(window.activeEditIndex).transform : 0
+    property bool currentIsPortrait: currentTransform === 1 || currentTransform === 3
+
+    property real currentSimW: {
+        if (monitorsModel.count === 0) return 1920;
+        let mon = monitorsModel.get(window.activeEditIndex);
+        return currentIsPortrait ? mon.resH : mon.resW;
+    }
+    property real currentSimH: {
+        if (monitorsModel.count === 0) return 1080;
+        let mon = monitorsModel.get(window.activeEditIndex);
+        return currentIsPortrait ? mon.resW : mon.resH;
+    }
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
@@ -73,6 +102,90 @@ Item {
         running: true
     }
     
+    // -------------------------------------------------------------------------
+    // KEYBOARD NAVIGATION LOGIC
+    // -------------------------------------------------------------------------
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Tab) {
+            if (event.modifiers & Qt.ControlModifier) {
+                if (monitorsModel.count > 1) {
+                    window.activeEditIndex = (window.activeEditIndex + 1) % monitorsModel.count;
+                }
+            } else {
+                window.activeFocusIndex = (window.activeFocusIndex + 1) % 4;
+            }
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Backtab) {
+            if (event.modifiers & Qt.ControlModifier) {
+                if (monitorsModel.count > 1) {
+                    window.activeEditIndex = (window.activeEditIndex - 1 + monitorsModel.count) % monitorsModel.count;
+                }
+            } else {
+                window.activeFocusIndex = (window.activeFocusIndex - 1 + 4) % 4;
+            }
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Left) {
+            handleArrowKey("Left"); event.accepted = true;
+        } else if (event.key === Qt.Key_Right) {
+            handleArrowKey("Right"); event.accepted = true;
+        } else if (event.key === Qt.Key_Up) {
+            handleArrowKey("Up"); event.accepted = true;
+        } else if (event.key === Qt.Key_Down) {
+            handleArrowKey("Down"); event.accepted = true;
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            if (activeFocusIndex === 3) {
+                window.applyPressed = true;
+                window.triggerApply();
+            }
+            event.accepted = true;
+        }
+    }
+    
+    Keys.onReleased: (event) => {
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            window.applyPressed = false;
+        }
+    }
+
+    function handleArrowKey(dir) {
+        if (monitorsModel.count === 0) return;
+        
+        if (activeFocusIndex === 0) {
+            let activeMon = monitorsModel.get(window.activeEditIndex);
+            let idx = 2; // Default FHD
+            for (let i = 0; i < window.resList.length; i++) {
+                if (window.resList[i].w === activeMon.resW && window.resList[i].h === activeMon.resH) {
+                    idx = i; break;
+                }
+            }
+            
+            if (dir === "Left" && idx % 2 !== 0) idx--;
+            else if (dir === "Right" && idx % 2 === 0 && idx < 7) idx++;
+            else if (dir === "Up" && idx >= 2) idx -= 2;
+            else if (dir === "Down" && idx <= 5) idx += 2;
+
+            window.selectedResAccent = window.resList[idx].accent;
+            monitorsModel.setProperty(window.activeEditIndex, "resW", window.resList[idx].w);
+            monitorsModel.setProperty(window.activeEditIndex, "resH", window.resList[idx].h);
+            delayedLayoutUpdate.restart();
+            
+        } else if (activeFocusIndex === 1) {
+            let t = monitorsModel.get(window.activeEditIndex).transform;
+            if (dir === "Up") t = 0;
+            else if (dir === "Right") t = 1;
+            else if (dir === "Down") t = 2;
+            else if (dir === "Left") t = 3;
+            monitorsModel.setProperty(window.activeEditIndex, "transform", t);
+            delayedLayoutUpdate.restart();
+            
+        } else if (activeFocusIndex === 2) {
+            let cIdx = sliderContainer.currentIndex;
+            if (dir === "Left" && cIdx > 0) cIdx--;
+            else if (dir === "Right" && cIdx < sliderContainer.rates.length - 1) cIdx++;
+            sliderContainer.updateSelectionVisual(cIdx);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // FLUID STARTUP ANIMATIONS 
     // -------------------------------------------------------------------------
@@ -108,8 +221,9 @@ Item {
         for (let i = 0; i < monitorsModel.count; i++) {
             if (i === skipIdx) continue;
             let m = monitorsModel.get(i);
-            let mW = (m.resW / m.sysScale) * window.uiScale;
-            let mH = (m.resH / m.sysScale) * window.uiScale;
+            let isP = m.transform === 1 || m.transform === 3;
+            let mW = ((isP ? m.resH : m.resW) / m.sysScale) * window.uiScale;
+            let mH = ((isP ? m.resW : m.resH) / m.sysScale) * window.uiScale;
             if (isOverlapping(x, y, w, h, m.uiX, m.uiY, mW, mH)) return true;
         }
         return false;
@@ -156,19 +270,20 @@ Item {
         
         let mIdx = window.activeEditIndex;
         let mModel = monitorsModel.get(mIdx);
-        let mW = (mModel.resW / mModel.sysScale) * window.uiScale;
-        let mH = (mModel.resH / mModel.sysScale) * window.uiScale;
+        let isP = mModel.transform === 1 || mModel.transform === 3;
+        let mW = ((isP ? mModel.resH : mModel.resW) / mModel.sysScale) * window.uiScale;
+        let mH = ((isP ? mModel.resW : mModel.resH) / mModel.sysScale) * window.uiScale;
 
         let bestX = mModel.uiX;
         let bestY = mModel.uiY;
         let bestDist = 999999;
 
-        // Loop through ALL other monitors to find the closest valid snap
         for (let i = 0; i < monitorsModel.count; i++) {
             if (i === mIdx) continue;
             let sModel = monitorsModel.get(i);
-            let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
-            let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+            let sIsP = sModel.transform === 1 || sModel.transform === 3;
+            let sW = ((sIsP ? sModel.resH : sModel.resW) / sModel.sysScale) * window.uiScale;
+            let sH = ((sIsP ? sModel.resW : sModel.resH) / sModel.sysScale) * window.uiScale;
             
             let snapped = window.getPerimeterSnap(
                 mModel.uiX, mModel.uiY,
@@ -221,6 +336,7 @@ Item {
 
                     for (let i = 0; i < data.length; i++) {
                         let scl = data[i].scale !== undefined ? data[i].scale : 1.0;
+                        let tf = data[i].transform !== undefined ? data[i].transform : 0;
                         let normalizedX = (data[i].x - minX) * window.uiScale;
                         let normalizedY = (data[i].y - minY) * window.uiScale;
 
@@ -231,7 +347,8 @@ Item {
                             sysScale: scl,
                             rate: Math.round(data[i].refreshRate).toString(),
                             uiX: normalizedX,
-                            uiY: normalizedY
+                            uiY: normalizedY,
+                            transform: tf
                         });
 
                         if (data[i].focused) window.activeEditIndex = i;
@@ -242,6 +359,138 @@ Item {
             }
         }
     }
+
+    // -------------------------------------------------------------------------
+    // SYSTEM APPLY FUNCTION & DEBUG LOGGING
+    // -------------------------------------------------------------------------
+    function triggerApply() {
+        flashRect.opacity = 0.8; 
+        applyFlashAnim.start();
+
+        if (monitorsModel.count === 0) return;
+
+        window.debugLog("================= NEW APPLY RUN =================");
+
+        if (monitorsModel.count === 1) {
+            let m = monitorsModel.get(0);
+            let monitorStr = m.name + "," + m.resW + "x" + m.resH + "@" + m.rate + ",0x0," + m.sysScale;
+            if (m.transform !== 0) {
+                monitorStr += ",transform," + m.transform;
+            }
+
+            let jsonMonitorsArray = [{
+                name: m.name, resW: m.resW, resH: m.resH, rate: parseInt(m.rate),
+                x: 0, y: 0, scale: m.sysScale, transform: m.transform
+            }];
+            let safeJson = JSON.stringify(jsonMonitorsArray).replace(/'/g, "'\\''");
+            let jsonCmd = "jq '.monitors = " + safeJson + "' ~/.config/hypr/settings.json > ~/.config/hypr/settings.json.tmp && mv ~/.config/hypr/settings.json.tmp ~/.config/hypr/settings.json";
+            let postReloadCmd = "swww kill ; sleep 0.2 ; swww-daemon &";
+
+            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved: " + m.resW + "x" + m.resH + " @ " + m.rate + "Hz"]);
+            Quickshell.execDetached(["sh", "-c", "hyprctl keyword monitor " + monitorStr + " ; " + jsonCmd + " ; " + postReloadCmd]);
+            
+            window.debugLog("Executed single monitor apply.");
+        } else {
+            let rects = [];
+            let finalMinX = 999999;
+            let finalMinY = 999999;
+
+            for (let i = 0; i < monitorsModel.count; i++) {
+                let m = monitorsModel.get(i);
+                let isP = m.transform === 1 || m.transform === 3;
+                let physW = Math.round((isP ? m.resH : m.resW) / m.sysScale);
+                let physH = Math.round((isP ? m.resW : m.resH) / m.sysScale);
+                
+                let rawX = m.uiX / window.uiScale;
+                let rawY = m.uiY / window.uiScale;
+                
+                rects.push({
+                    x: rawX, y: rawY, w: physW, h: physH, 
+                    resW: m.resW, resH: m.resH, name: m.name, 
+                    rate: m.rate, sysScale: m.sysScale, transform: m.transform
+                });
+            }
+
+            function getTightSnap(pX, pY, sX, sY, sW, sH, mW, mH, t) {
+                let cx = pX; let cy = pY;
+                if (Math.abs(cx - (sX - mW)) < t) cx = sX - mW;
+                else if (Math.abs(cx - (sX + sW)) < t) cx = sX + sW;
+                else if (Math.abs(cx - sX) < t) cx = sX;
+                else if (Math.abs(cx - (sX + sW - mW)) < t) cx = sX + sW - mW;
+                else if (Math.abs(cx - (sX + sW/2 - mW/2)) < t) cx = sX + sW/2 - mW/2;
+                
+                if (Math.abs(cy - (sY - mH)) < t) cy = sY - mH;
+                else if (Math.abs(cy - (sY + sH)) < t) cy = sY + sH;
+                else if (Math.abs(cy - sY) < t) cy = sY;
+                else if (Math.abs(cy - (sY + sH - mH)) < t) cy = sY + sH - mH;
+                else if (Math.abs(cy - (sY + sH/2 - mH/2)) < t) cy = sY + sH/2 - mH/2;
+                
+                return {x: cx, y: cy};
+            }
+
+            for (let i = 1; i < rects.length; i++) {
+                let bestX = rects[i].x;
+                let bestY = rects[i].y;
+                let bestDist = 999999;
+                for (let j = 0; j < i; j++) {
+                    let r0 = rects[j];
+                    let snapped = getTightSnap(
+                        rects[i].x, rects[i].y,
+                        r0.x, r0.y,
+                        r0.w, r0.h, rects[i].w, rects[i].h, 25
+                    );
+                    let dist = Math.hypot(rects[i].x - snapped.x, rects[i].y - snapped.y);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestX = Math.round(snapped.x);
+                        bestY = Math.round(snapped.y);
+                    }
+                }
+                rects[i].x = bestX;
+                rects[i].y = bestY;
+            }
+
+            for (let i = 0; i < rects.length; i++) {
+                if (rects[i].x < finalMinX) finalMinX = rects[i].x;
+                if (rects[i].y < finalMinY) finalMinY = rects[i].y;
+            }
+            
+            let batchCmds = [];
+            let summaryString = "";
+            let jsonMonitorsArray = [];
+
+            for (let i = 0; i < rects.length; i++) {
+                let r = rects[i];
+                
+                r.x = Math.round(r.x - finalMinX);
+                r.y = Math.round(r.y - finalMinY);
+                
+                let monitorStr = r.name + "," + r.resW + "x" + r.resH + "@" + r.rate + "," + r.x + "x" + r.y + "," + r.sysScale;
+                if (r.transform !== 0) {
+                    monitorStr += ",transform," + r.transform;
+                }
+                
+                batchCmds.push("keyword monitor " + monitorStr);
+                summaryString += r.name + " ";
+
+                jsonMonitorsArray.push({
+                    name: r.name, resW: r.resW, resH: r.resH, rate: parseInt(r.rate),
+                    x: r.x, y: r.y, scale: r.sysScale, transform: r.transform
+                });
+            }
+            
+            let fullHyprCmd = "hyprctl --batch '" + batchCmds.join(" ; ") + "'";
+            let safeJson = JSON.stringify(jsonMonitorsArray).replace(/'/g, "'\\''");
+            let jsonCmd = "jq '.monitors = " + safeJson + "' ~/.config/hypr/settings.json > ~/.config/hypr/settings.json.tmp && mv ~/.config/hypr/settings.json.tmp ~/.config/hypr/settings.json";
+            let postReloadCmd = "swww kill ; sleep 0.2 ; swww-daemon &";
+
+            Quickshell.execDetached(["sh", "-c", fullHyprCmd + " ; " + jsonCmd + " ; " + postReloadCmd]);
+            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved layout for: " + summaryString]);
+            
+            window.debugLog("Executed multi monitor apply: " + fullHyprCmd);
+        }
+    }
+
 
     // -------------------------------------------------------------------------
     // UI LAYOUT
@@ -304,7 +553,7 @@ Item {
                         width: window.s(380)
                         height: window.s(280)
                         
-                        property real baseScale: Math.min(1.0, 2200 / window.currentSimW)
+                        property real baseScale: Math.min(1.0, Math.min(2200 / window.currentSimW, 1400 / Math.max(1, window.currentSimH)))
                         scale: baseScale * window.monitorScale
                         opacity: window.introProgress
                         Behavior on baseScale { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
@@ -373,8 +622,11 @@ Item {
 
                         Rectangle {
                             id: screenBezel
-                            width: window.s(140) + (window.s(180) * (window.currentSimW / 1920))
-                            height: window.s(90) + (window.s(90) * (window.currentSimH / 1080))
+                            
+                            // Perfect aspect ratio AND scales up physically on the desk at higher resolutions
+                            width: window.s(320) * (window.currentSimW / 1920.0)
+                            height: window.s(320) * (window.currentSimH / 1920.0)
+
                             anchors.bottom: standNeck.top
                             anchors.bottomMargin: window.s(-10)
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -422,37 +674,54 @@ Item {
                                             Rectangle { width: window.s(2); height: window.s(2); radius: window.s(1); color: Qt.alpha(window.text, 0.1) } 
                                         } 
                                     }
+                                }
 
-                                    Item {
+                                Item {
+                                    anchors.centerIn: parent
+                                    width: window.s(160)
+                                    height: window.s(100)
+                                    
+                                    // 1. Counteract the environmental zoom factor
+                                    property real counterScale: 1.0 / singleMonitorZoom.scale
+                                    
+                                    // 2. Compute a safe physical boundary based on current visual rotation
+                                    // If rotated (portrait), we compare the wrapper's height to the screen's width, etc.
+                                    property real maxPhysicalScale: window.currentIsPortrait 
+                                        ? Math.min((parent.width * 0.9) / height, (parent.height * 0.9) / width)
+                                        : Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
+                                    
+                                    scale: Math.min(counterScale, maxPhysicalScale)
+                                    
+                                    ColumnLayout {
                                         anchors.centerIn: parent
-                                        scale: 1.0 / singleMonitorZoom.scale
-                                        
-                                        ColumnLayout {
-                                            anchors.centerIn: parent
-                                            spacing: window.s(4)
-                                            Text { 
-                                                Layout.alignment: Qt.AlignHCenter
-                                                font.family: "Iosevka Nerd Font"
-                                                font.pixelSize: window.s(38)
-                                                color: window.selectedResAccent
-                                                text: "󰍹"
-                                                Behavior on color { ColorAnimation { duration: 400 } } 
-                                            }
-                                            Text { 
-                                                Layout.alignment: Qt.AlignHCenter
-                                                font.family: "JetBrains Mono"
-                                                font.weight: Font.Bold
-                                                font.pixelSize: window.s(16)
-                                                color: window.text
-                                                text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown" 
-                                            }
-                                            Text { 
-                                                Layout.alignment: Qt.AlignHCenter
-                                                font.family: "JetBrains Mono"
-                                                font.pixelSize: window.s(12)
-                                                color: window.subtext0
-                                                text: window.currentSimW + "x" + window.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz" 
-                                            }
+                                        spacing: window.s(4)
+
+                                        // Restored Rotation: Acts as a pointer to the monitor's physical bottom
+                                        rotation: window.currentTransform * 90
+                                        Behavior on rotation { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "Iosevka Nerd Font"
+                                            font.pixelSize: window.s(38)
+                                            color: window.selectedResAccent
+                                            text: "󰍹"
+                                            Behavior on color { ColorAnimation { duration: 400 } } 
+                                        }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "JetBrains Mono"
+                                            font.weight: Font.Bold
+                                            font.pixelSize: window.s(16)
+                                            color: window.text
+                                            text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown" 
+                                        }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "JetBrains Mono"
+                                            font.pixelSize: window.s(12)
+                                            color: window.subtext0
+                                            text: window.currentSimW + "x" + window.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz" 
                                         }
                                     }
                                 }
@@ -486,15 +755,15 @@ Item {
                             }
                         }
 
-                        // Target Scale computes virtual bounds -> Maps to scaled physical layout
                         property real targetScale: {
                             if (monitorsModel.count < 2) return 1.0;
                             let minX = 999999, minY = 999999, maxX = -999999, maxY = -999999;
                             
                             for (let i = 0; i < monitorsModel.count; i++) {
                                 let m = monitorsModel.get(i);
-                                let w = (m.resW / m.sysScale) * window.uiScale;
-                                let h = (m.resH / m.sysScale) * window.uiScale;
+                                let isP = m.transform === 1 || m.transform === 3;
+                                let w = ((isP ? m.resH : m.resW) / m.sysScale) * window.uiScale;
+                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * window.uiScale;
                                 
                                 minX = Math.min(minX, m.uiX);
                                 minY = Math.min(minY, m.uiY);
@@ -514,7 +783,8 @@ Item {
                             
                             for (let i = 0; i < monitorsModel.count; i++) {
                                 let m = monitorsModel.get(i);
-                                let w = (m.resW / m.sysScale) * window.uiScale;
+                                let isP = m.transform === 1 || m.transform === 3;
+                                let w = ((isP ? m.resH : m.resW) / m.sysScale) * window.uiScale;
                                 
                                 minX = Math.min(minX, m.uiX);
                                 maxX = Math.max(maxX, m.uiX + w);
@@ -530,7 +800,8 @@ Item {
                             
                             for (let i = 0; i < monitorsModel.count; i++) {
                                 let m = monitorsModel.get(i);
-                                let h = (m.resH / m.sysScale) * window.uiScale;
+                                let isP = m.transform === 1 || m.transform === 3;
+                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * window.uiScale;
                                 
                                 minY = Math.min(minY, m.uiY);
                                 maxY = Math.max(maxY, m.uiY + h);
@@ -555,9 +826,9 @@ Item {
                                 id: monitorRepeater
                                 model: monitorsModel
 
-                                // NOTE: The items inside the transform node remain strictly virtual
                                 Item {
                                     property bool isActive: window.activeEditIndex === index
+                                    property bool isPortrait: model.transform === 1 || model.transform === 3
 
                                     // THE VISIBLE SNAPPED MONITOR CARD
                                     Rectangle {
@@ -565,8 +836,8 @@ Item {
                                         x: model.uiX
                                         y: model.uiY
                                         
-                                        width: (model.resW / model.sysScale) * window.uiScale
-                                        height: (model.resH / model.sysScale) * window.uiScale
+                                        width: (isPortrait ? model.resH : model.resW) / model.sysScale * window.uiScale
+                                        height: (isPortrait ? model.resW : model.resH) / model.sysScale * window.uiScale
                                         
                                         radius: 8
                                         color: isActive ? window.surface1 : window.crust
@@ -587,13 +858,22 @@ Item {
                                             width: 110
                                             height: 80
                                             
-                                            property real idealScale: Math.min(1.2, parent.width / 110, parent.height / 80) / transformNode.scale
-                                            property real maxPhysicalScale: Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
+                                            property real idealScale: 1.2 / transformNode.scale
+                                            // Ensure the bounded box checks against the correct axis when visually rotated
+                                            property real maxPhysicalScale: isPortrait 
+                                                ? Math.min((parent.width * 0.9) / height, (parent.height * 0.9) / width) 
+                                                : Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
+                                                
                                             scale: Math.min(idealScale, maxPhysicalScale)
                                             
                                             ColumnLayout {
                                                 anchors.centerIn: parent
                                                 spacing: 2
+                                                
+                                                // Restored Rotation for Multi-Monitor cards
+                                                rotation: model.transform * 90
+                                                Behavior on rotation { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
                                                 Text { 
                                                     Layout.alignment: Qt.AlignHCenter
                                                     font.family: "Iosevka Nerd Font"
@@ -647,7 +927,6 @@ Item {
                                                     let mW = monitorCard.width;
                                                     let mH = monitorCard.height;
 
-                                                    // Compute boundary limits dynamically against ALL other monitors
                                                     let padding = 40;
                                                     let boundMinX = 999999, boundMinY = 999999;
                                                     let boundMaxX = -999999, boundMaxY = -999999;
@@ -655,8 +934,9 @@ Item {
                                                     for (let j = 0; j < monitorsModel.count; j++) {
                                                         if (j === index) continue;
                                                         let sModel = monitorsModel.get(j);
-                                                        let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
-                                                        let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+                                                        let sIsP = sModel.transform === 1 || sModel.transform === 3;
+                                                        let sW = ((sIsP ? sModel.resH : sModel.resW) / sModel.sysScale) * window.uiScale;
+                                                        let sH = ((sIsP ? sModel.resW : sModel.resH) / sModel.sysScale) * window.uiScale;
                                                         
                                                         boundMinX = Math.min(boundMinX, sModel.uiX - mW - padding);
                                                         boundMinY = Math.min(boundMinY, sModel.uiY - mH - padding);
@@ -667,7 +947,6 @@ Item {
                                                     ghostDrag.x = Math.max(boundMinX, Math.min(ghostDrag.x, boundMaxX));
                                                     ghostDrag.y = Math.max(boundMinY, Math.min(ghostDrag.y, boundMaxY));
 
-                                                    // Snap to the nearest perimeter of ANY other monitor
                                                     let bestX = ghostDrag.x;
                                                     let bestY = ghostDrag.y;
                                                     let bestDist = 999999;
@@ -675,8 +954,9 @@ Item {
                                                     for (let j = 0; j < monitorsModel.count; j++) {
                                                         if (j === index) continue;
                                                         let sModel = monitorsModel.get(j);
-                                                        let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
-                                                        let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+                                                        let sIsP = sModel.transform === 1 || sModel.transform === 3;
+                                                        let sW = ((sIsP ? sModel.resH : sModel.resW) / sModel.sysScale) * window.uiScale;
+                                                        let sH = ((sIsP ? sModel.resW : sModel.resH) / sModel.sysScale) * window.uiScale;
                                                         
                                                         let snapped = window.getPerimeterSnap(
                                                             ghostDrag.x, ghostDrag.y,
@@ -718,10 +998,11 @@ Item {
             Item {
                 anchors.left: leftVisualArea.right
                 anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter 
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: window.s(-10) // Tweak layout slightly downwards 
                 anchors.leftMargin: window.s(10)
                 anchors.rightMargin: window.s(30)
-                height: window.s(310)
+                height: rightSideContainer.implicitHeight 
 
                 opacity: window.introProgress
                 transform: Translate { y: window.uiYOffset }
@@ -759,36 +1040,29 @@ Item {
                 ColumnLayout {
                     id: rightSideContainer
                     anchors.fill: parent
-                    spacing: window.s(12)
+                    spacing: window.s(10)
 
                     // --- RESOLUTION CARDS SECTION ---
                     GridLayout {
+                        id: resGrid
                         Layout.fillWidth: true
                         columns: 2
                         columnSpacing: window.s(10)
                         rowSpacing: window.s(10)
 
                         Repeater {
-                            model: [
-                                { resW: 3840, resH: 2160, label: "4K",   accent: window.pink }, 
-                                { resW: 2560, resH: 1440, label: "QHD",  accent: window.mauve },
-                                { resW: 1920, resH: 1080, label: "FHD",  accent: window.blue },
-                                { resW: 1600, resH: 900,  label: "HD+",  accent: window.teal }, 
-                                { resW: 1366, resH: 768,  label: "WXGA", accent: window.yellow }, 
-                                { resW: 1280, resH: 720,  label: "HD",   accent: window.peach }, 
-                                { resW: 1024, resH: 768,  label: "XGA",  accent: window.green }, 
-                                { resW: 800,  resH: 600,  label: "SVGA", accent: window.red } 
-                            ]
+                            model: window.resList
 
                             delegate: Rectangle {
+                                property var modelData: window.resList[index]
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: window.s(48)
+                                Layout.preferredHeight: window.s(45)
                                 radius: window.s(12)
                                 
                                 property bool isSel: {
                                     if (monitorsModel.count === 0) return false;
                                     let activeMon = monitorsModel.get(window.activeEditIndex);
-                                    return activeMon.resW === modelData.resW && activeMon.resH === modelData.resH;
+                                    return activeMon.resW === modelData.w && activeMon.resH === modelData.h;
                                 }
                                 property color accentColor: modelData.accent
                                 
@@ -807,9 +1081,9 @@ Item {
                                     Text { 
                                         font.family: "JetBrains Mono"
                                         font.weight: isSel ? Font.Black : Font.Bold
-                                        font.pixelSize: window.s(16)
+                                        font.pixelSize: window.s(15)
                                         color: isSel ? accentColor : window.text
-                                        text: modelData.label
+                                        text: modelData.l
                                         Behavior on color { ColorAnimation { duration: 200 } } 
                                     }
                                     
@@ -817,9 +1091,9 @@ Item {
                                     
                                     Text { 
                                         font.family: "JetBrains Mono"
-                                        font.pixelSize: window.s(12)
+                                        font.pixelSize: window.s(11)
                                         color: isSel ? window.text : window.overlay0
-                                        text: modelData.resW + "x" + modelData.resH
+                                        text: modelData.w + "x" + modelData.h
                                         Behavior on color { ColorAnimation { duration: 200 } } 
                                     }
                                 }
@@ -833,10 +1107,11 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
+                                        window.activeFocusIndex = 0;
                                         if (monitorsModel.count > 0) {
                                             window.selectedResAccent = accentColor;
-                                            monitorsModel.setProperty(window.activeEditIndex, "resW", modelData.resW);
-                                            monitorsModel.setProperty(window.activeEditIndex, "resH", modelData.resH);
+                                            monitorsModel.setProperty(window.activeEditIndex, "resW", modelData.w);
+                                            monitorsModel.setProperty(window.activeEditIndex, "resH", modelData.h);
                                             delayedLayoutUpdate.restart();
                                         }
                                     }
@@ -845,15 +1120,122 @@ Item {
                         }
                     }
 
-                    Item { Layout.preferredHeight: window.s(15) } 
+                    Item { Layout.preferredHeight: window.s(2) } 
+
+                    // --- ROTATION DIAL (CLOCK-STYLE) SECTION ---
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: window.s(120)
+                        
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            id: clockDial
+                            // Use Layout properties instead of standard width/height to prevent 
+                            // the layout engine from breaking your dimensions during resize
+                            Layout.preferredWidth: window.s(120)
+                            Layout.preferredHeight: window.s(120)
+                            Layout.alignment: Qt.AlignCenter
+                            
+                            radius: width / 2
+                            color: window.surface0 
+                            
+                            border.color: window.activeFocusIndex === 1 ? window.selectedResAccent : window.surface1 
+                            border.width: window.activeFocusIndex === 1 ? window.s(3) : window.s(2)
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
+                            Behavior on border.width { NumberAnimation { duration: 200 } }
+
+                            // 12-Hour Clock Tick Marks
+                            Repeater {
+                                model: 12
+                                Item {
+                                    anchors.fill: parent
+                                    rotation: index * 30
+                                    Rectangle {
+                                        width: index % 3 === 0 ? window.s(4) : window.s(2)
+                                        height: index % 3 === 0 ? window.s(8) : window.s(4)
+                                        radius: width / 2
+                                        color: index % 3 === 0 ? window.subtext0 : window.surface2 
+                                        anchors.top: parent.top
+                                        anchors.topMargin: window.s(4)
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                    }
+                                }
+                            }
+
+                            // The Interactive Pointer
+                            Item {
+                                id: dialPointer
+                                anchors.fill: parent
+                                property int activeTransform: monitorsModel.count > 0 ? monitorsModel.get(window.activeEditIndex).transform : 0
+                                rotation: activeTransform * 90
+                                Behavior on rotation { NumberAnimation { duration: 400; easing.type: Easing.OutBack;} }
+
+                                // Pointer Line
+                                Rectangle {
+                                    width: window.s(5)
+                                    height: parent.height / 2 - window.s(20)
+                                    radius: window.s(2.5)
+                                    color: window.selectedResAccent
+                                    anchors.bottom: parent.verticalCenter
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    Behavior on color { ColorAnimation { duration: 300 } }
+                                }
+                                
+                                // Center Dot
+                                Rectangle {
+                                    width: window.s(18)
+                                    height: window.s(18) // Replaced height: width binding
+                                    radius: width / 2
+                                    color: window.base
+                                    border.color: window.selectedResAccent
+                                    border.width: window.s(4)
+                                    anchors.centerIn: parent
+                                    Behavior on border.color { ColorAnimation { duration: 300 } }
+                                }
+                            }
+
+                            MouseArea {
+                                id: dialMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+
+                                function updateAngle(mouse) {
+                                    if (monitorsModel.count === 0) return;
+                                    window.activeFocusIndex = 1;
+                                    
+                                    let dx = mouse.x - width / 2;
+                                    let dy = mouse.y - height / 2;
+
+                                    if (Math.hypot(dx, dy) < window.s(20)) return;
+
+                                    let snap = 0;
+                                    if (Math.abs(dx) > Math.abs(dy)) {
+                                        snap = dx > 0 ? 1 : 3;
+                                    } else {
+                                        snap = dy > 0 ? 2 : 0;
+                                    }
+                                    
+                                    monitorsModel.setProperty(window.activeEditIndex, "transform", snap);
+                                    delayedLayoutUpdate.restart();
+                                }
+
+                                onPressed: (mouse) => updateAngle(mouse)
+                                onPositionChanged: (mouse) => { if (pressed) updateAngle(mouse) }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }                    Item { Layout.preferredHeight: window.s(2) }
 
                     // --- REFRESH RATE SLIDER SECTION ---
                     Item {
                         id: sliderContainer
                         Layout.fillWidth: true
-                        Layout.preferredHeight: window.s(50)
-                        Layout.leftMargin: window.s(10)
-                        Layout.rightMargin: window.s(10)
+                        Layout.preferredHeight: window.s(45)
+                        Layout.leftMargin: window.s(6)
+                        Layout.rightMargin: window.s(6)
                         
                         property var rates: [60, 75, 100, 120, 144, 165, 180, 240, 360]
                         property var rateColors: [window.red, window.mauve, window.blue, window.sapphire, window.teal, window.pink, window.yellow, window.green, window.peach]
@@ -878,11 +1260,20 @@ Item {
                         onCurrentIndexChanged: { 
                             if (!sliderMa.pressed) visualPct = currentIndex / (rates.length - 1); 
                         }
+                        
+                        function updateSelectionVisual(idx) {
+                            if (monitorsModel.count === 0) return;
+                            visualPct = idx / (rates.length - 1);
+                            monitorsModel.setProperty(window.activeEditIndex, "rate", rates[idx].toString());
+                            window.selectedRateAccent = rateColors[idx];
+                        }
 
                         Rectangle {
                             id: track
                             anchors.left: parent.left
                             anchors.right: parent.right
+                            anchors.leftMargin: window.s(15)
+                            anchors.rightMargin: window.s(15)
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.verticalCenterOffset: window.s(-10)
                             height: window.s(12)
@@ -892,18 +1283,39 @@ Item {
                             border.width: 1
                             
                             Rectangle { 
-                                width: Math.max(knob.width, knob.x + knob.width / 2)
+                                id: trackFill
+                                width: Math.max(0, knob.x + knob.width / 2)
                                 height: parent.height
                                 radius: parent.radius
                                 color: window.selectedRateAccent
                                 Behavior on color { ColorAnimation { duration: 200 } } 
+                            }
+
+                            Rectangle {
+                                id: knob
+                                width: window.s(24)
+                                height: window.s(24)
+                                radius: window.s(12)
+                                color: sliderMa.containsPress ? window.selectedRateAccent : window.text
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: (sliderContainer.visualPct * parent.width) - width / 2
+                                
+                                Behavior on x { 
+                                    enabled: !sliderMa.pressed
+                                    NumberAnimation { duration: 250; easing.type: Easing.OutCubic } 
+                                }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                
+                                border.width: (sliderMa.containsMouse || window.activeFocusIndex === 2) ? window.s(4) : 0
+                                border.color: Qt.alpha(window.selectedRateAccent, 0.4)
+                                Behavior on border.width { NumberAnimation { duration: 150 } }
                             }
                         }
 
                         Repeater {
                             model: sliderContainer.rates.length
                             Item {
-                                x: (index / (sliderContainer.rates.length - 1)) * track.width
+                                x: track.x + (index / (sliderContainer.rates.length - 1)) * track.width
                                 y: track.y + window.s(20)
                                 
                                 Text { 
@@ -918,35 +1330,16 @@ Item {
                             }
                         }
 
-                        Rectangle {
-                            id: knob
-                            width: window.s(24)
-                            height: window.s(24)
-                            radius: window.s(12)
-                            color: sliderMa.containsPress ? window.selectedRateAccent : window.text
-                            anchors.verticalCenter: track.verticalCenter
-                            x: (sliderContainer.visualPct * track.width) - width / 2
-                            
-                            Behavior on x { 
-                                enabled: !sliderMa.pressed
-                                NumberAnimation { duration: 250; easing.type: Easing.OutCubic } 
-                            }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            
-                            border.width: sliderMa.containsMouse ? 4 : 0
-                            border.color: Qt.alpha(window.selectedRateAccent, 0.3)
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
-                        }
-
                         MouseArea {
                             id: sliderMa
                             anchors.fill: parent
-                            anchors.margins: window.s(-15)
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
 
                             function updateSelection(mouseX, snapToGrid) {
                                 if (monitorsModel.count === 0) return;
+                                window.activeFocusIndex = 2;
+                                
                                 let pct = (mouseX - track.x) / track.width;
                                 pct = Math.max(0, Math.min(1, pct));
                                 let idx = Math.round(pct * (sliderContainer.rates.length - 1));
@@ -967,214 +1360,106 @@ Item {
                             onCanceled: () => sliderContainer.visualPct = sliderContainer.currentIndex / (sliderContainer.rates.length - 1)
                         }
                     }
-                    
-                    Item { Layout.fillHeight: true } 
-                }
-            }
 
-            // ==========================================
-            // FLOATING APPLY BUTTON 
-            // ==========================================
-            Item {
-                id: applyButtonContainer
-                anchors.bottom: parent.bottom
-                anchors.right: parent.right
-                anchors.margins: window.s(30)
-                width: window.s(170)
-                height: window.s(50)
-                
-                opacity: window.introProgress
-                transform: Translate { y: window.uiYOffset }
+                    Item { Layout.preferredHeight: window.s(15) } 
 
-                MultiEffect {
-                    source: applyBtn
-                    anchors.fill: applyBtn
-                    shadowEnabled: true
-                    shadowColor: window.selectedRateAccent
-                    shadowBlur: window.applyHovered ? 1.2 : 0.6
-                    shadowOpacity: window.applyHovered ? 0.6 : 0.2
-                    shadowVerticalOffset: window.s(4)
-                    z: -1
-                    Behavior on shadowBlur { NumberAnimation { duration: 300 } } 
-                    Behavior on shadowOpacity { NumberAnimation { duration: 300 } } 
-                    Behavior on shadowColor { ColorAnimation { duration: 400 } }
-                }
+                    // ==========================================
+                    // FLOATING APPLY BUTTON 
+                    // ==========================================
+                    Item {
+                        id: applyButtonContainer
+                        Layout.alignment: Qt.AlignRight
+                        Layout.preferredWidth: window.s(170)
+                        Layout.preferredHeight: window.s(50)
 
-                Rectangle {
-                    id: applyBtn
-                    anchors.fill: parent
-                    radius: window.s(25)
-                    
-                    gradient: Gradient { 
-                        orientation: Gradient.Horizontal
-                        GradientStop { 
-                            position: 0.0
-                            color: window.selectedResAccent
-                            Behavior on color { ColorAnimation { duration: 400 } } 
-                        } 
-                        GradientStop { 
-                            position: 1.0
-                            color: window.selectedRateAccent
-                            Behavior on color { ColorAnimation { duration: 400 } } 
-                        } 
-                    }
-                    
-                    scale: window.applyPressed ? 0.94 : (window.applyHovered ? 1.04 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
-
-                    Rectangle {
-                        id: flashRect
-                        anchors.fill: parent
-                        radius: window.s(25)
-                        color: window.text
-                        opacity: 0.0
-                        PropertyAnimation on opacity { 
-                            id: applyFlashAnim
-                            to: 0.0
-                            duration: 400
-                            easing.type: Easing.OutExpo 
+                        MultiEffect {
+                            source: applyBtn
+                            anchors.fill: applyBtn
+                            shadowEnabled: true
+                            shadowColor: window.selectedRateAccent
+                            shadowBlur: window.applyHovered || window.activeFocusIndex === 3 ? 1.2 : 0.6
+                            shadowOpacity: window.applyHovered || window.activeFocusIndex === 3 ? 0.6 : 0.2
+                            shadowVerticalOffset: window.s(4)
+                            z: -1
+                            Behavior on shadowBlur { NumberAnimation { duration: 300 } } 
+                            Behavior on shadowOpacity { NumberAnimation { duration: 300 } } 
+                            Behavior on shadowColor { ColorAnimation { duration: 400 } }
                         }
-                    }
 
-                    RowLayout {
-                        anchors.centerIn: parent
-                        spacing: window.s(8)
-                        
-                        Text { 
-                            font.family: "Iosevka Nerd Font"
-                            font.pixelSize: window.s(20)
-                            color: window.crust
-                            text: "󰸵" 
-                        }
-                        
-                        Text { 
-                            font.family: "JetBrains Mono"
-                            font.weight: Font.Black
-                            font.pixelSize: window.s(14)
-                            color: window.crust
-                            text: monitorsModel.count > 1 ? "Apply All" : "Apply" 
-                        }
-                    }
-                }
-
-                MouseArea {
-                    id: applyMa
-                    anchors.fill: parent
-                    z: 10
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    
-                    onEntered: window.applyHovered = true
-                    onExited: window.applyHovered = false
-                    onPressed: window.applyPressed = true
-                    onReleased: window.applyPressed = false
-                    onCanceled: window.applyPressed = false
-
-                    onClicked: {
-                        flashRect.opacity = 0.8; 
-                        applyFlashAnim.start();
-
-                        if (monitorsModel.count === 0) return;
-
-                        if (monitorsModel.count === 1) {
-                            let mon = monitorsModel.get(0);
-                            let monitorStr = mon.name + "," + mon.resW + "x" + mon.resH + "@" + mon.rate + ",0x0," + mon.sysScale;
-                            let monitorBlock = "monitor=" + monitorStr;
+                        Rectangle {
+                            id: applyBtn
+                            anchors.fill: parent
+                            radius: window.s(25)
                             
-                            // AWK script: Finds the first `monitor=` block, injects the new config, and ignores old monitor lines
-                            let saveCmd = "awk -v new_mons='" + monitorBlock + "' '/^monitor[[:space:]]*=/ { if (!done) { print new_mons; done=1; } next; } {print}' ~/.config/hypr/hyprland.conf > ~/.config/hypr/hyprland.conf.tmp && mv ~/.config/hypr/hyprland.conf.tmp ~/.config/hypr/hyprland.conf";
-                            
-                            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved: " + mon.resW + "x" + mon.resH + " @ " + mon.rate + "Hz"]);
-                            Quickshell.execDetached(["sh", "-c", "hyprctl keyword monitor " + monitorStr + " ; " + saveCmd]);
-                        } else {
-                            let rects = [];
-                            for (let i = 0; i < monitorsModel.count; i++) {
-                                let m = monitorsModel.get(i);
-                                let layoutW = Math.round(m.resW / m.sysScale);
-                                let layoutH = Math.round(m.resH / m.sysScale);
-                                let rawX = m.uiX / window.uiScale;
-                                let rawY = m.uiY / window.uiScale;
-                                rects.push({
-                                    x: rawX, y: rawY, w: layoutW, h: layoutH, 
-                                    resW: m.resW, resH: m.resH, name: m.name, 
-                                    rate: m.rate, sysScale: m.sysScale
-                                });
+                            gradient: Gradient { 
+                                orientation: Gradient.Horizontal
+                                GradientStop { 
+                                    position: 0.0
+                                    color: window.selectedResAccent
+                                    Behavior on color { ColorAnimation { duration: 400 } } 
+                                } 
+                                GradientStop { 
+                                    position: 1.0
+                                    color: window.selectedRateAccent
+                                    Behavior on color { ColorAnimation { duration: 400 } } 
+                                } 
                             }
                             
-                            // Tight Snap Pass: Close tiny floating gaps between ANY adjacent monitors
-                            function getTightSnap(pX, pY, sX, sY, sW, sH, mW, mH, t) {
-                                let cx = pX; let cy = pY;
-                                if (Math.abs(cx - (sX - mW)) < t) cx = sX - mW;
-                                else if (Math.abs(cx - (sX + sW)) < t) cx = sX + sW;
-                                else if (Math.abs(cx - sX) < t) cx = sX;
-                                else if (Math.abs(cx - (sX + sW - mW)) < t) cx = sX + sW - mW;
-                                else if (Math.abs(cx - (sX + sW/2 - mW/2)) < t) cx = sX + sW/2 - mW/2;
-                                
-                                if (Math.abs(cy - (sY - mH)) < t) cy = sY - mH;
-                                else if (Math.abs(cy - (sY + sH)) < t) cy = sY + sH;
-                                else if (Math.abs(cy - sY) < t) cy = sY;
-                                else if (Math.abs(cy - (sY + sH - mH)) < t) cy = sY + sH - mH;
-                                else if (Math.abs(cy - (sY + sH/2 - mH/2)) < t) cy = sY + sH/2 - mH/2;
-                                
-                                return {x: cx, y: cy};
-                            }
+                            border.color: window.activeFocusIndex === 3 ? window.crust : "transparent"
+                            border.width: window.activeFocusIndex === 3 ? window.s(2) : 0
+                            
+                            scale: window.applyPressed ? 0.94 : (window.applyHovered || window.activeFocusIndex === 3 ? 1.04 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
 
-                            for (let i = 1; i < rects.length; i++) {
-                                let bestX = rects[i].x;
-                                let bestY = rects[i].y;
-                                let bestDist = 999999;
-                                for (let j = 0; j < i; j++) {
-                                    let r0 = rects[j];
-                                    let snapped = getTightSnap(
-                                        rects[i].x, rects[i].y,
-                                        r0.x, r0.y,
-                                        r0.w, r0.h, rects[i].w, rects[i].h, 25
-                                    );
-                                    let dist = Math.hypot(rects[i].x - snapped.x, rects[i].y - snapped.y);
-                                    if (dist < bestDist) {
-                                        bestDist = dist;
-                                        bestX = Math.round(snapped.x);
-                                        bestY = Math.round(snapped.y);
-                                    }
+                            Rectangle {
+                                id: flashRect
+                                anchors.fill: parent
+                                radius: window.s(25)
+                                color: window.text
+                                opacity: 0.0
+                                PropertyAnimation on opacity { 
+                                    id: applyFlashAnim
+                                    to: 0.0
+                                    duration: 400
+                                    easing.type: Easing.OutExpo 
                                 }
-                                rects[i].x = bestX;
-                                rects[i].y = bestY;
                             }
 
-                            // CORE HYPRLAND FIX: Find absolute bounding box minimums to force a 0x0 anchor
-                            let finalMinX = 999999;
-                            let finalMinY = 999999;
-                            for (let i = 0; i < rects.length; i++) {
-                                if (rects[i].x < finalMinX) finalMinX = rects[i].x;
-                                if (rects[i].y < finalMinY) finalMinY = rects[i].y;
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: window.s(8)
+                                
+                                Text { 
+                                    font.family: "Iosevka Nerd Font"
+                                    font.pixelSize: window.s(20)
+                                    color: window.crust
+                                    text: "󰸵" 
+                                }
+                                
+                                Text { 
+                                    font.family: "JetBrains Mono"
+                                    font.weight: Font.Black
+                                    font.pixelSize: window.s(14)
+                                    color: window.crust
+                                    text: monitorsModel.count > 1 ? "Apply All" : "Apply" 
+                                }
                             }
-                            
-                            let batchCmds = [];
-                            let summaryString = "";
-                            let monitorBlockArray = [];
+                        }
 
-                            for (let i = 0; i < rects.length; i++) {
-                                let r = rects[i];
-                                
-                                // CORE HYPRLAND FIX: Subtract the minimum so the entire layout grid starts at exactly 0x0.
-                                r.x = Math.round(r.x - finalMinX);
-                                r.y = Math.round(r.y - finalMinY);
-                                
-                                let monitorStr = r.name + "," + r.resW + "x" + r.resH + "@" + r.rate + "," + r.x + "x" + r.y + "," + r.sysScale;
-                                batchCmds.push("keyword monitor " + monitorStr);
-                                summaryString += r.name + " ";
-                                
-                                monitorBlockArray.push("monitor=" + monitorStr);
-                            }
+                        MouseArea {
+                            id: applyMa
+                            anchors.fill: parent
+                            z: 10
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             
-                            let monitorBlock = monitorBlockArray.join("\\n");
-                            let saveCmd = "awk -v new_mons='" + monitorBlock + "' '/^monitor[[:space:]]*=/ { if (!done) { print new_mons; done=1; } next; } {print}' ~/.config/hypr/hyprland.conf > ~/.config/hypr/hyprland.conf.tmp && mv ~/.config/hypr/hyprland.conf.tmp ~/.config/hypr/hyprland.conf";
-                            
-                            let fullCommand = "hyprctl --batch '" + batchCmds.join(" ; ") + "'";
-                            let postReloadCmd = "swww kill ; sleep 0.2 ; swww-daemon &";
-                            
-                            Quickshell.execDetached(["sh", "-c", fullCommand + " ; " + saveCmd + " ; " + postReloadCmd]);
-                            Quickshell.execDetached(["notify-send", "Display Update", "Applied & Saved layout for: " + summaryString]);
+                            onEntered: { window.applyHovered = true; window.activeFocusIndex = 3; }
+                            onExited: window.applyHovered = false
+                            onPressed: window.applyPressed = true
+                            onReleased: window.applyPressed = false
+                            onCanceled: window.applyPressed = false
+
+                            onClicked: window.triggerApply()
                         }
                     }
                 }

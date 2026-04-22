@@ -40,7 +40,11 @@ Item {
     // -------------------------------------------------------------------------
     property string localVersion: "..."
     property string remoteVersion: "..."
-    property string commitMessage: "Fetching changelog..."
+    
+    // Typing animation properties
+    property string fullCommitMessage: ""
+    property string displayedCommitMessage: "Fetching changelog..."
+    property int typeIndex: 0
 
     Keys.onEscapePressed: {
         Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
@@ -48,7 +52,7 @@ Item {
     }
 
     Process {
-        command: ["bash", "-c", "source ~/.local/state/imperative-dots-version 2>/dev/null && echo $LOCAL_VERSION || echo 'Unknown'"]
+        command: ["bash", "-c", "source ~/.local/state/imperative-dots-version 2>/dev/null && [ -n \"$LOCAL_VERSION\" ] && echo $LOCAL_VERSION || echo '0.0.0'"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
@@ -75,7 +79,28 @@ Item {
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = this.text ? this.text.trim() : "";
-                if (out !== "") window.commitMessage = out;
+                if (out !== "") {
+                    window.fullCommitMessage = out;
+                    window.displayedCommitMessage = "";
+                    window.typeIndex = 0;
+                    commitTypeTimer.start(); // Starts immediately as it was before
+                } else {
+                    window.displayedCommitMessage = "No changelog available.";
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: commitTypeTimer
+        interval: 12
+        repeat: true
+        onTriggered: {
+            if (window.typeIndex < window.fullCommitMessage.length) {
+                window.displayedCommitMessage += window.fullCommitMessage.charAt(window.typeIndex);
+                window.typeIndex++;
+            } else {
+                stop();
             }
         }
     }
@@ -94,56 +119,149 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: window.s(25)
-            spacing: window.s(15)
+            spacing: window.s(20)
 
-            // --- MINIMAL HEADER ---
-            Text {
+            // --- HEADER ---
+            Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                text: "New version available"
-                font.family: "JetBrains Mono"
-                font.weight: Font.Medium
-                font.pixelSize: window.s(13)
-                color: window.subtext0
+                color: Qt.rgba(window.green.r, window.green.g, window.green.b, 0.1)
+                border.color: Qt.rgba(window.green.r, window.green.g, window.green.b, 0.2)
+                border.width: 1
+                radius: window.s(8)
+                Layout.preferredWidth: headerTxt.implicitWidth + window.s(24)
+                Layout.preferredHeight: headerTxt.implicitHeight + window.s(12)
+
+                Text {
+                    id: headerTxt
+                    anchors.centerIn: parent
+                    text: "NEW UPDATE AVAILABLE"
+                    font.family: "JetBrains Mono"
+                    font.weight: Font.Bold
+                    font.pixelSize: window.s(11)
+                    color: window.green
+                    opacity: 0.8
+                }
             }
 
-            // --- VERSION NUMBERS ---
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: window.s(15)
+            // --- ANIMATED CHOREOGRAPHED VERSIONS ---
+            Item {
+                id: versionContainer
+                Layout.fillWidth: true
+                Layout.preferredHeight: window.s(45)
+
+                readonly property real finalNewX: (width - newVer.implicitWidth) / 2
+                readonly property real finalArrowX: finalNewX - arrowIcon.implicitWidth - window.s(20)
+                readonly property real finalOldX: finalArrowX - oldVer.implicitWidth - window.s(20)
+                readonly property real initialOldX: (width - oldVer.implicitWidth) / 2
 
                 Text { 
+                    id: oldVer
                     text: window.localVersion
                     font.family: "JetBrains Mono"
                     font.pixelSize: window.s(16)
-                    color: window.text 
+                    color: window.subtext0 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.initialOldX 
                 }
                 
                 Text { 
+                    id: arrowIcon
                     text: ""
                     font.family: "Iosevka Nerd Font"
                     font.pixelSize: window.s(16)
-                    color: window.subtext0 
+                    color: window.surface2 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.finalOldX + oldVer.implicitWidth 
+                    opacity: 0
                 }
                 
                 Text { 
+                    id: newVer
                     text: window.remoteVersion
                     font.family: "JetBrains Mono"
                     font.weight: Font.Black
-                    font.pixelSize: window.s(28)
+                    font.pixelSize: window.s(36) 
                     color: window.green 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.finalNewX 
+                    opacity: 0
+                    scale: 0.9 // Less punchy scale start
+                }
+
+                MultiEffect {
+                    id: newVerEffect
+                    source: newVer
+                    anchors.fill: newVer
+                    shadowEnabled: true
+                    shadowColor: window.green
+                    shadowBlur: 0.0
+                    shadowHorizontalOffset: 0
+                    shadowVerticalOffset: 0
+                    opacity: newVer.opacity
+                }
+
+                SequentialAnimation {
+                    id: versionAnim
+
+                    PauseAnimation { duration: 150 }
+
+                    // 1. Smoother, less punchy slide
+                    ParallelAnimation {
+                        NumberAnimation { 
+                            target: oldVer; property: "x"; 
+                            to: versionContainer.finalOldX
+                            duration: 500; easing.type: Qt.InOutCubic 
+                        }
+                        NumberAnimation {
+                            target: oldVer; property: "opacity";
+                            to: 0.2
+                            duration: 500; easing.type: Qt.InOutCubic
+                        }
+                    }
+
+                    // 2. Arrow fade
+                    ParallelAnimation {
+                        NumberAnimation { target: arrowIcon; property: "opacity"; to: 1; duration: 300 }
+                        NumberAnimation { 
+                            target: arrowIcon; property: "x"; 
+                            to: versionContainer.finalArrowX
+                            duration: 400; easing.type: Qt.OutCubic 
+                        }
+                    }
+
+                    // 3. New version fade-in
+                    ParallelAnimation {
+                        NumberAnimation { target: newVer; property: "opacity"; to: 1; duration: 400 }
+                        NumberAnimation { target: newVer; property: "scale"; to: 1.0; duration: 500; easing.type: Qt.OutCubic }
+                        ScriptAction { script: glowAnim.start() }
+                    }
+                }
+
+                SequentialAnimation {
+                    id: glowAnim
+                    loops: Animation.Infinite
+                    NumberAnimation { target: newVerEffect; property: "shadowBlur"; to: 0.8; duration: 1500; easing.type: Easing.InOutSine }
+                    NumberAnimation { target: newVerEffect; property: "shadowBlur"; to: 0.2; duration: 1500; easing.type: Easing.InOutSine }
+                }
+
+                Connections {
+                    target: window
+                    function onRemoteVersionChanged() {
+                        if (window.remoteVersion !== "..." && window.remoteVersion !== "") {
+                            versionAnim.start();
+                        }
+                    }
                 }
             }
 
-            // --- CENTERED CHANGELOG FRAME ---
+            // --- OUTLINED COMMIT BOX ---
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.topMargin: window.s(10)
-                Layout.bottomMargin: window.s(10)
-                radius: window.s(12)
-                color: window.surface0
-                border.color: window.surface1
+                color: "transparent" // Outlined only
+                border.color: Qt.rgba(window.surface2.r, window.surface2.g, window.surface2.b, 0.4)
                 border.width: 1
+                radius: window.s(12)
                 clip: true
 
                 ScrollView {
@@ -155,24 +273,24 @@ Item {
                     ScrollBar.vertical: ScrollBar {
                         active: true
                         policy: ScrollBar.AsNeeded
-                        contentItem: Rectangle { implicitWidth: window.s(4); radius: window.s(2); color: window.surface2 }
+                        contentItem: Rectangle { implicitWidth: window.s(3); radius: window.s(1.5); color: window.surface2; opacity: 0.5 }
                     }
                     
                     Text {
                         width: changelogScroll.availableWidth
-                        text: window.commitMessage
+                        text: window.displayedCommitMessage
                         font.family: "JetBrains Mono"
                         font.pixelSize: window.s(13)
-                        color: window.subtext0
+                        color: window.text
                         wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignTop
+                        lineHeight: 1.4
                     }
                 }
             }
 
-            // --- HOLD TO UPDATE BUTTON (SINE WAVE) ---
+            // --- HOLD TO UPDATE BUTTON ---
             Rectangle {
                 id: updateBtn
                 Layout.fillWidth: true
@@ -183,8 +301,8 @@ Item {
                 border.width: btnMa.containsMouse ? window.s(2) : 1
                 clip: true
                 
-                scale: btnMa.pressed ? 0.98 : (btnMa.containsMouse ? 1.02 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+                scale: btnMa.pressed ? 0.98 : (btnMa.containsMouse ? 1.01 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                 property real fillLevel: 0.0
@@ -199,7 +317,7 @@ Item {
                         running: updateBtn.fillLevel > 0.0 && updateBtn.fillLevel < 1.0
                         loops: Animation.Infinite
                         from: 0; to: Math.PI * 2
-                        duration: 800
+                        duration: 1000
                     }
                     
                     onWavePhaseChanged: requestPaint()
@@ -214,14 +332,11 @@ Item {
                         var r = window.s(12);
 
                         ctx.save();
-                        
-                        // 1. Build the dynamic wave shape
                         ctx.beginPath();
                         ctx.moveTo(0, 0);
                         
                         if (updateBtn.fillLevel < 0.99) {
-                            var waveAmp = window.s(10) * Math.sin(updateBtn.fillLevel * Math.PI); 
-                            if (currentW - waveAmp < 0) waveAmp = currentW;
+                            var waveAmp = window.s(8) * Math.sin(updateBtn.fillLevel * Math.PI); 
                             var cp1x = currentW + Math.sin(wavePhase) * waveAmp;
                             var cp2x = currentW + Math.cos(wavePhase + Math.PI) * waveAmp;
 
@@ -236,21 +351,10 @@ Item {
                         ctx.closePath();
                         ctx.clip(); 
 
-                        // 2. Build the rounded rectangle bounds so the gradient respects the button's radius
                         ctx.beginPath();
-                        ctx.moveTo(r, 0);
-                        ctx.lineTo(width - r, 0);
-                        ctx.arcTo(width, 0, width, r, r);
-                        ctx.lineTo(width, height - r);
-                        ctx.arcTo(width, height, width - r, height, r);
-                        ctx.lineTo(r, height);
-                        ctx.arcTo(0, height, 0, height - r, r);
-                        ctx.lineTo(0, r);
-                        ctx.arcTo(0, 0, r, 0, r);
-                        ctx.closePath();
-
-                        var grad = ctx.createLinearGradient(0, 0, currentW, 0);
-                        grad.addColorStop(0, Qt.lighter(window.green, 1.15).toString());
+                        ctx.roundedRect(0, 0, width, height, r, r);
+                        var grad = ctx.createLinearGradient(0, 0, width, 0);
+                        grad.addColorStop(0, Qt.darker(window.green, 1.1).toString());
                         grad.addColorStop(1, window.green.toString());
                         ctx.fillStyle = grad;
                         ctx.fill();
@@ -322,8 +426,8 @@ Item {
                     target: updateBtn
                     property: "fillLevel"
                     to: 0.0
-                    duration: 1500 * updateBtn.fillLevel
-                    easing.type: Easing.OutQuad
+                    duration: 800 * updateBtn.fillLevel
+                    easing.type: Easing.OutCubic
                 }
             }
         }
