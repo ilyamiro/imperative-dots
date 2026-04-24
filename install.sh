@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.6.5"
+DOTS_VERSION="1.6.5-1"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # ==============================================================================
@@ -243,7 +243,7 @@ fi
 # ==============================================================================
 # Sync State from Existing settings.json (Prevents drift on updates)
 # ==============================================================================
-EXISTING_SETTINGS="$HOME/.config/hypr/scripts/settings.json"
+EXISTING_SETTINGS="$HOME/.config/hypr/settings.json"
 if [ -f "$EXISTING_SETTINGS" ] && command -v jq &>/dev/null; then
     _sj_lang=$(jq -r 'if has("language") then (.language // "") else "IGNORE_ME" end' "$EXISTING_SETTINGS" 2>/dev/null)
     _sj_kbopt=$(jq -r 'if has("kbOptions") then (.kbOptions // "") else "IGNORE_ME" end' "$EXISTING_SETTINGS" 2>/dev/null)
@@ -1278,15 +1278,15 @@ else
             # Fetch tree only without downloading blobs (file contents)
             git fetch --depth 1 --filter=blob:none origin HEAD -q
             
-            # Get 3 random image paths from the remote tree
-            RANDOM_PICS=$(git ls-tree -r origin/HEAD --name-only | grep -iE '\.(jpg|jpeg|png|gif|webp)$' | shuf -n 3)
+            # Get 3 random image paths from the remote tree using FETCH_HEAD
+            RANDOM_PICS=$(git ls-tree -r FETCH_HEAD --name-only | grep -iE '\.(jpg|jpeg|png|gif|webp)$' | shuf -n 3)
             
             if [ -n "$RANDOM_PICS" ]; then
                 for pic in $RANDOM_PICS; do
                     filename=$(basename "$pic")
                     echo -n "    -> Downloading $filename... "
                     # This command triggers the on-demand download of just this specific file
-                    git show origin/HEAD:"$pic" > "$WALLPAPER_DIR/$filename" 2>/dev/null
+                    git show FETCH_HEAD:"$pic" > "$WALLPAPER_DIR/$filename" 2>/dev/null
                     echo -e "${C_GREEN}[ DONE ]${RESET}"
                 done
             else
@@ -1328,7 +1328,7 @@ elif [ "$OLD_COMMIT" == "$NEW_COMMIT" ] && [ -n "$OLD_COMMIT" ]; then
     echo -e "  -> Repository is up to date (${C_YELLOW}${NEW_COMMIT::7}${RESET}). Only applying upstream changes (None found)."
 fi
 
-SETTINGS_FILE="$TARGET_CONFIG_DIR/hypr/scripts/settings.json"
+SETTINGS_FILE="$TARGET_CONFIG_DIR/hypr/settings.json"
 
 if [ "$DO_FULL_INSTALL" = true ]; then
     echo "  -> Performing Full Install / Overwrite..."
