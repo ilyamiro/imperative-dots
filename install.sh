@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.6.5-2"
+DOTS_VERSION="1.6.5-3"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # ==============================================================================
@@ -1698,13 +1698,21 @@ fi
 # -> Sync settings.json: write only the fields the installer owns.
 echo -e "  -> Syncing installer-owned fields to settings.json..."
 
-# 1. Parse keybindings.conf dynamically into a JSON array safely
-KEYBINDS_CONF="$TARGET_CONFIG_DIR/hypr/config/keybindings.conf"
-KEYBINDS_JSON="[]"
+# 1. Parse UPSTREAM keybindings.conf dynamically into a JSON array safely
+UPSTREAM_KEYBINDS_CONF="$REPO_DIR/.config/hypr/config/keybindings.conf"
+UPSTREAM_BINDS_JSON="[]"
 
-if [ -f "$KEYBINDS_CONF" ]; then
-    echo -e "  -> Parsing $KEYBINDS_CONF into settings.json..."
+if [ -f "$UPSTREAM_KEYBINDS_CONF" ]; then
+    echo -e "  -> Parsing upstream $UPSTREAM_KEYBINDS_CONF into settings.json..."
     TMP_BINDS=$(mktemp)
+    
+    # Helper function for safe, pure bash string trimming
+    trim_string() {
+        local var="$*"
+        var="${var#"${var%%[![:space:]]*}"}"
+        var="${var%"${var##*[![:space:]]}"}"
+        printf '%s' "$var"
+    }
     
     while IFS= read -r line || [ -n "$line" ]; do
         # Skip comments and empty lines
@@ -1722,17 +1730,13 @@ if [ -f "$KEYBINDS_CONF" ]; then
         # Split strictly into 4 parts using commas. 
         IFS=',' read -r mods key disp cmd <<< "$rest"
 
-        # Native bash trim (safest way to preserve quotes while removing spaces)
-        mods="${mods#"${mods%%[![:space:]]*}"}"
-        mods="${mods%"${mods##*[![:space:]]}"}"
-        key="${key#"${key%%[![:space:]]*}"}"
-        key="${key%"${key##*[![:space:]]}"}"
-        disp="${disp#"${disp%%[![:space:]]*}"}"
-        disp="${disp%"${disp##*[![:space:]]}"}"
-        cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-        cmd="${cmd%"${cmd##*[![:space:]]}"}"
+        # Safely trim elements. This avoids breaking embedded strings/quotes
+        mods=$(trim_string "$mods")
+        key=$(trim_string "$key")
+        disp=$(trim_string "$disp")
+        cmd=$(trim_string "$cmd")
 
-        # Safely encode into JSON object using jq and append to temp file
+        # Safely encode into JSON object using jq. Using --arg forces strict literal encoding.
         jq -c -n \
             --arg t "$bind_type" \
             --arg m "$mods" \
@@ -1740,43 +1744,55 @@ if [ -f "$KEYBINDS_CONF" ]; then
             --arg d "$disp" \
             --arg c "$cmd" \
             '{type: $t, mods: $m, key: $k, dispatcher: $d, command: $c}' >> "$TMP_BINDS"
-    done < "$KEYBINDS_CONF"
+    done < "$UPSTREAM_KEYBINDS_CONF"
 
     # Combine all JSON objects into a single JSON array safely
     if [ -s "$TMP_BINDS" ]; then
-        KEYBINDS_JSON=$(jq -s '.' "$TMP_BINDS")
-    else
-        KEYBINDS_JSON="[]"
+        UPSTREAM_BINDS_JSON=$(jq -s '.' "$TMP_BINDS")
     fi
     rm -f "$TMP_BINDS"
 else
-    echo -e "  -> \e[33mkeybindings.conf not found. Skipping keybind parsing.\e[0m"
+    echo -e "  -> \e[33mUpstream keybindings.conf not found. Skipping keybind parsing.\e[0m"
 fi
 
-# 2. Inject the parsed array into settings.json
+# 2. Extract LOCAL keybinds from the existing settings.json
+LOCAL_BINDS_JSON="[]"
+if [ -f "$SETTINGS_FILE" ]; then
+    LOCAL_BINDS_JSON=$(jq '.keybinds // []' "$SETTINGS_FILE" 2>/dev/null || echo "[]")
+fi
+
+# 3. MERGE Keybinds (Upstream overwrites Local on matching mods+key, Custom Local are kept)
+# This uses jq's * (merge) operator. The object on the right (upstream) overwrites the object on the left (local)
+MERGED_BINDS_JSON=$(jq -n --argjson local "$LOCAL_BINDS_JSON" --argjson up "$UPSTREAM_BINDS_JSON" '
+    ($local | map({key: (.mods + "|" + .key), value: .}) | from_entries) as $ld |
+    ($up | map({key: (.mods + "|" + .key), value: .}) | from_entries) as $ud |
+    ($ld * $ud) | map(.)
+')
+
+# 4. Inject the parsed array into settings.json
 if [ -f "$SETTINGS_FILE" ]; then
     tmp_json=$(mktemp)
-    # Merge existing user fields, overwriting installer variables and the new keybinds array
+    # Merge existing user fields, overwriting installer variables and the new merged keybinds array
     if jq --arg langs "$KB_LAYOUTS" \
        --arg wpdir "$WALLPAPER_DIR" \
        --arg kbopt "$KB_OPTIONS" \
-       --argjson binds "$KEYBINDS_JSON" \
+       --argjson binds "$MERGED_BINDS_JSON" \
        '.language = $langs | .wallpaperDir = $wpdir | .kbOptions = $kbopt | .keybinds = $binds' \
        "$SETTINGS_FILE" > "$tmp_json"; then
        mv "$tmp_json" "$SETTINGS_FILE"
-       printf "  -> settings.json updated (user fields preserved) %-3s \e[32m[ OK ]\e[0m\n" ""
+       printf "  -> settings.json updated (merged keybinds & user fields preserved) %-3s \e[32m[ OK ]\e[0m\n" ""
     else
        echo -e "  -> \e[31mFailed to update settings.json. Continuing...\e[0m"
        rm -f "$tmp_json"
     fi
 else
-    # File does not exist yet — generate the full default structure dynamically
+    # File does not exist yet (or was deleted by the user) — generate the full default structure dynamically
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     if jq -n \
        --arg langs "$KB_LAYOUTS" \
        --arg wpdir "$WALLPAPER_DIR" \
        --arg kbopt "$KB_OPTIONS" \
-       --argjson binds "$KEYBINDS_JSON" \
+       --argjson binds "$MERGED_BINDS_JSON" \
        '{
          uiScale: 1.0,
          openGuideAtStartup: true,
@@ -1784,14 +1800,16 @@ else
          wallpaperDir: $wpdir,
          language: $langs,
          kbOptions: $kbopt,
-         keybinds: $binds
+         keybinds: $binds,
+         monitors: []
        }' > "$SETTINGS_FILE"; then
-       printf "  -> settings.json created with defaults and parsed keybinds %-13s \e[32m[ OK ]\e[0m\n" ""
+       printf "  -> settings.json rebuilt from scratch with upstream keybinds %-13s \e[32m[ OK ]\e[0m\n" ""
     else
        echo -e "  -> \e[31mFailed to create settings.json. Check syntax.\e[0m"
     fi
 fi
-# 4. Patch WallpaperPicker.qml dynamically
+
+# 5. Patch WallpaperPicker.qml dynamically
 if [ -f "$WP_QML" ]; then
 
     # 3. Inject --source-color-index 0 to Matugen commands for 4.0 compatibility
