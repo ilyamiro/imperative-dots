@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
-touch ~/.config/hypr/scripts/quickshell/TopBar.qml
-touch ~/.config/hypr/scripts/quickshell/Main.qml
-
+qs -p ~/.config/hypr/scripts/quickshell/Main.qml ipc call main forceReload
+qs -p ~/.config/hypr/scripts/quickshell/TopBar.qml ipc call topbar forceReload

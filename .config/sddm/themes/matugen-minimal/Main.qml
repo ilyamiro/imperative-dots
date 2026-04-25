@@ -237,28 +237,51 @@ Rectangle {
                     spacing: 32
 
                     // Avatar
-                    Rectangle {
+                    Item {
                         Layout.alignment: Qt.AlignVCenter | Qt.AlignTop
                         width: 150; height: 150
-                        radius: 75
-                        color: Qt.rgba(Colors.surface0.r, Colors.surface0.g, Colors.surface0.b, 0.5)
-                        border.color: root.loginFailed ? Colors.red : Qt.rgba(Colors.text.r, Colors.text.g, Colors.text.b, 0.5)
-                        border.width: root.loginFailed ? 4 : 3
-                        clip: true
-
-                        Behavior on border.color { ColorAnimation { duration: 300 } }
-                        Behavior on border.width { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
-
+                    
                         Image {
+                            id: avatarImage
                             anchors.fill: parent
-                            source: sddm.facesDir + "/" + root.currentUserName + ".face.icon"
+                            source: "/usr/share/sddm/faces/" + root.currentUserName + ".face.icon"
                             fillMode: Image.PreserveAspectCrop
+                            visible: false
+                            layer.enabled: true
                             onStatusChanged: {
                                 if (status == Image.Error) source = ""
                             }
                         }
+                    
+                        Rectangle {
+                            id: avatarMask
+                            anchors.fill: parent
+                            radius: 75
+                            visible: false
+                            layer.enabled: true
+                        }
+                    
+                        MultiEffect {
+                            anchors.fill: parent
+                            source: avatarImage
+                            maskEnabled: true
+                            maskSource: avatarMask
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1.0
+                        }
+                    
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 75
+                            color: "transparent"
+                            border.color: root.loginFailed ? Colors.red : Qt.rgba(Colors.text.r, Colors.text.g, Colors.text.b, 0.5)
+                            border.width: root.loginFailed ? 4 : 3
+                    
+                            Behavior on border.color { ColorAnimation { duration: 300 } }
+                            Behavior on border.width { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                        }
                     }
-
+                    
                     // Details & Input
                     ColumnLayout {
                         Layout.alignment: Qt.AlignVCenter

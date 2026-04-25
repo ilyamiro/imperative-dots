@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 
-POWER=$(nmcli radio wifi)
+# Zero-latency hardware presence check via sysfs (Instant, no nmcli hang)
+if ! ls -1d /sys/class/net/*/wireless &>/dev/null; then
+    echo '{ "present": false, "power": "off", "connected": null, "networks": [] }'
+    exit 0
+fi
+
+POWER=$(LC_ALL=C nmcli radio wifi)
 
 if [[ "$POWER" == "disabled" ]]; then
-    echo '{ "power": "off", "connected": null, "networks": [] }'
+    echo '{ "present": true, "power": "off", "connected": null, "networks": [] }'
     exit 0
 fi
 
@@ -19,7 +25,7 @@ get_icon() {
 CACHE_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}/quickshell_network_cache"
 mkdir -p "$CACHE_DIR"
 
-CURRENT_RAW=$(nmcli -t -f active,ssid,signal,security device wifi | awk -F: '$1=="yes"{print; exit}')
+CURRENT_RAW=$(LC_ALL=C nmcli -t -f active,ssid,signal,security device wifi | awk -F: '$1=="yes"{print; exit}')
 
 if [[ -n "$CURRENT_RAW" ]]; then
     IFS=':' read -r active ssid signal security <<< "$CURRENT_RAW"
@@ -33,7 +39,7 @@ if [[ -n "$CURRENT_RAW" ]]; then
     fi
     
     if [ -z "$IP" ] || [ "$IP" == "No IP" ] || [ -z "$FREQ" ]; then
-        IFACE=$(nmcli -t -f DEVICE,TYPE d | awk -F: '$2=="wifi"{print $1;exit}')
+        IFACE=$(LC_ALL=C nmcli -t -f DEVICE,TYPE d | awk -F: '$2=="wifi"{print $1;exit}')
         IP=$(ip -4 addr show dev "$IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
         [ -z "$IP" ] && IP="No IP"
         
@@ -54,7 +60,7 @@ else
 fi
 
 # AWK processes the entire network list natively, zero sub-shells
-NETWORKS_JSON=$(nmcli -t -f active,ssid,signal,security device wifi list --rescan no | awk -F: '
+NETWORKS_JSON=$(LC_ALL=C nmcli -t -f active,ssid,signal,security device wifi list --rescan no | awk -F: '
     !seen[$2]++ && $2 != "" && $1 != "yes" {
         ssid=$2; signal=$3; security=$4;
         
@@ -79,4 +85,4 @@ else
 fi
 
 # Final JSON output
-echo "{\"power\":\"on\",\"connected\":$CONNECTED_JSON,\"networks\":$NETWORKS_JSON}"
+echo "{\"present\":true,\"power\":\"on\",\"connected\":$CONNECTED_JSON,\"networks\":$NETWORKS_JSON}"

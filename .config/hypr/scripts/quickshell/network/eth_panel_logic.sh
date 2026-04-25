@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 
+# Zero-latency hardware presence check via sysfs (Instant, no nmcli latency)
+# Checks for any network interface starting with 'e' (eth0, enp4s0, eno1, etc.)
+if ! ls -1d /sys/class/net/e* &>/dev/null; then
+    jq -nc --arg power "off" '{ "present": false, "power": $power, "device": "", "connected": null }'
+    exit 0
+fi
+
 # Use LC_ALL=C to prevent nmcli from translating output
 # Find the first ethernet device regardless of state
 ETH_DEV=$(LC_ALL=C nmcli -t -f DEVICE,TYPE d 2>/dev/null | awk -F: '$2=="ethernet" {print $1; exit}')
 
-# If absolutely no ethernet device exists on the system
+# Fallback check if nmcli disagrees with the sysfs check
 if [[ -z "$ETH_DEV" ]]; then
-    jq -nc --arg power "off" '{ "power": $power, "device": "", "connected": null }'
+    jq -nc --arg power "off" '{ "present": false, "power": $power, "device": "", "connected": null }'
     exit 0
 fi
 
@@ -47,4 +54,4 @@ jq -nc \
     --arg power "$POWER" \
     --arg device "$ETH_DEV" \
     --argjson connected "$CONNECTED_JSON" \
-    '{power: $power, device: $device, connected: $connected}'
+    '{present: true, power: $power, device: $device, connected: $connected}'

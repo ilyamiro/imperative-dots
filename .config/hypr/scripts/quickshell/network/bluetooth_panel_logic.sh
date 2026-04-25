@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 
 # --- CONFIGURATION ---
-# Set to 'true' to hide unpaired devices that only broadcast a MAC address (filters out public BLE spam).
-# Set to 'false' if you are trying to pair a stubborn new device that won't show its name.
 STRICT_SPAM_FILTER=true
 # ---------------------
 
-# Use XDG_RUNTIME_DIR if available for ram-backed speed, else fallback to ~/.cache
 CACHE_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}/quickshell_network_cache"
 mkdir -p "$CACHE_DIR"
 PID_FILE="$CACHE_DIR/bt_scan_pid"
@@ -37,7 +34,6 @@ get_audio_profile() {
     ')
     
     if [[ -z "$active" || "$active" == "off" ]]; then echo "None"; return; fi
-    
     if [[ "$active" == *"a2dp"* ]]; then echo "Hi-Fi (A2DP)"; return; fi
     if [[ "$active" == *"headset"* || "$active" == *"hfp"* ]]; then echo "Headset (HFP)"; return; fi
     
@@ -45,8 +41,28 @@ get_audio_profile() {
 }
 
 get_status() {
+    # 1. Zero-latency hardware presence check (Bypasses the 1-second timeout entirely)
+    if ! ls -1d /sys/class/bluetooth/hci* &>/dev/null; then
+        echo "{\"present\":false,\"power\":\"off\",\"connected\":[],\"devices\":[]}"
+        return
+    fi
+
+    # 2. Check if bluetoothctl is even installed to prevent command errors
+    if ! command -v bluetoothctl &> /dev/null; then
+        echo "{\"present\":false,\"power\":\"off\",\"connected\":[],\"devices\":[]}"
+        return
+    fi
+
+    # We keep the timeout here just in case the bluetoothd daemon is frozen, 
+    # but the sysfs check above prevents this from running at all on machines without BT.
+    controller=$(timeout 1 bluetoothctl list 2>/dev/null | head -n1)
+    if [[ -z "$controller" || "$controller" == *"Waiting"* ]]; then
+        echo "{\"present\":false,\"power\":\"off\",\"connected\":[],\"devices\":[]}"
+        return
+    fi
+
     power="off"
-    if bluetoothctl show | grep -q "Powered: yes"; then power="on"; fi
+    if timeout 1 bluetoothctl show 2>/dev/null | grep -q "Powered: yes"; then power="on"; fi
 
     connected_json="[]"
     devices_json="[]"
@@ -60,7 +76,7 @@ get_status() {
         connected_list_objs=()
         devices_list_objs=()
 
-        # 1. PROCESS CONNECTED DEVICES (Always shown)
+        # 1. PROCESS CONNECTED DEVICES
         for c_line in "${connected_info_lines[@]}"; do
             [ -z "$c_line" ] && continue
             rest="${c_line#Device }"
@@ -112,8 +128,6 @@ get_status() {
                 action="Connect"
             else
                 action="Pair"
-                
-                # --- CONFIGURABLE SPAM FILTER ---
                 if [[ "$STRICT_SPAM_FILTER" == true ]]; then
                     mac_hyphens="${mac//:/-}"
                     if [[ "$name" == "$mac" || "$name" == "$mac_hyphens" || -z "$name" ]]; then
@@ -133,8 +147,9 @@ get_status() {
         fi
     fi
 
-    echo "{\"power\":\"$power\",\"connected\":$connected_json,\"devices\":$devices_json}"
+    echo "{\"present\":true,\"power\":\"$power\",\"connected\":$connected_json,\"devices\":$devices_json}"
 }
+
 
 toggle_power() {
     if bluetoothctl show | grep -q "Powered: yes"; then

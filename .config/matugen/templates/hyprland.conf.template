@@ -1,0 +1,3 @@
+$active_border = rgba({{colors.primary.default.hex_stripped}}ee)
+$inactive_border = rgba({{colors.on_primary_fixed_variant.default.hex_stripped}}aa)
+

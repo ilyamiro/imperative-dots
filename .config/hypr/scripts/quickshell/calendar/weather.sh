@@ -9,7 +9,6 @@ json_file="${cache_dir}/weather.json"
 view_file="${cache_dir}/view_id"
 daily_cache_file="${cache_dir}/daily_weather_cache.json"
 next_day_cache_file="${cache_dir}/next_day_precache.json"
-env_tracker_file="${cache_dir}/.env_tracker"
 ENV_FILE="$(dirname "$0")/.env"
 
 # API Settings
@@ -225,28 +224,12 @@ elif [[ "$1" == "--json" ]]; then
     CACHE_LIMIT=900         # 15 minutes for valid working data
     PENDING_RETRY_LIMIT=3600 # 1 hour for invalid/activating keys
 
-    # Check if .env file has been modified since we last checked
-    env_changed=0
-    if [ -f "$ENV_FILE" ]; then
-        env_mtime=$(stat -c %Y "$ENV_FILE")
-        last_env_mtime=$(cat "$env_tracker_file" 2>/dev/null || echo "0")
-        
-        if [ "$env_mtime" -gt "$last_env_mtime" ]; then
-            env_changed=1
-            echo "$env_mtime" > "$env_tracker_file"
-        fi
-    fi
-
     if [ -f "$json_file" ]; then
         file_time=$(stat -c %Y "$json_file")
         current_time=$(date +%s)
         diff=$((current_time - file_time))
         
-        if [ "$env_changed" -eq 1 ]; then
-            # The user just modified the .env file. Bypass cache entirely.
-            touch "$json_file" 
-            get_data &
-        elif grep -q '"desc": "No API Key"' "$json_file"; then
+        if grep -q '"desc": "No API Key"' "$json_file"; then
             # Key is pending/invalid. Check once an hour.
             if [ $diff -gt $PENDING_RETRY_LIMIT ]; then
                 touch "$json_file" # Bump file timestamp slightly to avoid spamming processes

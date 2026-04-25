@@ -33,87 +33,118 @@ if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
     exit 0
 fi
 
-# -----------------------------------------------------------------------------
-# PREP FUNCTIONS
-# -----------------------------------------------------------------------------
+MANIFEST="$THUMB_DIR/.manifest"
+
+build_manifest() {
+    find "$THUMB_DIR" -maxdepth 1 -type f ! -name '.source_dir' ! -name '.manifest' \
+        -printf "%f\n" | sort > "$MANIFEST"
+}
+
 handle_wallpaper_prep() {
     mkdir -p "$THUMB_DIR"
-    
-    # The lock is now inside the subshell. It stops duplicate thumbnailers,
-    # but never blocks the main script from opening/closing the widget instantly.
+
     (
-        LOCKFILE="/tmp/qs_manager_wallpaper.lock"
-        exec 9> "$LOCKFILE"
-        if ! flock -n 9; then
-            exit 0
-        fi
+        export THUMB_DIR SRC_DIR MANIFEST
 
-        for thumb in "$THUMB_DIR"/*; do
-            [ -e "$thumb" ] || continue
-            filename=$(basename "$thumb")
-            clean_name="${filename#000_}"
-            if [ ! -f "$SRC_DIR/$clean_name" ]; then rm -f "$thumb"; fi
-        done
-
-        for img in "$SRC_DIR"/*.{jpg,jpeg,png,webp,gif,mp4,mkv,mov,webm}; do
-            [ -e "$img" ] || continue
+        process_one() {
+            img="$1"
             filename=$(basename "$img")
             extension="${filename##*.}"
-
             if [[ "${extension,,}" == "webp" ]]; then
                 new_img="${img%.*}.jpg"
-                magick "$img" "$new_img"
-                rm -f "$img"
-                img="$new_img"
-                filename=$(basename "$img")
-                extension="jpg"
+                magick "$img" "$new_img" && rm -f "$img"
+                img="$new_img"; filename=$(basename "$img"); extension="jpg"
             fi
-
             if [[ "${extension,,}" =~ ^(mp4|mkv|mov|webm)$ ]]; then
                 thumb="$THUMB_DIR/000_$filename"
                 [ -f "$THUMB_DIR/$filename" ] && rm -f "$THUMB_DIR/$filename"
                 if [ ! -f "$thumb" ]; then
-                     ffmpeg -y -ss 00:00:05 -i "$img" -vframes 1 -f image2 -q:v 2 "$thumb" > /dev/null 2>&1
+                    ffmpeg -y -ss 00:00:05 -i "$img" -vframes 1 \
+                        -f image2 -q:v 2 "$thumb" >/dev/null 2>&1
+                    echo "000_$filename" >> "$MANIFEST"
                 fi
             else
                 thumb="$THUMB_DIR/$filename"
                 if [ ! -f "$thumb" ]; then
                     magick "$img" -resize x420 -quality 70 "$thumb"
+                    echo "$filename" >> "$MANIFEST"
                 fi
             fi
-        done
-    ) &
+        }
+        export -f process_one
 
+        # Source dir change — nuke everything and rebuild
+        THUMB_SOURCE_FILE="$THUMB_DIR/.source_dir"
+        if [ -f "$THUMB_SOURCE_FILE" ]; then
+            read -r CACHED_SRC < "$THUMB_SOURCE_FILE"
+            if [ "$CACHED_SRC" != "$SRC_DIR" ]; then
+                find "$THUMB_DIR" -maxdepth 1 -type f \
+                    ! -name '.source_dir' ! -name '.manifest' -delete
+                echo "$SRC_DIR" > "$THUMB_SOURCE_FILE"
+                > "$MANIFEST"  # reset manifest
+            fi
+        else
+            echo "$SRC_DIR" > "$THUMB_SOURCE_FILE"
+            > "$MANIFEST"
+        fi
+
+        # Build manifest if missing
+        [ ! -f "$MANIFEST" ] && build_manifest
+
+        # Get current src files (one find, sorted)
+        SRC_LIST=$(mktemp)
+        find "$SRC_DIR" -maxdepth 1 -type f \
+            \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \
+               -o -iname "*.gif" -o -iname "*.mp4" -o -iname "*.mkv" \
+               -o -iname "*.mov" -o -iname "*.webm" \) \
+            -printf "%f\n" | sort > "$SRC_LIST"
+
+        # Orphans: in manifest but not in src anymore
+        comm -23 \
+            <(sed 's/^000_//' "$MANIFEST" | sort) \
+            "$SRC_LIST" \
+        | while read -r orphan; do
+            rm -f "$THUMB_DIR/$orphan" "$THUMB_DIR/000_$orphan"
+            # Remove from manifest
+            sed -i "/^${orphan}$/d;/^000_${orphan}$/d" "$MANIFEST"
+        done
+
+        # New files: in src but not in manifest
+        comm -23 \
+            "$SRC_LIST" \
+            <(sed 's/^000_//' "$MANIFEST" | sort) \
+        | xargs -P 8 -I{} bash -c 'process_one "$SRC_DIR/$@"' _ {}
+
+        rm -f "$SRC_LIST"
+
+    ) </dev/null >/dev/null 2>&1 &
+
+    # swww/mpvpaper detection (unchanged, fast)
     TARGET_THUMB=""
     CURRENT_SRC=""
-
     if pgrep -a "mpvpaper" > /dev/null; then
         CURRENT_SRC=$(pgrep -a mpvpaper | grep -o "$SRC_DIR/[^' ]*" | head -n1)
-        [ -n "$CURRENT_SRC" ] && CURRENT_SRC=$(basename "$CURRENT_SRC")
+        CURRENT_SRC=$(basename "$CURRENT_SRC")
     fi
-
     if [ -z "$CURRENT_SRC" ] && command -v swww >/dev/null; then
         CURRENT_SRC=$(swww query 2>/dev/null | grep -o "$SRC_DIR/[^ ]*" | head -n1)
-        [ -n "$CURRENT_SRC" ] && CURRENT_SRC=$(basename "$CURRENT_SRC")
+        CURRENT_SRC=$(basename "$CURRENT_SRC")
     fi
-
     if [ -n "$CURRENT_SRC" ]; then
         EXT="${CURRENT_SRC##*.}"
-        if [[ "${EXT,,}" =~ ^(mp4|mkv|mov|webm)$ ]]; then
-            TARGET_THUMB="000_$CURRENT_SRC"
-        else
-            TARGET_THUMB="$CURRENT_SRC"
-        fi
+        [[ "${EXT,,}" =~ ^(mp4|mkv|mov|webm)$ ]] \
+            && TARGET_THUMB="000_$CURRENT_SRC" \
+            || TARGET_THUMB="$CURRENT_SRC"
     fi
-    
     export WALLPAPER_THUMB="$TARGET_THUMB"
 }
+
 
 handle_network_prep() {
     echo "" > "$BT_SCAN_LOG"
     { echo "scan on"; sleep infinity; } | stdbuf -oL bluetoothctl > "$BT_SCAN_LOG" 2>&1 &
     echo $! > "$BT_PID_FILE"
-    (nmcli device wifi rescan) &
+    (nmcli device wifi rescan) >/dev/null 2>&1 &
 }
 
 # -----------------------------------------------------------------------------

@@ -1,0 +1,275 @@
+/* =========================================================
+   GLOBAL & BASICS 
+========================================================= */
+QWidget {
+    font-family: "JetBrains Mono";
+    font-size: 11pt;
+    color: {{colors.on_surface.default.hex}};
+    /* REMOVED: background-color: transparent; (Fixes Qt5 transparent rendering bugs) */
+}
+
+QMainWindow, QDialog {
+    background-color: {{colors.surface.default.hex}};
+}
+
+QToolTip {
+    background-color: {{colors.surface_container_highest.default.hex}};
+    color: {{colors.on_surface.default.hex}};
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+QPushButton {
+    background-color: {{colors.surface_container_high.default.hex}};
+    color: {{colors.on_surface.default.hex}};
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: {{colors.surface_container_highest.default.hex}};
+    border: 1px solid {{colors.outline.default.hex}};
+}
+
+QPushButton:pressed, QPushButton:checked {
+    background-color: {{colors.primary.default.hex}};
+    color: {{colors.on_primary.default.hex}};
+    border: 1px solid {{colors.primary.default.hex}};
+}
+
+QPushButton:disabled {
+    background-color: {{colors.surface_container.default.hex}};
+    color: {{colors.outline.default.hex}};
+    border: 1px solid transparent;
+}
+
+/* =========================================================
+   INPUTS (Spinners, Dropdowns only)
+   Note: QLineEdit, QTextEdit, and QPlainTextEdit are intentionally 
+   omitted so Telegram's custom chat inputs remain unbroken. 
+   qt5ct/qt6ct will still color them correctly via the palette.
+========================================================= */
+QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: {{colors.surface_container_lowest.default.hex}};
+    color: {{colors.on_surface.default.hex}};
+    border: 1px solid {{colors.outline.default.hex}};
+    border-radius: 6px;
+    padding: 6px 10px;
+    selection-background-color: {{colors.primary.default.hex}};
+    selection-color: {{colors.on_primary.default.hex}};
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 2px solid {{colors.primary.default.hex}};
+    padding: 5px 9px; /* Compensate for thicker border */
+}
+
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+
+QComboBox::down-arrow {
+    image: none; /* Strip native ugly arrow */
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid {{colors.on_surface.default.hex}};
+    margin-right: 10px;
+}
+
+/* =========================================================
+   CHECKBOXES & RADIOS
+========================================================= */
+QCheckBox, QRadioButton {
+    spacing: 8px;
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    background-color: {{colors.surface_container_lowest.default.hex}};
+    border: 2px solid {{colors.outline.default.hex}};
+}
+
+QCheckBox::indicator {
+    border-radius: 4px;
+}
+
+QRadioButton::indicator {
+    border-radius: 11px; /* Circular */
+}
+
+QCheckBox::indicator:hover, QRadioButton::indicator:hover {
+    border: 2px solid {{colors.primary.default.hex}};
+}
+
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background-color: {{colors.primary.default.hex}};
+    border: 2px solid {{colors.primary.default.hex}};
+}
+
+/* Add inner dots/ticks for checked state using borders */
+QRadioButton::indicator:checked {
+    width: 10px;
+    height: 10px;
+    border: 6px solid {{colors.primary.default.hex}};
+    background-color: {{colors.on_primary.default.hex}};
+}
+
+/* =========================================================
+   SLIDERS & PROGRESS BARS
+========================================================= */
+QSlider::groove:horizontal {
+    border-radius: 3px;
+    height: 6px;
+    background: {{colors.surface_container_highest.default.hex}};
+}
+
+QSlider::sub-page:horizontal {
+    background: {{colors.primary.default.hex}};
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background: {{colors.primary.default.hex}};
+    width: 16px;
+    height: 16px;
+    margin: -5px 0; /* Align handle with groove */
+    border-radius: 8px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: {{colors.primary_container.default.hex}};
+    border: 2px solid {{colors.primary.default.hex}};
+}
+
+QProgressBar {
+    background-color: {{colors.surface_container_highest.default.hex}};
+    border-radius: 6px;
+    text-align: center;
+    color: {{colors.on_surface.default.hex}};
+}
+
+QProgressBar::chunk {
+    background-color: {{colors.primary.default.hex}};
+    border-radius: 6px;
+}
+
+/* =========================================================
+   TABS & GROUP BOXES
+========================================================= */
+QTabWidget::pane {
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 8px;
+    background: {{colors.surface.default.hex}};
+    top: -1px;
+}
+
+QTabBar::tab {
+    background: transparent;
+    color: {{colors.on_surface_variant.default.hex}};
+    padding: 8px 16px;
+    border-bottom: 2px solid transparent;
+}
+
+QTabBar::tab:hover {
+    color: {{colors.on_surface.default.hex}};
+    background: {{colors.surface_container_lowest.default.hex}};
+}
+
+QTabBar::tab:selected {
+    color: {{colors.primary.default.hex}};
+    border-bottom: 2px solid {{colors.primary.default.hex}};
+    font-weight: bold;
+}
+
+QGroupBox {
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px;
+    color: {{colors.primary.default.hex}};
+    font-weight: bold;
+}
+
+/* =========================================================
+   VIEWS (Lists, Trees, Tables)
+========================================================= */
+QTreeView, QListView, QTableView {
+    background-color: {{colors.surface_container_lowest.default.hex}};
+    alternate-background-color: {{colors.surface.default.hex}};
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 6px;
+    gridline-color: {{colors.surface_container_high.default.hex}};
+}
+
+QTreeView::item:selected, QListView::item:selected, QTableView::item:selected {
+    background-color: {{colors.primary.default.hex}};
+    color: {{colors.on_primary.default.hex}};
+}
+
+/* =========================================================
+   MENUS
+========================================================= */
+QMenuBar {
+    background-color: transparent;
+}
+
+QMenuBar::item:selected {
+    background-color: {{colors.surface_container_high.default.hex}};
+    border-radius: 4px;
+}
+
+QMenu {
+    background-color: {{colors.surface_container_high.default.hex}};
+    border: 1px solid {{colors.outline_variant.default.hex}};
+    border-radius: 8px;
+    padding: 6px;
+}
+
+QMenu::item {
+    padding: 6px 24px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: {{colors.primary.default.hex}};
+    color: {{colors.on_primary.default.hex}};
+}
+
+/* =========================================================
+   SCROLLBARS
+========================================================= */
+QScrollBar:vertical {
+    border: none;
+    background: {{colors.surface_container.default.hex}};
+    width: 12px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background: {{colors.outline_variant.default.hex}};
+    min-height: 30px;
+    border-radius: 6px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: {{colors.outline.default.hex}};
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px; /* Hide arrows */
+}

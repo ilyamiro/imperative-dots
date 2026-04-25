@@ -808,7 +808,7 @@ Item {
                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { 
                                 exitAnim.start(); // Trigger graceful UI exit
-                                Quickshell.execDetached(["sh", "-c", "loginctl kill-session $XDG_SESSION_ID"]); 
+                                Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/exit.sh"]); 
                                 Quickshell.execDetached(["sh", "-c", "echo 'close' > /tmp/qs_widget_state"]); 
                             }
                         }

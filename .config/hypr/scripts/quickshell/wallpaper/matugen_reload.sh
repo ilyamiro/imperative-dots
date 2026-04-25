@@ -40,12 +40,18 @@ except Exception as e:
 # ------------------------------------------------------------------------------
 # If Tera dumped {"color": "#hex"} into your text files, this strips it to #hex.
 TEXT_FILES=(
+    "$HOME/.config/hypr/scripts/quickshell/qs_colors.json"
     "$HOME/.config/kitty/kitty-matugen-colors.conf"
     "$HOME/.config/nvim/matugen_colors.lua"
     "$HOME/.config/cava/colors"
     "$HOME/.config/swayosd/style.css"
-    "$HOME/.config/swaync/style.css"
     "$HOME/.config/rofi/theme.rasi"
+    "$HOME/.cache/matugen/colors-gtk.css"
+    "$HOME/.config/qt5ct/colors/matugen.conf"
+    "$HOME/.config/qt6ct/colors/matugen.conf"
+    "$HOME/.config/qt5ct/qss/matugen-style.qss"
+    "$HOME/.config/qt6ct/qss/matugen-style.qss"
+    "$HOME/.config/hypr/colors.conf"
 )
 
 for file in "${TEXT_FILES[@]}"; do
@@ -74,12 +80,23 @@ if pgrep -x "cava" > /dev/null; then
     killall -USR1 cava
 fi
 
-# Reload SwayNC CSS styling dynamically without killing the daemon
-if command -v swaync-client &> /dev/null; then
-    swaync-client -rs
-fi
-
 # Restart swayosd-server in the background and disown it so the script doesn't hang
 killall swayosd-server 2>/dev/null
 swayosd-server --top-margin 0.9 --style "$HOME/.config/swayosd/style.css" > /dev/null 2>&1 &
 disown
+
+# GTK Live-Reload Hack
+# Rapidly toggles the global theme to force GTK3 and GTK4 apps to flush 
+# their caches and read the newly generated Matugen CSS.
+if command -v gsettings &> /dev/null; then
+    # GTK3 apps
+    gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita'
+    sleep 0.05
+    gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'
+    
+    # GTK4 / Libadwaita apps
+    gsettings set org.gnome.desktop.interface color-scheme 'default'
+    sleep 0.05
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+fi
+

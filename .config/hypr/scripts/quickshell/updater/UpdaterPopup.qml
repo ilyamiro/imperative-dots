@@ -22,11 +22,12 @@ Item {
     }
 
     // -------------------------------------------------------------------------
-    // COLORS (Dynamic Matugen Palette)
+    // COLORS (Dynamic Matugen Palette + Added Blob Colors)
     // -------------------------------------------------------------------------
     MatugenColors { id: _theme }
     
     readonly property color base: _theme.base
+    readonly property color mantle: _theme.mantle || _theme.base
     readonly property color crust: _theme.crust
     readonly property color surface0: _theme.surface0
     readonly property color surface1: _theme.surface1
@@ -34,13 +35,30 @@ Item {
     readonly property color text: _theme.text
     readonly property color subtext0: _theme.subtext0
     readonly property color green: _theme.green
+    
+    // Added for background blobs
+    readonly property color mauve: _theme.mauve || "#cba6f7"
+    readonly property color blue: _theme.blue || "#89b4fa"
 
     // -------------------------------------------------------------------------
     // STATE & POLLING
     // -------------------------------------------------------------------------
     property string localVersion: "..."
     property string remoteVersion: "..."
-    property string commitMessage: "Fetching changelog..."
+    
+    // Box animation properties
+    property var pendingCommits: []
+    property int typeIndex: 0
+
+    ListModel {
+        id: commitModel
+    }
+
+    // --- BACKGROUND ORBIT ANIMATION ---
+    property real globalOrbitAngle: 0
+    NumberAnimation on globalOrbitAngle {
+        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
+    }
 
     Keys.onEscapePressed: {
         Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
@@ -48,7 +66,7 @@ Item {
     }
 
     Process {
-        command: ["bash", "-c", "source ~/.local/state/imperative-dots-version 2>/dev/null && echo $LOCAL_VERSION || echo 'Unknown'"]
+        command: ["bash", "-c", "source ~/.local/state/imperative-dots-version 2>/dev/null && [ -n \"$LOCAL_VERSION\" ] && echo $LOCAL_VERSION || echo '0.0.0'"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
@@ -69,13 +87,125 @@ Item {
         }
     }
 
+    // Highly robust python script to trace the commit difference via install.sh history
+    property string fetchScript: `
+import urllib.request, json, subprocess
+
+repo = 'ilyamiro/imperative-dots'
+
+try:
+    local = subprocess.check_output("source ~/.local/state/imperative-dots-version 2>/dev/null && echo $LOCAL_VERSION", shell=True).decode('utf-8').strip()
+except:
+    local = ''
+
+if not local:
+    local = '0.0.0'
+
+def get_latest():
+    try:
+        req = urllib.request.Request('https://api.github.com/repos/' + repo + '/commits/master', headers={'User-Agent': 'updater'})
+        res = urllib.request.urlopen(req, timeout=5)
+        print(json.loads(res.read().decode())['commit']['message'])
+    except Exception: print('No changelog available')
+
+try:
+    if local in ['0.0.0', '...', '']: 
+        get_latest()
+    else:
+        # Step 1: Find the commit SHA where install.sh contained the local version
+        req_commits = urllib.request.Request('https://api.github.com/repos/' + repo + '/commits?path=install.sh&per_page=15', headers={'User-Agent': 'updater'})
+        res_commits = urllib.request.urlopen(req_commits, timeout=5)
+        file_commits = json.loads(res_commits.read().decode())
+        
+        local_sha = None
+        for c in file_commits:
+            sha = c['sha']
+            try:
+                raw_req = urllib.request.Request('https://raw.githubusercontent.com/' + repo + '/' + sha + '/install.sh', headers={'User-Agent': 'updater'})
+                raw_res = urllib.request.urlopen(raw_req, timeout=5)
+                content = raw_res.read().decode('utf-8')
+                
+                for line in content.splitlines():
+                    if line.startswith('DOTS_VERSION='):
+                        ver = line.split('=', 1)[1].strip().strip('"\\'')
+                        if ver == local:
+                            local_sha = sha
+                        break
+            except: pass
+            
+            if local_sha:
+                break
+                
+        # Step 2: Use the exact SHA to get all commits in between
+        if local_sha:
+            compare_req = urllib.request.Request('https://api.github.com/repos/' + repo + '/compare/' + local_sha + '...master', headers={'User-Agent': 'updater'})
+            compare_res = urllib.request.urlopen(compare_req, timeout=5)
+            data = json.loads(compare_res.read().decode())
+            commits = data.get('commits', [])
+            
+            if commits:
+                for c in reversed(commits):
+                    print(c['commit']['message'])
+                    print('---SPLIT---')
+            else:
+                get_latest()
+        else:
+            get_latest()
+except Exception as e:
+    get_latest()
+`
+
     Process {
-        command: ["bash", "-c", "curl -m 5 -sL \"https://api.github.com/repos/ilyamiro/imperative-dots/commits/master\" | grep -m1 '\"message\":' | cut -d'\"' -f4 || echo 'No changelog available'"]
+        command: ["python3", "-c", window.fetchScript]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = this.text ? this.text.trim() : "";
-                if (out !== "") window.commitMessage = out;
+                if (out !== "") {
+                    let blocks = out.split("---SPLIT---");
+                    let validLines = [];
+                    
+                    for (let i = 0; i < blocks.length; i++) {
+                        let blockTrimmed = blocks[i].trim();
+                        if (blockTrimmed === "") continue;
+                        
+                        // Parse literally every new line inside the commit into separate boxes
+                        let lines = blockTrimmed.split(/\\r\\n|\\n|\r\n|\n/);
+                        for (let j = 0; j < lines.length; j++) {
+                            let trimmed = lines[j].trim();
+                            if (trimmed.length > 0) {
+                                validLines.push(trimmed);
+                            }
+                        }
+                    }
+
+                    commitModel.clear();
+                    
+                    if (validLines.length > 0) {
+                        window.pendingCommits = validLines;
+                        window.typeIndex = 0;
+                        commitBoxTimer.start();
+                    } else {
+                        commitModel.append({ "lineText": "No changelog available." });
+                    }
+                } else {
+                    commitModel.clear();
+                    commitModel.append({ "lineText": "No changelog available." });
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: commitBoxTimer
+        interval: 100 // Slightly faster cascade for multiple commits
+        repeat: true
+        onTriggered: {
+            if (window.typeIndex < window.pendingCommits.length) {
+                commitModel.append({ "lineText": window.pendingCommits[window.typeIndex] });
+                window.typeIndex++;
+            } else {
+                stop();
             }
         }
     }
@@ -91,91 +221,222 @@ Item {
         border.width: 1
         clip: true
 
+        // --- AMBIENT BLOBS ---
+        Rectangle {
+            width: parent.width * 0.8; height: width; radius: width / 2
+            x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * window.s(150)
+            y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * 2) * window.s(100)
+            opacity: 0.08
+            color: window.mauve
+            Behavior on color { ColorAnimation { duration: 1000 } }
+        }
+        
+        Rectangle {
+            width: parent.width * 0.9; height: width; radius: width / 2
+            x: (parent.width / 2 - width / 2) + Math.sin(window.globalOrbitAngle * 1.5) * window.s(-150)
+            y: (parent.height / 2 - height / 2) + Math.cos(window.globalOrbitAngle * 1.5) * window.s(-100)
+            opacity: 0.06
+            color: window.blue
+            Behavior on color { ColorAnimation { duration: 1000 } }
+        }
+
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: window.s(25)
-            spacing: window.s(15)
+            spacing: window.s(20)
 
-            // --- MINIMAL HEADER ---
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: "New version available"
-                font.family: "JetBrains Mono"
-                font.weight: Font.Medium
-                font.pixelSize: window.s(13)
-                color: window.subtext0
-            }
+            // --- ANIMATED CHOREOGRAPHED VERSIONS ---
+            Item {
+                id: versionContainer
+                Layout.fillWidth: true
+                Layout.preferredHeight: window.s(60)
 
-            // --- VERSION NUMBERS ---
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: window.s(15)
+                readonly property real finalNewX: (width - newVer.implicitWidth) / 2
+                readonly property real finalArrowX: finalNewX - arrowIcon.implicitWidth - window.s(24)
+                readonly property real finalOldX: finalArrowX - oldVer.implicitWidth - window.s(24)
+                readonly property real initialOldX: (width - oldVer.implicitWidth) / 2
 
                 Text { 
+                    id: oldVer
                     text: window.localVersion
                     font.family: "JetBrains Mono"
-                    font.pixelSize: window.s(16)
-                    color: window.text 
+                    font.pixelSize: window.s(22)
+                    color: window.subtext0 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.initialOldX 
                 }
                 
                 Text { 
+                    id: arrowIcon
                     text: ""
                     font.family: "Iosevka Nerd Font"
-                    font.pixelSize: window.s(16)
-                    color: window.subtext0 
+                    font.pixelSize: window.s(22)
+                    color: window.surface2 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.finalOldX + oldVer.implicitWidth 
+                    opacity: 0
                 }
                 
                 Text { 
+                    id: newVer
                     text: window.remoteVersion
                     font.family: "JetBrains Mono"
                     font.weight: Font.Black
-                    font.pixelSize: window.s(28)
+                    font.pixelSize: window.s(48) 
                     color: window.green 
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: versionContainer.finalNewX 
+                    opacity: 0
+                    scale: 0.8 // Start smaller for a satisfying pop
+                }
+
+                MultiEffect {
+                    id: newVerEffect
+                    source: newVer
+                    anchors.fill: newVer
+                    shadowEnabled: true
+                    shadowColor: window.green
+                    shadowBlur: 0.0
+                    shadowHorizontalOffset: 0
+                    shadowVerticalOffset: 0
+                    opacity: newVer.opacity
+                }
+
+                // Smooth, fluid animation sequence
+                SequentialAnimation {
+                    id: versionAnim
+
+                    PauseAnimation { duration: 150 }
+
+                    ParallelAnimation {
+                        // 1. Old version smoothly slides left and dims
+                        NumberAnimation { 
+                            target: oldVer; property: "x"; 
+                            to: versionContainer.finalOldX
+                            duration: 700; easing.type: Easing.OutExpo 
+                        }
+                        NumberAnimation {
+                            target: oldVer; property: "opacity";
+                            to: 0.3
+                            duration: 600; easing.type: Easing.OutSine
+                        }
+
+                        // 2. Arrow fades in and slides into place
+                        SequentialAnimation {
+                            PauseAnimation { duration: 100 }
+                            ParallelAnimation {
+                                NumberAnimation { target: arrowIcon; property: "opacity"; to: 1; duration: 400; easing.type: Easing.OutSine }
+                                NumberAnimation { 
+                                    target: arrowIcon; property: "x"; 
+                                    from: versionContainer.initialOldX
+                                    to: versionContainer.finalArrowX
+                                    duration: 600; easing.type: Easing.OutExpo 
+                                }
+                            }
+                        }
+
+                        // 3. New version slides in and scales up with a satisfying bounce
+                        SequentialAnimation {
+                            PauseAnimation { duration: 200 }
+                            ParallelAnimation {
+                                NumberAnimation { target: newVer; property: "opacity"; to: 1; duration: 400; easing.type: Easing.OutSine }
+                                NumberAnimation { 
+                                    target: newVer; property: "x"; 
+                                    from: versionContainer.finalNewX + window.s(20)
+                                    to: versionContainer.finalNewX
+                                    duration: 600; easing.type: Easing.OutExpo 
+                                }
+                                NumberAnimation { 
+                                    target: newVer; property: "scale"; 
+                                    to: 1.0; 
+                                    duration: 600; easing.type: Easing.OutBack; easing.overshoot: 1.4 
+                                }
+                            }
+                            ScriptAction { script: glowAnim.start() }
+                        }
+                    }
+                }
+
+                SequentialAnimation {
+                    id: glowAnim
+                    loops: Animation.Infinite
+                    NumberAnimation { target: newVerEffect; property: "shadowBlur"; to: 0.8; duration: 1500; easing.type: Easing.InOutSine }
+                    NumberAnimation { target: newVerEffect; property: "shadowBlur"; to: 0.2; duration: 1500; easing.type: Easing.InOutSine }
+                }
+
+                Connections {
+                    target: window
+                    function onRemoteVersionChanged() {
+                        if (window.remoteVersion !== "..." && window.remoteVersion !== "") {
+                            versionAnim.start();
+                        }
+                    }
                 }
             }
 
-            // --- CENTERED CHANGELOG FRAME ---
-            Rectangle {
+            // --- CLEAN COMMIT LIST ---
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.topMargin: window.s(10)
-                Layout.bottomMargin: window.s(10)
-                radius: window.s(12)
-                color: window.surface0
-                border.color: window.surface1
-                border.width: 1
                 clip: true
 
-                ScrollView {
-                    id: changelogScroll
+                ListView {
+                    id: changelogList
                     anchors.fill: parent
-                    anchors.margins: window.s(15)
                     clip: true
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    model: commitModel
+                    spacing: window.s(8) // Reduced spacing for a tighter look
+
                     ScrollBar.vertical: ScrollBar {
                         active: true
                         policy: ScrollBar.AsNeeded
-                        contentItem: Rectangle { implicitWidth: window.s(4); radius: window.s(2); color: window.surface2 }
+                        contentItem: Rectangle { 
+                            implicitWidth: window.s(3); 
+                            radius: window.s(1.5); 
+                            color: window.surface2; 
+                            opacity: 0.5 
+                        }
                     }
-                    
-                    Text {
-                        width: changelogScroll.availableWidth
-                        text: window.commitMessage
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: window.s(13)
-                        color: window.subtext0
-                        wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        anchors.verticalCenter: parent.verticalCenter
+
+                    // Elegant pop-in transition for the separate commit boxes
+                    add: Transition {
+                        ParallelAnimation {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.OutExpo }
+                            NumberAnimation { property: "scale"; from: 0.95; to: 1; duration: 450; easing.type: Easing.OutBack }
+                            NumberAnimation { property: "y"; from: y + window.s(15); duration: 450; easing.type: Easing.OutExpo }
+                        }
+                    }
+
+                    delegate: Rectangle {
+                        width: changelogList.width - window.s(12) 
+                        height: Math.max(window.s(40), commitText.implicitHeight + window.s(20))
+                        
+                        color: window.surface0 
+                        radius: window.s(12)
+                        
+                        Text {
+                            id: commitText
+                            anchors.fill: parent
+                            anchors.margins: window.s(10)
+                            anchors.leftMargin: window.s(16)
+                            anchors.rightMargin: window.s(16)
+                            text: model.lineText
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: window.s(13)
+                            color: window.text
+                            wrapMode: Text.WordWrap
+                            verticalAlignment: Text.AlignVCenter
+                            lineHeight: 1.4
+                        }
                     }
                 }
             }
 
-            // --- HOLD TO UPDATE BUTTON (SINE WAVE) ---
+            // --- HOLD TO UPDATE BUTTON ---
             Rectangle {
                 id: updateBtn
-                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter // Centered instead of stretched
+                Layout.preferredWidth: window.s(240) // Fixed, elegant width
                 Layout.preferredHeight: window.s(54)
                 radius: window.s(12)
                 color: window.surface0
@@ -183,8 +444,8 @@ Item {
                 border.width: btnMa.containsMouse ? window.s(2) : 1
                 clip: true
                 
-                scale: btnMa.pressed ? 0.98 : (btnMa.containsMouse ? 1.02 : 1.0)
-                Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+                scale: btnMa.pressed ? 0.98 : (btnMa.containsMouse ? 1.01 : 1.0)
+                Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                 property real fillLevel: 0.0
@@ -199,7 +460,7 @@ Item {
                         running: updateBtn.fillLevel > 0.0 && updateBtn.fillLevel < 1.0
                         loops: Animation.Infinite
                         from: 0; to: Math.PI * 2
-                        duration: 800
+                        duration: 1000
                     }
                     
                     onWavePhaseChanged: requestPaint()
@@ -214,14 +475,11 @@ Item {
                         var r = window.s(12);
 
                         ctx.save();
-                        
-                        // 1. Build the dynamic wave shape
                         ctx.beginPath();
                         ctx.moveTo(0, 0);
                         
                         if (updateBtn.fillLevel < 0.99) {
-                            var waveAmp = window.s(10) * Math.sin(updateBtn.fillLevel * Math.PI); 
-                            if (currentW - waveAmp < 0) waveAmp = currentW;
+                            var waveAmp = window.s(8) * Math.sin(updateBtn.fillLevel * Math.PI); 
                             var cp1x = currentW + Math.sin(wavePhase) * waveAmp;
                             var cp2x = currentW + Math.cos(wavePhase + Math.PI) * waveAmp;
 
@@ -236,21 +494,10 @@ Item {
                         ctx.closePath();
                         ctx.clip(); 
 
-                        // 2. Build the rounded rectangle bounds so the gradient respects the button's radius
                         ctx.beginPath();
-                        ctx.moveTo(r, 0);
-                        ctx.lineTo(width - r, 0);
-                        ctx.arcTo(width, 0, width, r, r);
-                        ctx.lineTo(width, height - r);
-                        ctx.arcTo(width, height, width - r, height, r);
-                        ctx.lineTo(r, height);
-                        ctx.arcTo(0, height, 0, height - r, r);
-                        ctx.lineTo(0, r);
-                        ctx.arcTo(0, 0, r, 0, r);
-                        ctx.closePath();
-
-                        var grad = ctx.createLinearGradient(0, 0, currentW, 0);
-                        grad.addColorStop(0, Qt.lighter(window.green, 1.15).toString());
+                        ctx.roundedRect(0, 0, width, height, r, r);
+                        var grad = ctx.createLinearGradient(0, 0, width, 0);
+                        grad.addColorStop(0, Qt.darker(window.green, 1.1).toString());
                         grad.addColorStop(1, window.green.toString());
                         ctx.fillStyle = grad;
                         ctx.fill();
@@ -322,8 +569,8 @@ Item {
                     target: updateBtn
                     property: "fillLevel"
                     to: 0.0
-                    duration: 1500 * updateBtn.fillLevel
-                    easing.type: Easing.OutQuad
+                    duration: 800 * updateBtn.fillLevel
+                    easing.type: Easing.OutCubic
                 }
             }
         }
