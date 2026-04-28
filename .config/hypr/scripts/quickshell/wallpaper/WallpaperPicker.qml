@@ -265,13 +265,14 @@ Item {
             `;
         }
 
+        const ext = escOriginal.split('.').pop();
         const fullScript = `
             cp "${isVideo ? escThumb : escOriginal}" /tmp/lock_bg.png || true
             pkill mpvpaper || true
-            
+
             ${wallpaperCmd}
-            ln -sfn "${escOriginal}" ~/.cache/current_wallpaper.png
-            ( matugen image "${escThumb}" || true; bash "${escReload}" || true ) &
+            ln -sfn "${escOriginal}" ~/.cache/current_wallpaper.${ext}
+            ( matugen image "${escThumb}" --source-color-index 0 || true; bash "${escReload}" || true ) &
         `;
         Quickshell.execDetached(["bash", "-c", fullScript]);
     }

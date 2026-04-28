@@ -144,19 +144,7 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
     fi
 
     # --- 6.5. Matugen Colors ---
-    if { [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; } && [ -f "$displayArt" ]; then
-        /bin/matugen image "$displayArt" --source-color-index 0
-    else
-        if [ -e ~/.cache/current_wallpaper.png ]; then
-            /bin/matugen image ~/.cache/current_wallpaper.png --source-color-index 0
-        else
-            WALLPAPER=$(awww query | sed -n 's/.*image: //p' | head -n1)
-
-            if [ -n "$WALLPAPER" ] && [ -f "$WALLPAPER" ]; then
-                /bin/matugen image "$WALLPAPER" --source-color-index 0
-            fi
-        fi
-    fi
+    /bin/matugen image "$displayArt" --source-color-index 0
 
     # --- 7. JSON OUTPUT ---
     jq -n -c \
@@ -199,6 +187,17 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
 
 else
     # --- FALLBACK (Stopped) ---
+    # Set matugen colors back to wallpaper
+    WALLPAPER_CACHE="$(readlink -f ~/.cache/current_wallpaper.* 2>/dev/null | head -n1)"
+    if [ -n "$WALLPAPER_CACHE" ] && [ -f "$WALLPAPER_CACHE" ]; then
+        /bin/matugen image "$WALLPAPER_CACHE" --source-color-index 0
+    else
+        WALLPAPER=$(awww query | sed -n 's/.*image: //p' | head -n1)
+        if [ -n "$WALLPAPER" ] && [ -f "$WALLPAPER" ]; then
+            /bin/matugen image "$WALLPAPER" --source-color-index 0
+        fi
+    fi
+
     # Restore last known position so the widget does not snap to 00:00
     if [ -f "$STATE_FILE" ]; then
         last_pos_sec=$(jq -r '.pos_sec' "$STATE_FILE")
