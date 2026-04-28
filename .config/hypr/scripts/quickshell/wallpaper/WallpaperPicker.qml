@@ -270,6 +270,7 @@ Item {
             pkill mpvpaper || true
             
             ${wallpaperCmd}
+            ln -sfn "${escOriginal}" ~/.cache/current_wallpaper.png
             ( matugen image "${escThumb}" || true; bash "${escReload}" || true ) &
         `;
         Quickshell.execDetached(["bash", "-c", fullScript]);
