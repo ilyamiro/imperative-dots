@@ -6,16 +6,20 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import "../"
+
 Item {
     id: window
     focus: true
+
     Scaler {
         id: scaler
         currentWidth: Screen.width
     }
+
     function s(val) { 
         return scaler.s(val); 
     }
+
     MatugenColors { id: _theme }
     readonly property color base: _theme.base
     readonly property color crust: _theme.crust
@@ -29,6 +33,7 @@ Item {
     readonly property color blue: _theme.blue || "#89b4fa"
     readonly property color green: _theme.green || "#a6e3a1"
     readonly property color red: _theme.red || "#f38ba8"
+
     // --- STATE MANAGEMENT ---
     property string currentView: "search" // "search" or "series"
     property string mediaType: "movie" // "movie" or "tv"
@@ -57,6 +62,7 @@ Item {
     property bool seasonSwitching: false
     property bool stateRestored: false
     property bool pendingSeriesFocusRestore: false
+
     Timer {
         id: safetyLoadingTimer
         interval: 12000
@@ -68,6 +74,7 @@ Item {
             window.isSearchingNetwork = false
         }
     }
+
     Timer {
         id: searchDebounceTimer
         interval: 400
@@ -78,6 +85,7 @@ Item {
             }
         }
     }
+
     Timer {
         id: seriesFocusRestoreTimer
         interval: 350
@@ -89,6 +97,13 @@ Item {
             }
         }
     }
+
+    // --- SHARED DISK I/O HELPER ---
+    function saveJsonToCache(filename, dataObj) {
+        let jsStr = JSON.stringify(dataObj).replace(/'/g, "'\\''")
+        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/" + filename])
+    }
+
     // --- PERSISTENT CACHE IO ---
     Process {
         id: readHistoryProc
@@ -106,6 +121,7 @@ Item {
             }
         }
     }
+
     Process {
         id: readWatchHistoryProc
         command: ["bash", "-c", "cat ~/.cache/qs_movie_watch_history.json 2>/dev/null || echo '[]'"]
@@ -122,6 +138,27 @@ Item {
             }
         }
     }
+
+    function processTrendingCache(parsed, typeStr, targetModel) {
+        let now = Date.now()
+        let isMovie = typeStr === "movie"
+        let lastFetch = parsed[isMovie ? "moviesLastFetch" : "tvLastFetch"] || 0
+        let items = parsed[isMovie ? "movies" : "tv"]
+
+        if (items && items.length > 0) {
+            targetModel.clear()
+            if (isMovie) window.rawTrendingMovies = items; else window.rawTrendingTv = items
+            for (let i = 0; i < items.length; i++) targetModel.append(items[i])
+            
+            if (isMovie) { window.trendingMoviesLoaded = true; window.isFetchingMovies = false; window.trendingMoviesLastFetch = lastFetch } 
+            else { window.trendingTvLoaded = true; window.isFetchingTv = false; window.trendingTvLastFetch = lastFetch }
+            
+            if ((now - lastFetch) > window.trendingCacheMaxAge) fetchTrending(typeStr === "movie" ? "movie" : "series")
+        } else {
+            fetchTrending(typeStr === "movie" ? "movie" : "series")
+        }
+    }
+
     Process {
         id: readTrendingCacheProc
         command: ["bash", "-c", "cat ~/.cache/qs_trending_cache.json 2>/dev/null || echo '{}'"]
@@ -130,35 +167,8 @@ Item {
             onRead: (data) => {
                 try {
                     let parsed = JSON.parse(data.trim())
-                    let now = Date.now()
-                    let movieAge = now - (parsed.moviesLastFetch || 0)
-                    if (parsed.movies && parsed.movies.length > 0) {
-                        cachedTrendingMovies.clear()
-                        window.rawTrendingMovies = parsed.movies
-                        for (let i = 0; i < parsed.movies.length; i++) cachedTrendingMovies.append(parsed.movies[i])
-                        window.trendingMoviesLoaded = true
-                        window.isFetchingMovies = false
-                        window.trendingMoviesLastFetch = parsed.moviesLastFetch || 0
-                        if (movieAge > window.trendingCacheMaxAge) {
-                            fetchTrending("movie")
-                        }
-                    } else {
-                        fetchTrending("movie")
-                    }
-                    let tvAge = now - (parsed.tvLastFetch || 0)
-                    if (parsed.tv && parsed.tv.length > 0) {
-                        cachedTrendingTv.clear()
-                        window.rawTrendingTv = parsed.tv
-                        for (let i = 0; i < parsed.tv.length; i++) cachedTrendingTv.append(parsed.tv[i])
-                        window.trendingTvLoaded = true
-                        window.isFetchingTv = false
-                        window.trendingTvLastFetch = parsed.tvLastFetch || 0
-                        if (tvAge > window.trendingCacheMaxAge) {
-                            fetchTrending("series")
-                        }
-                    } else {
-                        fetchTrending("series")
-                    }
+                    processTrendingCache(parsed, "movie", cachedTrendingMovies)
+                    processTrendingCache(parsed, "tv", cachedTrendingTv)
                 } catch(e) {
                     fetchTrending("movie")
                     fetchTrending("series")
@@ -166,6 +176,7 @@ Item {
             }
         }
     }
+
     Process {
         id: readUiStateProc
         command: ["bash", "-c", "cat ~/.cache/qs_ui_state.json 2>/dev/null || echo '{}'"]
@@ -184,22 +195,18 @@ Item {
                         let idx = filterSelector.model.indexOf(s.filterSort)
                         if (idx >= 0) filterSelector.currentIndex = idx
                     }
-                    if (s.searchText && s.searchText !== "") {
-                        searchInput.text = s.searchText
-                    }
+                    if (s.searchText && s.searchText !== "") searchInput.text = s.searchText
                     if (s.currentView) window.currentView = s.currentView
                     if (s.selectedImdbId) window.selectedImdbId = s.selectedImdbId
                     if (s.selectedTitle) window.selectedTitle = s.selectedTitle
                     if (s.selectedPoster) window.selectedPoster = s.selectedPoster
                     if (s.selectedDescription) window.selectedDescription = s.selectedDescription
                     if (s.currentSeason) window.currentSeason = s.currentSeason
-                    // Restore source modal state
+                    
                     if (s.isSourceModalOpen && s.pendingMedia && s.pendingMedia.imdbId) {
                         window.pendingMedia = s.pendingMedia
                         window.foundSourceName = s.foundSourceName || ""
-                        for (let i = 0; i < sourceModel.count; i++) {
-                            sourceModel.setProperty(i, "status", "pending")
-                        }
+                        for (let i = 0; i < sourceModel.count; i++) sourceModel.setProperty(i, "status", "pending")
                         window.isSourceModalOpen = true
                         if (s.checkingState === "found" && s.foundSourceName) {
                             window.checkingState = "found"
@@ -218,10 +225,9 @@ Item {
                             checkNextSource()
                         }
                     }
-                    // Always reload series data on restore — episodes are not cached to disk
                     if (s.currentView === "series" && s.selectedImdbId) {
                         window.pendingSeriesFocusRestore = true
-                        reloadSeriesData(s.selectedImdbId, s.currentSeason || 1)
+                        fetchSeriesData(s.selectedImdbId, s.currentSeason || 1, "", "", true)
                     }
                     window.stateRestored = true
                 } catch(e) {
@@ -230,106 +236,50 @@ Item {
             }
         }
     }
+
+    property var sourcePrefs: ({})
+    Process {
+        id: readSourcePrefsProc
+        command: ["bash", "-c", "cat ~/.cache/qs_source_prefs.json 2>/dev/null || echo '{}'"]
+        running: false
+        stdout: SplitParser {
+            onRead: (data) => {
+                try { window.sourcePrefs = JSON.parse(data.trim()) } 
+                catch(e) { window.sourcePrefs = {} }
+            }
+        }
+    }
+
+    // --- SAVING CACHE FUNCTIONS ---
     function saveUiState() {
-        let s = {
-            mediaType: window.mediaType,
-            filterSort: window.filterSort,
-            searchText: searchInput.text,
-            currentView: window.currentView,
-            selectedImdbId: window.selectedImdbId,
-            selectedTitle: window.selectedTitle,
-            selectedPoster: window.selectedPoster,
-            selectedDescription: window.selectedDescription,
-            currentSeason: window.currentSeason,
-            isSourceModalOpen: window.isSourceModalOpen,
-            checkingState: window.checkingState,
-            pendingMedia: window.pendingMedia,
-            foundSourceName: window.foundSourceName
-        }
-        let jsStr = JSON.stringify(s).replace(/'/g, "'\\''")
-        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/qs_ui_state.json"])
+        saveJsonToCache("qs_ui_state.json", {
+            mediaType: window.mediaType, filterSort: window.filterSort, searchText: searchInput.text,
+            currentView: window.currentView, selectedImdbId: window.selectedImdbId,
+            selectedTitle: window.selectedTitle, selectedPoster: window.selectedPoster,
+            selectedDescription: window.selectedDescription, currentSeason: window.currentSeason,
+            isSourceModalOpen: window.isSourceModalOpen, checkingState: window.checkingState,
+            pendingMedia: window.pendingMedia, foundSourceName: window.foundSourceName
+        })
     }
-    function reloadSeriesData(imdbId, restoreSeason) {
-        window.isLoadingSeries = true
-        seasonModel.clear()
-        episodeModel.clear()
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://v3-cinemeta.strem.io/meta/series/" + imdbId + ".json")
-        xhr.onerror = function() {
-            window.isLoadingSeries = false
-            if (window.pendingSeriesFocusRestore) {
-                seriesFocusRestoreTimer.restart()
-            }
-        }
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            window.isLoadingSeries = false
-            if (xhr.status === 200) {
-                try {
-                    var res = JSON.parse(xhr.responseText)
-                    if (res && res.meta) {
-                        if (!window.selectedDescription && res.meta.description) {
-                            window.selectedDescription = res.meta.description || res.meta.synopsis || ""
-                        }
-                        if ((!window.selectedPoster || window.selectedPoster === "") && res.meta.poster) {
-                            window.selectedPoster = res.meta.poster
-                        }
-                        if (res.meta.videos) {
-                            let seasonsMap = {}
-                            for (let i = 0; i < res.meta.videos.length; i++) {
-                                let v = res.meta.videos[i]
-                                if (v.season === 0) continue
-                                if (!seasonsMap[v.season]) seasonsMap[v.season] = []
-                                let epTitle = v.name || v.title || null
-                                if (epTitle) {
-                                    let genericPattern = /^(episode\s*\d+|s\d+e\d+|ep\.?\s*\d+)$/i
-                                    if (genericPattern.test(epTitle.toLowerCase().trim())) epTitle = null
-                                }
-                                seasonsMap[v.season].push({
-                                    ep: v.episode,
-                                    title: epTitle || ("Episode " + v.episode),
-                                    hasRealTitle: epTitle !== null
-                                })
-                            }
-                            let seasonKeys = Object.keys(seasonsMap).map(Number).sort((a, b) => a - b)
-                            for (let i = 0; i < seasonKeys.length; i++) seasonModel.append({ seasonNum: seasonKeys[i] })
-                            window.seriesDataMap = seasonsMap
-                            let targetSeason = restoreSeason && seasonsMap[restoreSeason] ? restoreSeason : (seasonKeys[0] || 1)
-                            window.currentSeason = targetSeason
-                            updateEpisodes(targetSeason)
-                        }
-                    }
-                } catch(e) {}
-            }
-            if (window.pendingSeriesFocusRestore) {
-                seriesFocusRestoreTimer.restart()
-            }
-        }
-        xhr.send()
-    }
+
     function saveHistory() {
         let arr = []
         for (let i = 0; i < searchHistoryModel.count; i++) arr.push(searchHistoryModel.get(i).query)
-        let jsStr = JSON.stringify(arr).replace(/'/g, "'\\''")
-        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/qs_movie_history.json"])
+        saveJsonToCache("qs_movie_history.json", arr)
     }
+
     function saveWatchHistory() {
         let arr = []
         for (let i = 0; i < watchHistoryModel.count; i++) {
             let item = watchHistoryModel.get(i)
             arr.push({ imdbId: item.imdbId, title: item.title, poster: item.poster, type: item.type })
         }
-        let jsStr = JSON.stringify(arr).replace(/'/g, "'\\''")
-        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/qs_movie_watch_history.json"])
+        saveJsonToCache("qs_movie_watch_history.json", arr)
     }
+
     function saveTrendingCache() {
         if (cachedTrendingMovies.count === 0 || cachedTrendingTv.count === 0) return
-        let cacheObj = {
-            moviesLastFetch: window.trendingMoviesLastFetch,
-            tvLastFetch: window.trendingTvLastFetch,
-            movies: [],
-            tv: []
-        }
+        let cacheObj = { moviesLastFetch: window.trendingMoviesLastFetch, tvLastFetch: window.trendingTvLastFetch, movies: [], tv: [] }
         for (let i = 0; i < cachedTrendingMovies.count; i++) {
             let m = cachedTrendingMovies.get(i)
             cacheObj.movies.push({ imdbId: m.imdbId, title: m.title, poster: m.poster, type: m.type, year: m.year, rating: m.rating || 0, popularity: i })
@@ -338,34 +288,21 @@ Item {
             let t = cachedTrendingTv.get(i)
             cacheObj.tv.push({ imdbId: t.imdbId, title: t.title, poster: t.poster, type: t.type, year: t.year, rating: t.rating || 0, popularity: i })
         }
-        let jsStr = JSON.stringify(cacheObj).replace(/'/g, "'\\''")
-        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/qs_trending_cache.json"])
+        saveJsonToCache("qs_trending_cache.json", cacheObj)
     }
-    property var sourcePrefs: ({})
-    Process {
-        id: readSourcePrefsProc
-        command: ["bash", "-c", "cat ~/.cache/qs_source_prefs.json 2>/dev/null || echo '{}'"]
-        running: false
-        stdout: SplitParser {
-            onRead: (data) => {
-                try {
-                    window.sourcePrefs = JSON.parse(data.trim())
-                } catch(e) { window.sourcePrefs = {} }
-            }
-        }
-    }
+
     function saveSourcePref(imdbId, sourceName) {
         let prefs = window.sourcePrefs
         prefs[imdbId] = sourceName
         window.sourcePrefs = prefs
-        let jsStr = JSON.stringify(prefs).replace(/'/g, "'\\''")
-        Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.cache && echo '" + jsStr + "' > ~/.cache/qs_source_prefs.json"])
+        saveJsonToCache("qs_source_prefs.json", prefs)
     }
+
     // --- SOURCE MODEL ---
     ListModel {
         id: sourceModel
         ListElement { name: "VidSrc.net";    urlMovie: "https://vidsrc.net/embed/movie/%1";                               urlTv: "https://vidsrc.net/embed/tv/%1/%2/%3";                            status: "pending" }
-        ListElement { name: "VidLink";       urlMovie: "https://vidlink.pro/movie/%1?autoplay=1";                          urlTv: "https://vidlink.pro/tv/%1/%2/%3?autoplay=1";                      status: "pending" }
+        ListElement { name: "VidLink";       urlMovie: "https://vidlink.pro/movie/%1?autoplay=1";                         urlTv: "https://vidlink.pro/tv/%1/%2/%3?autoplay=1";                      status: "pending" }
         ListElement { name: "VidSrc.pro";    urlMovie: "https://vidsrc.pro/embed/movie/%1";                               urlTv: "https://vidsrc.pro/embed/tv/%1/%2/%3";                            status: "pending" }
         ListElement { name: "VidSrc.in";     urlMovie: "https://vidsrc.in/embed/movie/%1";                                urlTv: "https://vidsrc.in/embed/tv/%1/%2/%3";                             status: "pending" }
         ListElement { name: "VidSrc.cc";     urlMovie: "https://vidsrc.cc/v2/embed/movie/%1?autoPlay=true";               urlTv: "https://vidsrc.cc/v2/embed/tv/%1/%2/%3?autoPlay=true";            status: "pending" }
@@ -375,23 +312,23 @@ Item {
         ListElement { name: "2Embed";        urlMovie: "https://www.2embed.cc/embed/%1";                                  urlTv: "https://www.2embed.cc/embedtv/%1&s=%2&e=%3";                      status: "pending" }
         ListElement { name: "MultiEmbed";    urlMovie: "https://multiembed.mov/directstream.php?video_id=%1";             urlTv: "https://multiembed.mov/directstream.php?video_id=%1&s=%2&e=%3";  status: "pending" }
     }
+
     // --- ANIMATIONS & FOCUS ---
     property real introPhase: 0
     NumberAnimation on introPhase {
         id: introPhaseAnim
         from: 0; to: 1; duration: 800; easing.type: Easing.OutQuart; running: true
     }
+
     Timer {
         id: focusTimer
         interval: 50; running: true; repeat: false
         onTriggered: {
-            if (window.currentView === "search") {
-                searchInput.forceActiveFocus()
-            } else {
-                window.forceActiveFocus()
-            }
+            if (window.currentView === "search") searchInput.forceActiveFocus()
+            else window.forceActiveFocus()
         }
     }
+
     Timer {
         id: scrollToTopTimer
         interval: 80; running: false; repeat: false
@@ -401,6 +338,7 @@ Item {
             searchGrid.positionViewAtBeginning()
         }
     }
+
     Component.onCompleted: {
         readHistoryProc.running = true
         readWatchHistoryProc.running = true
@@ -410,6 +348,7 @@ Item {
         readTrendingCacheProc.running = true
         readUiStateProc.running = true
     }
+
     Connections {
         target: window
         function onVisibleChanged() {
@@ -427,40 +366,38 @@ Item {
                 if (!window.trendingTvLoaded) fetchTrending("series")
                 if (searchInput.text !== "") doSearch(searchInput.text)
                 if (window.currentView === "series" && window.selectedImdbId !== "" && episodeModel.count === 0) {
-                    reloadSeriesData(window.selectedImdbId, window.currentSeason)
+                    fetchSeriesData(window.selectedImdbId, window.currentSeason, "", "", true)
                 }
             } else {
                 saveUiState()
             }
         }
     }
+
     Keys.onPressed: (event) => {
         if (window.isSourceModalOpen) {
-            if (event.key === Qt.Key_Escape) {
-                window.closeSourceModal()
-                event.accepted = true
-            }
+            if (event.key === Qt.Key_Escape) { window.closeSourceModal(); event.accepted = true }
         } else if (window.currentView === "series") {
             if (event.key === Qt.Key_Escape) {
                 window.currentView = "search"
                 searchInput.forceActiveFocus()
                 event.accepted = true
-            } else if (event.key === Qt.Key_Tab) {
-                let idx = -1
-                for (let i = 0; i < seasonModel.count; i++) { if (seasonModel.get(i).seasonNum === window.currentSeason) { idx = i; break } }
-                if (idx !== -1) { window.currentSeason = seasonModel.get((idx + 1) % seasonModel.count).seasonNum; updateEpisodes(window.currentSeason) }
-                event.accepted = true
-            } else if (event.key === Qt.Key_Backtab) {
-                let idx = -1
-                for (let i = 0; i < seasonModel.count; i++) { if (seasonModel.get(i).seasonNum === window.currentSeason) { idx = i; break } }
-                if (idx !== -1) { window.currentSeason = seasonModel.get((idx - 1 + seasonModel.count) % seasonModel.count).seasonNum; updateEpisodes(window.currentSeason) }
+            } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                let sCount = seasonModel.count
+                if (sCount > 0) {
+                    let idx = -1
+                    for (let i = 0; i < sCount; i++) { if (seasonModel.get(i).seasonNum === window.currentSeason) { idx = i; break } }
+                    if (idx !== -1) {
+                        let step = event.key === Qt.Key_Tab ? 1 : -1
+                        window.currentSeason = seasonModel.get((idx + step + sCount) % sCount).seasonNum
+                        updateEpisodes(window.currentSeason)
+                    }
+                }
                 event.accepted = true
             } else if (event.key === Qt.Key_Down) {
-                if (epList.currentIndex < epList.count - 1) epList.currentIndex++
-                event.accepted = true
+                if (epList.currentIndex < epList.count - 1) epList.currentIndex++; event.accepted = true
             } else if (event.key === Qt.Key_Up) {
-                if (epList.currentIndex > 0) epList.currentIndex--
-                event.accepted = true
+                if (epList.currentIndex > 0) epList.currentIndex--; event.accepted = true
             } else if (event.key === Qt.Key_Return) {
                 let ep = episodeModel.get(epList.currentIndex)
                 if (ep) startSourceCheck("tv", window.selectedImdbId, window.selectedTitle, window.selectedPoster, window.currentSeason, ep.epNum)
@@ -472,8 +409,10 @@ Item {
             event.accepted = true
         }
     }
+
     property bool isKeyboardNav: false
     Timer { id: keyboardNavTimer; interval: 500; repeat: false; onTriggered: window.isKeyboardNav = false }
+
     ListModel { id: searchHistoryModel }
     ListModel { id: watchHistoryModel }
     ListModel { id: cachedTrendingMovies }
@@ -481,6 +420,7 @@ Item {
     ListModel { id: searchResults }
     ListModel { id: seasonModel }
     ListModel { id: episodeModel }
+
     function addToWatchHistory(item) {
         for (let i = 0; i < watchHistoryModel.count; i++) {
             if (watchHistoryModel.get(i).imdbId === item.imdbId) {
@@ -492,6 +432,7 @@ Item {
         if (watchHistoryModel.count > 15) watchHistoryModel.remove(15)
         saveWatchHistory()
     }
+
     function addSearchHistory(query) {
         if (query.trim() === "") return
         for (let i = 0; i < searchHistoryModel.count; i++) {
@@ -504,6 +445,7 @@ Item {
         if (searchHistoryModel.count > 10) searchHistoryModel.remove(10)
         saveHistory()
     }
+
     // ==========================================
     // SOURCE CHECKING SYSTEM
     // ==========================================
@@ -517,15 +459,14 @@ Item {
         "404", "not found", "no results", "video not found", "media not found",
         "content not found", "page not found", "error 404", "does not exist"
     ]
+
     function buildSourceUrl(srcIndex) {
         let src = sourceModel.get(srcIndex)
         let m = pendingMedia
-        if (m.type === "movie") {
-            return src.urlMovie.arg(m.imdbId)
-        } else {
-            return src.urlTv.arg(m.imdbId).arg(m.season).arg(m.ep)
-        }
+        if (m.type === "movie") return src.urlMovie.arg(m.imdbId)
+        return src.urlTv.arg(m.imdbId).arg(m.season).arg(m.ep)
     }
+
     function buildSourceOrder() {
         let order = []
         let imdbId = pendingMedia.imdbId
@@ -537,13 +478,13 @@ Item {
             }
         }
         if (prefIdx !== -1) order.push(prefIdx)
-        for (let i = 0; i < sourceModel.count; i++) {
-            if (i !== prefIdx) order.push(i)
-        }
+        for (let i = 0; i < sourceModel.count; i++) { if (i !== prefIdx) order.push(i) }
         return order
     }
+
     property var sourceCheckOrder: []
     property int sourceCheckStep: 0
+
     function startSourceCheck(type, imdbId, title, poster, season, ep) {
         pendingMedia = { type: type, imdbId: imdbId, title: title, poster: poster, season: season, ep: ep }
         for (let i = 0; i < sourceModel.count; i++) sourceModel.setProperty(i, "status", "pending")
@@ -558,6 +499,7 @@ Item {
         checkNextSource()
         saveUiState()
     }
+
     function closeSourceModal() {
         if (window.activeCheckXhr !== null) {
             try { window.activeCheckXhr.abort() } catch(e) {}
@@ -565,13 +507,11 @@ Item {
         }
         window.isSourceModalOpen = false
         window.checkingState = "idle"
-        if (window.currentView === "series") {
-            window.forceActiveFocus()
-        } else {
-            searchInput.forceActiveFocus()
-        }
+        if (window.currentView === "series") window.forceActiveFocus()
+        else searchInput.forceActiveFocus()
         saveUiState()
     }
+
     function skipToNextSource() {
         if (window.activeCheckXhr !== null) {
             try { window.activeCheckXhr.abort() } catch(e) {}
@@ -587,30 +527,32 @@ Item {
             window.checkingState = "failed_all"
         }
     }
+
     function checkNextSource() {
-        if (!window.isSourceModalOpen) return
-        if (window.checkingState !== "checking") return
+        if (!window.isSourceModalOpen || window.checkingState !== "checking") return
         if (window.sourceCheckStep >= window.sourceCheckOrder.length) {
             window.checkingState = "failed_all"
             return
         }
+        
         window.currentCheckIndex = window.sourceCheckOrder[window.sourceCheckStep]
         sourceModel.setProperty(window.currentCheckIndex, "status", "checking")
         if (sourceListUI) sourceListUI.positionViewAtIndex(window.currentCheckIndex, ListView.Contain)
+        
         let idx = window.currentCheckIndex
         let step = window.sourceCheckStep
         let url = buildSourceUrl(idx)
         let xhr = new XMLHttpRequest()
         window.activeCheckXhr = xhr
+        
         xhr.open("GET", url, true)
         xhr.timeout = 6000
         xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (!window.isSourceModalOpen || window.checkingState !== "checking") return
-            if (window.sourceCheckStep !== step) return
+            if (xhr.readyState !== XMLHttpRequest.DONE || !window.isSourceModalOpen || window.checkingState !== "checking" || window.sourceCheckStep !== step) return
             window.activeCheckXhr = null
             let code = xhr.status
             let body = xhr.responseText ? xhr.responseText.toLowerCase() : ""
+            
             if (code === 404 || code === 410) {
                 sourceModel.setProperty(idx, "status", "failed")
                 window.sourceCheckStep++
@@ -646,16 +588,14 @@ Item {
             }
         }
         xhr.ontimeout = function() {
-            if (!window.isSourceModalOpen || window.checkingState !== "checking") return
-            if (window.sourceCheckStep !== step) return
+            if (!window.isSourceModalOpen || window.checkingState !== "checking" || window.sourceCheckStep !== step) return
             window.activeCheckXhr = null
             sourceModel.setProperty(idx, "status", "failed")
             window.sourceCheckStep++
             checkNextSource()
         }
         xhr.onerror = function() {
-            if (!window.isSourceModalOpen || window.checkingState !== "checking") return
-            if (window.sourceCheckStep !== step) return
+            if (!window.isSourceModalOpen || window.checkingState !== "checking" || window.sourceCheckStep !== step) return
             window.activeCheckXhr = null
             sourceModel.setProperty(idx, "status", "success")
             window.foundSourceName = sourceModel.get(idx).name
@@ -665,36 +605,33 @@ Item {
         }
         xhr.send()
     }
-    // --- DATA FETCHING ---
+
+    // --- DATA FETCHING & FILTERING ---
     function fetchTrending(typeStr) {
-        if (typeStr === "movie") window.isFetchingMovies = true
-        else window.isFetchingTv = true
+        let isMovie = typeStr === "movie"
+        if (isMovie) window.isFetchingMovies = true; else window.isFetchingTv = true
+        
         var xhr = new XMLHttpRequest()
         xhr.open("GET", "https://v3-cinemeta.strem.io/catalog/" + typeStr + "/top.json")
-        xhr.onerror = function() {
-            if (typeStr === "movie") window.isFetchingMovies = false
-            else window.isFetchingTv = false
-        }
+        xhr.onerror = function() { if (isMovie) window.isFetchingMovies = false; else window.isFetchingTv = false }
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (typeStr === "movie") window.isFetchingMovies = false
-            else window.isFetchingTv = false
+            if (isMovie) window.isFetchingMovies = false; else window.isFetchingTv = false
             if (xhr.status === 200) {
                 try {
                     let res = JSON.parse(xhr.responseText)
                     if (res && res.metas) {
                         let rawItems = []
-                        let targetModel = typeStr === "movie" ? cachedTrendingMovies : cachedTrendingTv
+                        let targetModel = isMovie ? cachedTrendingMovies : cachedTrendingTv
                         targetModel.clear()
                         for (let i = 0; i < res.metas.length; i++) {
                             let item = res.metas[i]
                             if (!item.id || !item.poster) continue
-                            let posterUrl = item.poster || item.posterShape || item.background || item.logo || ""
                             let entry = {
                                 imdbId: item.id,
                                 title: item.name || "Unknown",
-                                poster: posterUrl,
-                                type: typeStr === "movie" ? "movie" : "tv",
+                                poster: item.poster || item.posterShape || item.background || item.logo || "",
+                                type: isMovie ? "movie" : "tv",
                                 year: item.releaseInfo || "N/A",
                                 rating: item.imdbRating || 0,
                                 popularity: i
@@ -702,15 +639,8 @@ Item {
                             rawItems.push(entry)
                             targetModel.append(entry)
                         }
-                        if (typeStr === "movie") {
-                            window.rawTrendingMovies = rawItems
-                            window.trendingMoviesLastFetch = Date.now()
-                            window.trendingMoviesLoaded = true
-                        } else {
-                            window.rawTrendingTv = rawItems
-                            window.trendingTvLastFetch = Date.now()
-                            window.trendingTvLoaded = true
-                        }
+                        if (isMovie) { window.rawTrendingMovies = rawItems; window.trendingMoviesLastFetch = Date.now(); window.trendingMoviesLoaded = true } 
+                        else { window.rawTrendingTv = rawItems; window.trendingTvLastFetch = Date.now(); window.trendingTvLoaded = true }
                         saveTrendingCache()
                     }
                 } catch(e) {}
@@ -718,47 +648,44 @@ Item {
         }
         xhr.send()
     }
+
+    function getSortValue(item, field) {
+        if (field === "year") return parseInt(item.year || item.releaseInfo || 0) || 0
+        if (field === "title") return (item.title || item.name || "").toString()
+        if (field === "rating") return parseFloat(item.rating || item.imdbRating || 0) || 0
+        return 0
+    }
+
+    function sortItems(items) {
+        let mode = window.filterSort
+        if (mode === "Year (Newest)") items.sort((a, b) => getSortValue(b, "year") - getSortValue(a, "year"))
+        else if (mode === "Year (Oldest)") items.sort((a, b) => getSortValue(a, "year") - getSortValue(b, "year"))
+        else if (mode === "Title (A-Z)") items.sort((a, b) => getSortValue(a, "title").localeCompare(getSortValue(b, "title")))
+        else if (mode === "Title (Z-A)") items.sort((a, b) => getSortValue(b, "title").localeCompare(getSortValue(a, "title")))
+        else if (mode === "Rating (Best)") items.sort((a, b) => getSortValue(b, "rating") - getSortValue(a, "rating"))
+        else if (mode === "Rating (Worst)") items.sort((a, b) => getSortValue(a, "rating") - getSortValue(b, "rating"))
+        return items
+    }
+
     function applyFiltersToPopular() {
-        let rawMovies = window.rawTrendingMovies.slice()
-        let rawTv = window.rawTrendingTv.slice()
-        rawMovies = sortRawItems(rawMovies)
-        rawTv = sortRawItems(rawTv)
-        cachedTrendingMovies.clear()
-        for (let i = 0; i < rawMovies.length; i++) cachedTrendingMovies.append(rawMovies[i])
-        cachedTrendingTv.clear()
-        for (let i = 0; i < rawTv.length; i++) cachedTrendingTv.append(rawTv[i])
+        let rawMovies = sortItems(window.rawTrendingMovies.slice())
+        let rawTv = sortItems(window.rawTrendingTv.slice())
+        cachedTrendingMovies.clear(); for (let i = 0; i < rawMovies.length; i++) cachedTrendingMovies.append(rawMovies[i])
+        cachedTrendingTv.clear(); for (let i = 0; i < rawTv.length; i++) cachedTrendingTv.append(rawTv[i])
         movieGrid.positionViewAtBeginning()
         tvGrid.positionViewAtBeginning()
     }
-    function sortRawItems(items) {
-        if (window.filterSort === "Year (Newest)") items.sort((a, b) => parseInt(b.year || 0) - parseInt(a.year || 0))
-        else if (window.filterSort === "Year (Oldest)") items.sort((a, b) => parseInt(a.year || 9999) - parseInt(b.year || 9999))
-        else if (window.filterSort === "Title (A-Z)") items.sort((a, b) => (a.title || "").localeCompare(b.title || ""))
-        else if (window.filterSort === "Title (Z-A)") items.sort((a, b) => (b.title || "").localeCompare(a.title || ""))
-        else if (window.filterSort === "Rating (Best)") items.sort((a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0))
-        else if (window.filterSort === "Rating (Worst)") items.sort((a, b) => parseFloat(a.rating || 0) - parseFloat(b.rating || 0))
-        return items
-    }
+
     function applyFiltersAndPopulate() {
         window.isKeyboardNav = false
         searchResults.clear()
-        let items = window.currentFetchResults.slice()
-        if (window.filterSort === "Year (Newest)") items.sort((a, b) => parseInt(b.releaseInfo || 0) - parseInt(a.releaseInfo || 0))
-        else if (window.filterSort === "Year (Oldest)") items.sort((a, b) => parseInt(a.releaseInfo || 9999) - parseInt(b.releaseInfo || 9999))
-        else if (window.filterSort === "Title (A-Z)") items.sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-        else if (window.filterSort === "Title (Z-A)") items.sort((a, b) => (b.name || "").localeCompare(a.name || ""))
-        else if (window.filterSort === "Rating (Best)") items.sort((a, b) => parseFloat(b.imdbRating || 0) - parseFloat(a.imdbRating || 0))
-        else if (window.filterSort === "Rating (Worst)") items.sort((a, b) => parseFloat(a.imdbRating || 0) - parseFloat(b.imdbRating || 0))
+        let items = sortItems(window.currentFetchResults.slice())
         for (let i = 0; i < items.length; i++) {
             let item = items[i]
             if (!item.id) continue
             searchResults.append({
-                imdbId: item.id,
-                title: item.name || "Unknown",
-                poster: item.poster || "",
-                type: item.type === "series" ? "tv" : "movie",
-                year: item.releaseInfo || "N/A",
-                rating: item.imdbRating || 0
+                imdbId: item.id, title: item.name || "Unknown", poster: item.poster || "",
+                type: item.type === "series" ? "tv" : "movie", year: item.releaseInfo || "N/A", rating: item.imdbRating || 0
             })
         }
         Qt.callLater(function() {
@@ -767,6 +694,7 @@ Item {
             if (tvGrid && tvGrid.count > 0) tvGrid.currentIndex = 0
         })
     }
+
     function doSearch(query) {
         let q = encodeURIComponent(query.trim())
         let expectedType = window.mediaType
@@ -796,6 +724,7 @@ Item {
         }
         xhr.send()
     }
+
     function enrichSearchPosters(metas, typeStr) {
         for (let i = 0; i < metas.length; i++) {
             let item = metas[i]
@@ -829,35 +758,27 @@ Item {
             })(capturedImdbId)
         }
     }
+
     function fetchPosterFallback(imdbId, typeStr) {
-        // Try rpdb poster API — free tier, no auth needed for IMDB IDs
         let rpdbUrl = "https://api.ratingposterdb.com/imdb/poster-default/" + imdbId + ".jpg"
-        // Verify the image is valid by checking if it returns a real image
         var xhrCheck = new XMLHttpRequest()
         xhrCheck.open("HEAD", rpdbUrl, true)
         xhrCheck.timeout = 5000
         xhrCheck.onreadystatechange = function() {
             if (xhrCheck.readyState !== XMLHttpRequest.DONE) return
             if (xhrCheck.status === 200) {
-                // rpdb returned a valid poster
                 for (let j = 0; j < searchResults.count; j++) {
                     if (searchResults.get(j).imdbId === imdbId) {
                         searchResults.setProperty(j, "poster", rpdbUrl)
                         break
                     }
                 }
-                return
-            }
-            // Also update watch history model if this imdbId is there
-            for (let j = 0; j < watchHistoryModel.count; j++) {
-                if (watchHistoryModel.get(j).imdbId === imdbId && watchHistoryModel.get(j).poster === "") {
-                    // Still no poster found — the title fallback in the delegate handles display
-                }
             }
         }
         xhrCheck.onerror = function() { /* silently fail — delegate shows title fallback */ }
         xhrCheck.send()
     }
+
     function fetchAndUpdatePoster(imdbId, typeStr, targetModel) {
         var xhr = new XMLHttpRequest()
         let metaType = typeStr === "tv" ? "series" : "movie"
@@ -869,9 +790,7 @@ Item {
             if (xhr.status === 200) {
                 try {
                     let res = JSON.parse(xhr.responseText)
-                    if (res && res.meta) {
-                        posterFound = res.meta.poster || res.meta.background || ""
-                    }
+                    if (res && res.meta) posterFound = res.meta.poster || res.meta.background || ""
                 } catch(e) {}
             }
             if (posterFound !== "") {
@@ -888,18 +807,26 @@ Item {
         xhr.onerror = function() { fetchPosterFallback(imdbId, metaType) }
         xhr.send()
     }
-    function loadSeriesDetails(imdbId, title, poster) {
-        window.selectedImdbId = imdbId
-        window.selectedTitle = title
-        window.selectedPoster = poster
-        window.selectedDescription = ""
-        window.currentView = "series"
+
+    function fetchSeriesData(imdbId, targetSeason, title, poster, isReload) {
+        if (!isReload) {
+            window.selectedImdbId = imdbId
+            window.selectedTitle = title
+            window.selectedPoster = poster
+            window.selectedDescription = ""
+            window.currentView = "series"
+            window.forceActiveFocus()
+        }
         window.isLoadingSeries = true
-        window.forceActiveFocus()
-        seasonModel.clear(); episodeModel.clear()
+        seasonModel.clear()
+        episodeModel.clear()
+
         var xhr = new XMLHttpRequest()
         xhr.open("GET", "https://v3-cinemeta.strem.io/meta/series/" + imdbId + ".json")
-        xhr.onerror = function() { window.isLoadingSeries = false }
+        xhr.onerror = function() { 
+            window.isLoadingSeries = false
+            if (isReload && window.pendingSeriesFocusRestore) seriesFocusRestoreTimer.restart()
+        }
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
             window.isLoadingSeries = false
@@ -907,10 +834,9 @@ Item {
                 try {
                     var res = JSON.parse(xhr.responseText)
                     if (res && res.meta) {
-                        window.selectedDescription = res.meta.description || res.meta.synopsis || ""
-                        if ((!window.selectedPoster || window.selectedPoster === "") && res.meta.poster) {
-                            window.selectedPoster = res.meta.poster
-                        }
+                        if (!isReload || !window.selectedDescription) window.selectedDescription = res.meta.description || res.meta.synopsis || ""
+                        if ((!window.selectedPoster || window.selectedPoster === "") && res.meta.poster) window.selectedPoster = res.meta.poster
+                        
                         if (res.meta.videos) {
                             let seasonsMap = {}
                             for (let i = 0; i < res.meta.videos.length; i++) {
@@ -918,10 +844,7 @@ Item {
                                 if (v.season === 0) continue
                                 if (!seasonsMap[v.season]) seasonsMap[v.season] = []
                                 let epTitle = v.name || v.title || null
-                                if (epTitle) {
-                                    let genericPattern = /^(episode\s*\d+|s\d+e\d+|ep\.?\s*\d+)$/i
-                                    if (genericPattern.test(epTitle.toLowerCase().trim())) epTitle = null
-                                }
+                                if (epTitle && /^(episode\s*\d+|s\d+e\d+|ep\.?\s*\d+)$/i.test(epTitle.toLowerCase().trim())) epTitle = null
                                 seasonsMap[v.season].push({
                                     ep: v.episode,
                                     title: epTitle || ("Episode " + v.episode),
@@ -931,23 +854,30 @@ Item {
                             let seasonKeys = Object.keys(seasonsMap).map(Number).sort((a, b) => a - b)
                             for (let i = 0; i < seasonKeys.length; i++) seasonModel.append({ seasonNum: seasonKeys[i] })
                             window.seriesDataMap = seasonsMap
-                            if (seasonKeys.length > 0) {
-                                window.currentSeason = seasonKeys[0]
-                                updateEpisodes(window.currentSeason)
-                            }
+                            
+                            let newTargetSeason = (isReload && seasonsMap[targetSeason]) ? targetSeason : (seasonKeys[0] || 1)
+                            window.currentSeason = newTargetSeason
+                            updateEpisodes(newTargetSeason)
                         }
                     }
                 } catch(e) {}
             }
+            if (isReload && window.pendingSeriesFocusRestore) seriesFocusRestoreTimer.restart()
+            if (!isReload) saveUiState()
         }
         xhr.send()
-        saveUiState()
     }
+
+    function loadSeriesDetails(imdbId, title, poster) {
+        fetchSeriesData(imdbId, 1, title, poster, false)
+    }
+
     function updateEpisodes(seasonNum) {
         window.seasonSwitching = true
         seasonContentSwapTimer.targetSeason = seasonNum
         seasonContentSwapTimer.restart()
     }
+
     Timer {
         id: seasonContentSwapTimer
         property int targetSeason: 1
@@ -959,11 +889,7 @@ Item {
             if (eps) {
                 eps.sort((a, b) => a.ep - b.ep)
                 for (let i = 0; i < eps.length; i++) {
-                    episodeModel.append({
-                        epNum: eps[i].ep,
-                        epTitle: eps[i].title,
-                        hasRealTitle: eps[i].hasRealTitle || false
-                    })
+                    episodeModel.append({ epNum: eps[i].ep, epTitle: eps[i].title, hasRealTitle: eps[i].hasRealTitle || false })
                 }
             }
             epList.currentIndex = 0
@@ -971,19 +897,15 @@ Item {
             seasonFadeInTimer.restart()
         }
     }
-    Timer {
-        id: seasonFadeInTimer
-        interval: 30
-        repeat: false
-        onTriggered: {
-            window.seasonSwitching = false
-        }
-    }
+
+    Timer { id: seasonFadeInTimer; interval: 30; repeat: false; onTriggered: window.seasonSwitching = false }
+
     function getActiveGrid() {
         if (window.isSearchMode) return searchGrid
         if (window.mediaType === "movie") return movieGrid
         return tvGrid
     }
+
     // --- SHARED STYLES ---
     component CustomComboBox: ComboBox {
         id: control
@@ -1008,6 +930,7 @@ Item {
             background: Rectangle { color: window.crust; border.color: window.surface1; radius: window.s(14) }
         }
     }
+
     component PosterDelegate: Rectangle {
         width: window.s(120); height: width * 1.5
         radius: window.s(10); color: window.crust; clip: true
@@ -1065,18 +988,15 @@ Item {
             }
         }
     }
+
     Component {
         id: dashboardHeaderComp
         Item {
             width: GridView.view.width
             property bool hasSearch: searchHistoryModel.count > 0
             property bool hasWatch: watchHistoryModel.count > 0
-            readonly property real searchSectionH: hasSearch
-                ? (window.s(16) + window.s(12) + window.s(32) + window.s(28))
-                : 0
-            readonly property real watchSectionH: hasWatch
-                ? (window.s(16) + window.s(12) + window.s(200) + window.s(28))
-                : 0
+            readonly property real searchSectionH: hasSearch ? (window.s(16) + window.s(12) + window.s(32) + window.s(28)) : 0
+            readonly property real watchSectionH: hasWatch ? (window.s(16) + window.s(12) + window.s(200) + window.s(28)) : 0
             readonly property real popularLabelH: window.s(16) + window.s(16)
             height: searchSectionH + watchSectionH + popularLabelH
             Column {
@@ -1172,6 +1092,7 @@ Item {
             }
         }
     }
+
     // --- UI LAYOUT ---
     Rectangle {
         id: mainBg
@@ -1373,9 +1294,7 @@ Item {
                                             anchors.fill: parent
                                             source: model.poster !== "" ? model.poster : ""
                                             fillMode: Image.PreserveAspectCrop
-                                            asynchronous: true
-                                            smooth: true
-                                            cache: true
+                                            asynchronous: true; smooth: true; cache: true
                                             visible: status === Image.Ready
                                         }
                                         Rectangle {
@@ -1384,9 +1303,7 @@ Item {
                                             radius: window.s(8)
                                             property bool isLoading: model.poster !== "" && gridImage.status === Image.Loading
                                             Rectangle {
-                                                anchors.fill: parent
-                                                radius: window.s(8)
-                                                color: "transparent"
+                                                anchors.fill: parent; radius: window.s(8); color: "transparent"
                                                 visible: parent.isLoading
                                                 Rectangle {
                                                     width: parent.width * 0.4; height: parent.height
@@ -1396,8 +1313,7 @@ Item {
                                                     NumberAnimation on shimX {
                                                         from: -parent.parent.width
                                                         to: parent.parent.width * 1.5
-                                                        duration: 1200
-                                                        loops: Animation.Infinite
+                                                        duration: 1200; loops: Animation.Infinite
                                                         running: parent.parent.parent.isLoading
                                                         easing.type: Easing.InOutSine
                                                     }
@@ -1478,8 +1394,7 @@ Item {
                         source: window.selectedPoster !== "" ? window.selectedPoster : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true; smooth: true; cache: true
-                        sourceSize.width: window.s(440)
-                        sourceSize.height: window.s(600)
+                        sourceSize.width: window.s(440); sourceSize.height: window.s(600)
                         visible: status === Image.Ready
                     }
                     Rectangle {
@@ -1489,8 +1404,7 @@ Item {
                     }
                 }
                 Text {
-                    Layout.fillWidth: true
-                    text: window.selectedTitle
+                    Layout.fillWidth: true; text: window.selectedTitle
                     font.family: "JetBrains Mono"; font.pixelSize: window.s(16); font.weight: Font.Bold
                     color: window.text; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
                     maximumLineCount: 3; elide: Text.ElideRight
@@ -1500,8 +1414,7 @@ Item {
                     Layout.preferredHeight: Math.min(window.s(120), descText.implicitHeight + window.s(8))
                     Layout.maximumHeight: window.s(120)
                     visible: window.selectedDescription !== ""
-                    clip: true
-                    contentHeight: descText.implicitHeight
+                    clip: true; contentHeight: descText.implicitHeight
                     ScrollBar.vertical: ScrollBar { contentItem: Rectangle { radius: window.s(2); color: window.surface2; implicitWidth: window.s(3) } }
                     Text {
                         id: descText
@@ -1545,9 +1458,7 @@ Item {
                                 id: seasonLabelText
                                 anchors.centerIn: parent
                                 text: "S" + model.seasonNum
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: window.s(13)
-                                font.weight: isActive ? Font.Bold : Font.Medium
+                                font.family: "JetBrains Mono"; font.pixelSize: window.s(13); font.weight: isActive ? Font.Bold : Font.Medium
                                 color: isActive ? window.crust : window.text
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
@@ -1690,10 +1601,10 @@ Item {
                             Text {
                                 text: window.checkingState === "checking" ? "Finding Stream..."
                                     : window.checkingState === "found"    ? "Stream Ready!"
-                                    :                                        "No Streams Found"
+                                    :                                       "No Streams Found"
                                 color: window.checkingState === "found"      ? window.green
                                      : window.checkingState === "failed_all" ? window.red
-                                     :                                          window.text
+                                     :                                         window.text
                                 font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: window.s(17)
                                 Behavior on color { ColorAnimation { duration: 300 } }
                             }
@@ -1755,7 +1666,7 @@ Item {
                                     color: model.status === "checking" ? window.blue
                                          : model.status === "success"  ? window.green
                                          : model.status === "failed"   ? Qt.rgba(window.red.r, window.red.g, window.red.b, 0.7)
-                                         :                                window.text
+                                         :                               window.text
                                     Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 200 } }
                                 }

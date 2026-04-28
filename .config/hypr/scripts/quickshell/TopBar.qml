@@ -1464,8 +1464,9 @@ Variants {
                                 Row { 
                                     id: batLayoutRow
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: barWindow.s(12)
+                                    anchors.horizontalCenter: barWindow.isDesktop ? parent.horizontalCenter : undefined
+                                    anchors.left: barWindow.isDesktop ? undefined : parent.left
+                                    anchors.leftMargin: barWindow.isDesktop ? 0 : barWindow.s(12)
                                     spacing: barWindow.s(8)
                                     Text { 
                                         anchors.verticalCenter: parent.verticalCenter
@@ -1482,9 +1483,10 @@ Variants {
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                     }
                                 }
-                                MouseArea { id: batMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle battery"]) }
-                            }
-                        }
+				MouseArea { id: batMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle battery"]) 
+			       }
+		       	    }                        
+	         	}
 		    }
 		    Rectangle {
                         id: recButton

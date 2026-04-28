@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Versioning & Initialization
 # ==============================================================================
-DOTS_VERSION="1.6.7-5"
+DOTS_VERSION="1.6.7-6"
 VERSION_FILE="$HOME/.local/state/imperative-dots-version"
 
 # ==============================================================================
@@ -166,8 +166,7 @@ fi
 # Package Arrays
 # ==============================================================================
 ARCH_PKGS=(
-    "hyprland" "hypridle" "kitty" "cava" "zbar" "rofi-wayland" 
-    "pavucontrol" "alsa-utils" "awww" "networkmanager-dmenu-git"
+    "hyprland" "hypridle" "kitty" "cava" "zbar" "pavucontrol" "alsa-utils" "awww" "networkmanager-dmenu-git"
     "wl-clipboard" "fd" "qt6-multimedia" "qt6-5compat" "ripgrep"
     "cliphist" "jq" "socat" "inotify-tools" "pamixer" "brightnessctl" "acpi" "iw"
     "bluez" "bluez-utils" "libnotify" "networkmanager" "lm_sensors" "bc" 
