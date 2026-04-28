@@ -143,6 +143,21 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
         dev_icon="󰓃"; dev_name="System"
     fi
 
+    # --- 6.5. Matugen Colors ---
+    if { [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; } && [ -f "$displayArt" ]; then
+        /bin/matugen image "$displayArt" --source-color-index 0
+    else
+        if [ -e ~/.cache/current_wallpaper.png ]; then
+            /bin/matugen image ~/.cache/current_wallpaper.png --source-color-index 0
+        else
+            WALLPAPER=$(awww query | sed -n 's/.*image: //p' | head -n1)
+
+            if [ -n "$WALLPAPER" ] && [ -f "$WALLPAPER" ]; then
+                /bin/matugen image "$WALLPAPER" --source-color-index 0
+            fi
+        fi
+    fi
+
     # --- 7. JSON OUTPUT ---
     jq -n -c \
         --arg title "$title" \
