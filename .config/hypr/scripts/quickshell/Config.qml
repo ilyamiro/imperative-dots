@@ -136,7 +136,6 @@ Item {
             ? `sed -i 's|^#*[[:space:]]*exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' "${config.hyprDir}/config/autostart.conf"`
             : `sed -i 's|^exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|# exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' "${config.hyprDir}/config/autostart.conf"`;
         sh(patchCmd);
-        guideAutostartSyncTimer.restart();
 
         if (config.workspaceCount !== config.initialWorkspaceCount) {
             sh(`qs -p "${qsScriptsDir}/TopBar.qml" ipc call topbar queueReload`);
@@ -229,7 +228,7 @@ Item {
 
     Process {
         id: autostartMigrator
-        command: ["bash", "-c", `grep -E '^\\s*exec-once\\s*=' "${config.hyprDir}/config/autostart.conf" 2>/dev/null | sed 's/^\\s*exec-once\\s*=\\s*//'`]
+        command: ["bash", "-c", `grep -E '^\\s*exec-once\\s*=' "${config.hyprDir}/config/autostart.conf" 2>/dev/null | grep -v 'qs_manager.sh toggle guide' | sed 's/^\\s*exec-once\\s*=\\s*//'`]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {

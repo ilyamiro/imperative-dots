@@ -1879,6 +1879,8 @@ if [ -f "$UPSTREAM_STARTUPS_CONF" ]; then
         cmd="${cmd#"${cmd%%[![:space:]]*}"}"
         cmd="${cmd%"${cmd##*[![:space:]]}"}"
 
+        [[ "$cmd" == *"qs_manager.sh toggle guide"* ]] && continue
+
         jq -c -n --arg c "$cmd" '{command: $c}' >> "$TMP_STARTUPS"
     done < "$UPSTREAM_STARTUPS_CONF"
 
