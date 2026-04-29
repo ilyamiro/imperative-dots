@@ -18,6 +18,7 @@ Item {
     function s(val) { 
         return scaler.s(val); 
     }
+    
     property bool isLayoutDropdownOpen: false
 
     property bool isSearchMode: false
@@ -133,9 +134,9 @@ Item {
     function activateHighlightedBox() {
         if (root.currentTab === 0) {
             if (root.highlightedBox === 0) {
-                root.setOpenGuideAtStartup = !root.setOpenGuideAtStartup;
+                Config.openGuideAtStartup = !Config.openGuideAtStartup;
             } else if (root.highlightedBox === 1) {
-                root.setTopbarHelpIcon = !root.setTopbarHelpIcon;
+                Config.topbarHelpIcon = !Config.topbarHelpIcon;
             } else if (root.highlightedBox === 2) {
             } else if (root.highlightedBox === 3) {
                 if (generalLoader.item) generalLoader.item.focusLangInput();
@@ -193,14 +194,13 @@ Item {
             let approxY = box * root.s(56) + root.s(120);
             keybindLoader.item.scrollToBox(approxY);
         } else if (root.currentTab === 3 && startupLoader.item) {
-            let approxY = box * root.s(56) + root.s(80);
+            let approxY = box * root.s(56) + root.s(20);
             startupLoader.item.scrollToBox(approxY);
         }
     }
 
     property int currentTab: 0
     property var tabNames: ["General", "Weather", "Keybinds", "Startup"]
-    // FIX 3: Added gear icon for General tab
     property var tabIcons: ["󰒓", "󰖐", "󰌌", "󰐥"]
     property var tabColors: ["teal", "blue", "peach", "green"]
 
@@ -294,25 +294,24 @@ Item {
             return;
         }
         
-        // FIX 2: Left/Right arrow keys adjust UI Scale (box 2) and Workspaces (box 6)
         if (event.key === Qt.Key_Left) {
             if (root.currentTab === 0 && root.highlightedBox === 2) {
-                root.setUiScale = Math.max(0.5, (root.setUiScale - 0.1).toFixed(1));
+                Config.uiScale = Math.max(0.5, (Config.uiScale - 0.1).toFixed(1));
                 event.accepted = true;
                 return;
             } else if (root.currentTab === 0 && root.highlightedBox === 6) {
-                root.setWorkspaceCount = Math.max(2, root.setWorkspaceCount - 1);
+                Config.workspaceCount = Math.max(2, Config.workspaceCount - 1);
                 event.accepted = true;
                 return;
             }
         }
         if (event.key === Qt.Key_Right) {
             if (root.currentTab === 0 && root.highlightedBox === 2) {
-                root.setUiScale = Math.min(2.0, (root.setUiScale + 0.1).toFixed(1));
+                Config.uiScale = Math.min(2.0, (Config.uiScale + 0.1).toFixed(1));
                 event.accepted = true;
                 return;
             } else if (root.currentTab === 0 && root.highlightedBox === 6) {
-                root.setWorkspaceCount = Math.min(10, root.setWorkspaceCount + 1);
+                Config.workspaceCount = Math.min(10, Config.workspaceCount + 1);
                 event.accepted = true;
                 return;
             }
@@ -365,8 +364,8 @@ Item {
             event.accepted = true;
             return;
         }
-        if (root.currentTab === 0) root.saveAppSettings();
-        else if (root.currentTab === 1) root.saveWeatherConfig();
+        if (root.currentTab === 0) Config.saveAppSettings();
+        else if (root.currentTab === 1) Config.saveWeatherConfig();
         else if (root.currentTab === 2) root.saveAllKeybinds();
         else if (root.currentTab === 3) root.saveAllStartup();
         event.accepted = true;
@@ -436,21 +435,6 @@ Item {
     readonly property color yellow: _theme.yellow
     readonly property color red: _theme.red
 
-    property int initialWorkspaceCount: 8 
-    property real setUiScale: 1.0
-    property bool setOpenGuideAtStartup: true
-    property bool setTopbarHelpIcon: true
-    property int setWorkspaceCount: 8
-    property string setWallpaperDir: {
-        const dir = Quickshell.env("WALLPAPER_DIR")
-        return (dir && dir !== "") 
-        ? dir 
-        : Quickshell.env("HOME") + "/Pictures/Wallpapers"
-    }
-    property string setLanguage: ""
-    property string setKbOptions: "grp:alt_shift_toggle"
-    property bool requiresReload: false
-
     property var kbToggleModelArr: [
         { label: "Alt + Shift", val: "grp:alt_shift_toggle" },
         { label: "Win + Space", val: "grp:win_space_toggle" },
@@ -468,115 +452,23 @@ Item {
         return "Alt + Shift";
     }
 
-    function saveAppSettings() {
-        let config = {
-            "uiScale": root.setUiScale,
-            "openGuideAtStartup": root.setOpenGuideAtStartup,
-            "topbarHelpIcon": root.setTopbarHelpIcon,
-            "wallpaperDir": root.setWallpaperDir,
-            "language": root.setLanguage,
-            "kbOptions": root.setKbOptions,
-            "workspaceCount": root.setWorkspaceCount
-        };
-        let jsonString = JSON.stringify(config);
-        let cmd = "mkdir -p ~/.config/hypr/ && [ ! -f ~/.config/hypr/settings.json ] && echo '{}' > ~/.config/hypr/settings.json; " +
-                  "jq '. + " + jsonString + "' ~/.config/hypr/settings.json > ~/.config/hypr/settings.json.tmp && " +
-                  "mv ~/.config/hypr/settings.json.tmp ~/.config/hypr/settings.json && " +
-                  "notify-send 'Quickshell' 'Settings Applied Successfully!'";
-        Quickshell.execDetached(["bash", "-c", cmd]);
-        let guideVal = root.setOpenGuideAtStartup;
-        let patchCmd = guideVal
-            ? "sed -i 's|^#*[[:space:]]*exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' ~/.config/hypr/config/autostart.conf"
-            : "sed -i 's|^exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|# exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' ~/.config/hypr/config/autostart.conf";
-        Quickshell.execDetached(["bash", "-c", patchCmd]);
-        guideAutostartSyncTimer.restart();
-        if (root.setWorkspaceCount !== root.initialWorkspaceCount) {
-            Quickshell.execDetached(["qs", "-p", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/TopBar.qml", "ipc", "call", "topbar", "queueReload"]);
-            root.initialWorkspaceCount = root.setWorkspaceCount; 
-        }
-    }
-
-    property string selectedUnit: "metric"
-    property bool apiKeyVisible: false
-    property string _apiKeyText: ""
-    property string _cityIdText: ""
-
-    function saveWeatherConfig() {
-        var cache_weather = Quickshell.env("HOME") + "/.cache/quickshell/weather";
-        var file = Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/calendar/.env";
-        var cmds = [
-            "mkdir -p $(dirname " + file + ")",
-            "echo '# OpenWeather API Configuration (OVERWRITE, not add)' > " + file,
-            "echo 'OPENWEATHER_KEY=" + root._apiKeyText + "' >> " + file,
-            "echo 'OPENWEATHER_CITY_ID=" + root._cityIdText + "' >> " + file,
-            "echo 'OPENWEATHER_UNIT=" + root.selectedUnit + "' >> " + file,
-            "rm -rf " + cache_weather,
-            "notify-send 'Weather' 'API configuration saved successfully!'"
-        ];
-        var finalCmd = cmds.join(" && ");
-        Quickshell.execDetached(["bash", "-c", finalCmd]);
-    }
-
-    Process {
-        id: envReader
-        command: ["bash", "-c", "cat ~/.config/hypr/scripts/quickshell/calendar/.env 2>/dev/null || echo ''"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let lines = this.text ? this.text.trim().split('\n') : [];
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith("OPENWEATHER_KEY=")) root._apiKeyText = line.substring(16).trim();
-                    else if (line.startsWith("OPENWEATHER_CITY_ID=")) root._cityIdText = line.substring(20).trim();
-                    else if (line.startsWith("OPENWEATHER_UNIT=")) root.selectedUnit = line.substring(17).trim();
-                }
-            }
-        }
-    }
-
     ListModel { id: dynamicKeybindsModel }
-
-    ListModel { id: dynamicStartupModel }
-
-    Process {
-        id: autostartMigrator
-        command: ["bash", "-c", "grep -E '^\\s*exec-once\\s*=' ~/.config/hypr/config/autostart.conf 2>/dev/null | sed 's/^\\s*exec-once\\s*=\\s*//'"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                dynamicStartupModel.clear();
-                let lines = this.text ? this.text.trim().split('\n') : [];
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.length > 0) {
-                        dynamicStartupModel.append({ command: line, isEditing: false });
-                    }
-                }
-                root.saveAllStartup();
-            }
+    
+    Connections {
+        target: Config
+        // Triggers the very first time Config finishes reading the JSON
+        function onKeybindsLoaded() {
+            dynamicKeybindsModel.clear();
+            dynamicKeybindsModel.append(Config.keybindsData);
         }
-    }
-
-    function saveAllStartup() {
-        let startupArray = [];
-        for (let i = 0; i < dynamicStartupModel.count; i++) {
-            let cmd = dynamicStartupModel.get(i).command.trim();
-            if (cmd.length > 0) startupArray.push({ command: cmd });
+        // Triggers whenever you save and Config.keybindsData is overwritten
+        function onKeybindsDataChanged() {
+            dynamicKeybindsModel.clear();
+            dynamicKeybindsModel.append(Config.keybindsData);
         }
-        let jsonStr = JSON.stringify(startupArray).replace(/'/g, "'\\''");
-        let cmd = "mkdir -p ~/.config/hypr/ && [ ! -f ~/.config/hypr/settings.json ] && echo '{}' > ~/.config/hypr/settings.json; " +
-                  "jq '.startup = " + jsonStr + "' ~/.config/hypr/settings.json > ~/.config/hypr/settings.json.tmp && " +
-                  "mv ~/.config/hypr/settings.json.tmp ~/.config/hypr/settings.json && " +
-                  "notify-send 'Quickshell' 'Startup entries saved!'";
-        Quickshell.execDetached(["bash", "-c", cmd]);
-    }
-
+    }    
     property var bindTypes: ["bind", "binde", "bindl", "bindel", "bindm"]
     property var dispatchers: ["exec", "exec-once", "dispatch", "workspace", "movetoworkspace", "movewindow", "resizeactive", "movefocus", "togglefloating", "killactive"]
-
-    function buildKeybinds() {
-        dynamicKeybindsModel.clear(); 
-    }
 
     function saveAllKeybinds() {
         let bindsArray = [];
@@ -588,15 +480,11 @@ Item {
                 mods: item.mods,
                 key: item.key,
                 dispatcher: item.dispatcher,
-                command: item.command
+                command: item.command,
+                isEditing: false // CRITICAL: This prevents QML from dropping the role!
             });
         }
-        let jsonStr = JSON.stringify(bindsArray).replace(/'/g, "'\\''"); 
-        let cmd = "mkdir -p ~/.config/hypr/ && [ ! -f ~/.config/hypr/settings.json ] && echo '{}' > ~/.config/hypr/settings.json; " +
-                  "jq '.keybinds = " + jsonStr + "' ~/.config/hypr/settings.json > ~/.config/hypr/settings.json.tmp && " +
-                  "mv ~/.config/hypr/settings.json.tmp ~/.config/hypr/settings.json && " +
-                  "notify-send 'Quickshell' 'Keybinds Saved Successfully!'";
-        Quickshell.execDetached(["bash", "-c", cmd]);
+        Config.saveAllKeybinds(bindsArray);
     }
 
     function validateKeybind(index, mods, key, dispatcher, command) {
@@ -629,6 +517,33 @@ Item {
         return "VALID";
     }
 
+    ListModel { id: dynamicStartupModel }
+
+    Connections {
+        target: Config
+        function onStartupLoaded() {
+            dynamicStartupModel.clear();
+            for (let s of Config.startupData) {
+                dynamicStartupModel.append({ command: s.command || "", isEditing: false });
+            }
+        }
+        function onStartupDataChanged() {
+            dynamicStartupModel.clear();
+            for (let s of Config.startupData) {
+                dynamicStartupModel.append({ command: s.command || "", isEditing: false });
+            }
+        }
+    }
+
+    function saveAllStartup() {
+        let startupArray = [];
+        for (let i = 0; i < dynamicStartupModel.count; i++) {
+            let cmd = dynamicStartupModel.get(i).command.trim();
+            if (cmd.length > 0) startupArray.push({ command: cmd });
+        }
+        Config.saveAllStartup(startupArray);
+    }
+
     Timer {
         id: scrollTimer
         interval: 50
@@ -646,15 +561,6 @@ Item {
             if (startupLoader.item) {
                 startupLoader.item.scrollToBottom();
             }
-        }
-    }
-
-    Timer {
-        id: guideAutostartSyncTimer
-        interval: 300
-        onTriggered: {
-            autostartMigrator.running = false;
-            autostartMigrator.running = true;
         }
     }
 
@@ -686,7 +592,7 @@ Item {
                     approxY = targetBox * (root.s(56)) + root.s(120);
                     keybindLoader.item.scrollTo(approxY);
                 } else if (targetTab === 3 && startupLoader.item) {
-                    approxY = targetBox * (root.s(56)) + root.s(80);
+                    approxY = targetBox * (root.s(56)) + root.s(20);
                     startupLoader.item.scrollTo(approxY);
                 }
 
@@ -695,108 +601,208 @@ Item {
         }
     }    
 
-    Process {
-        id: hyprLangReader
-        command: ["bash", "-c", "grep -m1 '^ *kb_layout *=' ~/.config/hypr/hyprland.conf | cut -d'=' -f2 | tr -d ' '"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let out = this.text ? this.text.trim() : "";
-                if (out.length > 0 && root.setLanguage === "") {
-                    root.setLanguage = out;
-                }
-            }
-        }
-    }
-
-    Process {
-        id: settingsReader
-        command: ["bash", "-c", "cat ~/.config/hypr/settings.json 2>/dev/null || echo '{}'"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    if (this.text && this.text.trim().length > 0 && this.text.trim() !== "{}") {
-                        let parsed = JSON.parse(this.text);
-                        if (parsed.uiScale !== undefined) root.setUiScale = parsed.uiScale;
-                        if (parsed.openGuideAtStartup !== undefined) root.setOpenGuideAtStartup = parsed.openGuideAtStartup;
-                        if (parsed.topbarHelpIcon !== undefined) root.setTopbarHelpIcon = parsed.topbarHelpIcon;
-                        if (parsed.wallpaperDir !== undefined) root.setWallpaperDir = parsed.wallpaperDir;
-                        if (parsed.language !== undefined && parsed.language !== "") root.setLanguage = parsed.language;
-                        if (parsed.kbOptions !== undefined) root.setKbOptions = parsed.kbOptions;
-                        if (parsed.workspaceCount !== undefined) {
-                            root.setWorkspaceCount = parsed.workspaceCount;
-                            root.initialWorkspaceCount = parsed.workspaceCount; 
-                        }
-                        if (parsed.keybinds !== undefined && Array.isArray(parsed.keybinds)) {
-                            dynamicKeybindsModel.clear();
-                            let tempBinds = [];
-                            for (let k of parsed.keybinds) {
-                                tempBinds.push({
-                                    type: k.type || "bind",
-                                    mods: k.mods || "",
-                                    key: k.key || "",
-                                    dispatcher: k.dispatcher || "exec",
-                                    command: k.command || "",
-                                    isEditing: false
-                                });
-                            }
-                            dynamicKeybindsModel.append(tempBinds);
-                        } else {
-                            buildKeybinds();
-                            root.saveAllKeybinds();
-                        }
-                        if (parsed.startup !== undefined && Array.isArray(parsed.startup)) {
-                            dynamicStartupModel.clear();
-                            let tempStartup = [];
-                            for (let s of parsed.startup) {
-                                tempStartup.push({ command: s.command || "", isEditing: false });
-                            }
-                            dynamicStartupModel.append(tempStartup);
-                        } else {
-                            autostartMigrator.running = true;
-                        }
-                    } else {
-                        root.saveAppSettings();
-                        buildKeybinds();
-                        root.saveAllKeybinds();
-                        autostartMigrator.running = true;
-                    }
-                } catch (e) {
-                    console.log("Error parsing global settings:", e);
-                    buildKeybinds();
-                    autostartMigrator.running = true;
-                }
-                root.dataReady = true;
-            }
-        }
-    }
-    property bool dataReady: false
-
     ListModel {
         id: langModel
+
+        // --- Americas ---
         ListElement { code: "us"; name: "English (US)" }
-        ListElement { code: "gb"; name: "English (UK)" }
-        ListElement { code: "au"; name: "English (Australia)" }
         ListElement { code: "ca"; name: "English/French (Canada)" }
+        ListElement { code: "ca-multix"; name: "Canadian Multilingual" }
+        ListElement { code: "latam"; name: "Spanish (Latin America)" }
+        ListElement { code: "br"; name: "Portuguese (Brazil)" }
+        ListElement { code: "ar"; name: "Arabic (Latin America)" }
+        ListElement { code: "bo"; name: "Bolivia" }
+        ListElement { code: "cl"; name: "Chile" }
+        ListElement { code: "co"; name: "Colombia" }
+        ListElement { code: "cr"; name: "Costa Rica" }
+        ListElement { code: "cu"; name: "Cuba" }
+        ListElement { code: "do"; name: "Dominican Republic" }
+        ListElement { code: "ec"; name: "Ecuador" }
+        ListElement { code: "sv"; name: "El Salvador" }
+        ListElement { code: "gt"; name: "Guatemala" }
+        ListElement { code: "hn"; name: "Honduras" }
+        ListElement { code: "mx"; name: "Mexico" }
+        ListElement { code: "ni"; name: "Nicaragua" }
+        ListElement { code: "pa"; name: "Panama" }
+        ListElement { code: "py"; name: "Paraguay" }
+        ListElement { code: "pe"; name: "Peru" }
+        ListElement { code: "pr"; name: "Puerto Rico" }
+        ListElement { code: "uy"; name: "Uruguay" }
+        ListElement { code: "ve"; name: "Venezuela" }
+
+        // --- Europe (West, Central, & North) ---
+        ListElement { code: "gb"; name: "English (UK)" }
         ListElement { code: "ie"; name: "English (Ireland)" }
-        ListElement { code: "nz"; name: "English (New Zealand)" }
-        ListElement { code: "za"; name: "English (South Africa)" }
+        ListElement { code: "gd"; name: "Scottish Gaelic" }
+        ListElement { code: "cy-gb"; name: "Welsh" }
         ListElement { code: "fr"; name: "French" }
+        ListElement { code: "be"; name: "Belgian" }
+        ListElement { code: "ch"; name: "Swiss" }
         ListElement { code: "de"; name: "German" }
+        ListElement { code: "at"; name: "Austrian" }
+        ListElement { code: "nl"; name: "Dutch" }
+        ListElement { code: "lu"; name: "Luxembourgish" }
         ListElement { code: "es"; name: "Spanish" }
         ListElement { code: "pt"; name: "Portuguese" }
         ListElement { code: "it"; name: "Italian" }
+        ListElement { code: "mt"; name: "Maltese" }
         ListElement { code: "se"; name: "Swedish" }
         ListElement { code: "no"; name: "Norwegian" }
         ListElement { code: "dk"; name: "Danish" }
         ListElement { code: "fi"; name: "Finnish" }
+        ListElement { code: "is"; name: "Icelandic" }
+        ListElement { code: "fo"; name: "Faroese" }
+        ListElement { code: "gl"; name: "Greenlandic" }
         ListElement { code: "pl"; name: "Polish" }
+        ListElement { code: "cz"; name: "Czech" }
+        ListElement { code: "sk"; name: "Slovak" }
+        ListElement { code: "hu"; name: "Hungarian" }
+        ListElement { code: "ad"; name: "Andorra" }
+        ListElement { code: "mc"; name: "Monaco" }
+        ListElement { code: "sm"; name: "San Marino" }
+        ListElement { code: "va"; name: "Vatican" }
+        ListElement { code: "epo"; name: "Esperanto" }
+        ListElement { code: "eu"; name: "Basque" }
+        ListElement { code: "ca-fr"; name: "Catalan" }
+
+        // --- Europe (East) & Caucasus ---
         ListElement { code: "ru"; name: "Russian" }
         ListElement { code: "ua"; name: "Ukrainian" }
+        ListElement { code: "by"; name: "Belarusian" }
+        ListElement { code: "ro"; name: "Romanian" }
+        ListElement { code: "bg"; name: "Bulgarian" }
+        ListElement { code: "rs"; name: "Serbian" }
+        ListElement { code: "hr"; name: "Croatian" }
+        ListElement { code: "si"; name: "Slovenian" }
+        ListElement { code: "mk"; name: "Macedonian" }
+        ListElement { code: "ba"; name: "Bosnian" }
+        ListElement { code: "me"; name: "Montenegrin" }
+        ListElement { code: "gr"; name: "Greek" }
+        ListElement { code: "cy"; name: "Cyprus" }
+        ListElement { code: "ee"; name: "Estonian" }
+        ListElement { code: "lv"; name: "Latvian" }
+        ListElement { code: "lt"; name: "Lithuanian" }
+        ListElement { code: "md"; name: "Moldovan" }
+        ListElement { code: "am"; name: "Armenian" }
+        ListElement { code: "ge"; name: "Georgian" }
+        ListElement { code: "az"; name: "Azerbaijani" }
+        ListElement { code: "kz"; name: "Kazakh" }
+        ListElement { code: "kg"; name: "Kyrgyz" }
+        ListElement { code: "tj"; name: "Tajik" }
+        ListElement { code: "tm"; name: "Turkmen" }
+        ListElement { code: "uz"; name: "Uzbek" }
+        ListElement { code: "mn"; name: "Mongolian" }
+        ListElement { code: "tat"; name: "Tatar" }
+        ListElement { code: "chu"; name: "Chuvash" }
+        ListElement { code: "os"; name: "Ossetian" }
+        ListElement { code: "udm"; name: "Udmurt" }
+        ListElement { code: "kbd"; name: "Kabardian" }
+        ListElement { code: "che"; name: "Chechen" }
+
+        // --- Asia & Pacific ---
+        ListElement { code: "au"; name: "English (Australia)" }
+        ListElement { code: "nz"; name: "English (New Zealand)" }
         ListElement { code: "cn"; name: "Chinese" }
         ListElement { code: "jp"; name: "Japanese" }
         ListElement { code: "kr"; name: "Korean" }
+        ListElement { code: "tw"; name: "Taiwanese" }
+        ListElement { code: "hk"; name: "Hong Kong" }
+        ListElement { code: "in"; name: "Indian" }
+        ListElement { code: "pk"; name: "Pakistani" }
+        ListElement { code: "bd"; name: "Bangla" }
+        ListElement { code: "lk"; name: "Sri Lankan" }
+        ListElement { code: "np"; name: "Nepali" }
+        ListElement { code: "mv"; name: "Maldivian (Dhivehi)" }
+        ListElement { code: "bt"; name: "Bhutanese (Dzongkha)" }
+        ListElement { code: "af"; name: "Afghan (Pashto/Dari)" }
+        ListElement { code: "th"; name: "Thai" }
+        ListElement { code: "vn"; name: "Vietnamese" }
+        ListElement { code: "la"; name: "Lao" }
+        ListElement { code: "mm"; name: "Burmese" }
+        ListElement { code: "kh"; name: "Khmer" }
+        ListElement { code: "id"; name: "Indonesian" }
+        ListElement { code: "my"; name: "Malay" }
+        ListElement { code: "ph"; name: "Filipino" }
+        ListElement { code: "sg"; name: "Singaporean" }
+        ListElement { code: "bn"; name: "Bengali" }
+        ListElement { code: "ta"; name: "Tamil" }
+        ListElement { code: "te"; name: "Telugu" }
+        ListElement { code: "gu"; name: "Gujarati" }
+        ListElement { code: "pa"; name: "Punjabi" }
+        ListElement { code: "ml"; name: "Malayalam" }
+        ListElement { code: "kn"; name: "Kannada" }
+        ListElement { code: "or"; name: "Odia" }
+        ListElement { code: "as"; name: "Assamese" }
+        ListElement { code: "ur"; name: "Urdu" }
+
+        // --- Middle East & North Africa ---
+        ListElement { code: "il"; name: "Hebrew" }
+        ListElement { code: "ara"; name: "Arabic" }
+        ListElement { code: "iq"; name: "Iraqi" }
+        ListElement { code: "sy"; name: "Syrian" }
+        ListElement { code: "ir"; name: "Persian (Farsi)" }
+        ListElement { code: "ma"; name: "Moroccan" }
+        ListElement { code: "dz"; name: "Algerian" }
+        ListElement { code: "eg"; name: "Egyptian" }
+        ListElement { code: "ly"; name: "Libyan" }
+        ListElement { code: "tn"; name: "Tunisian" }
+        ListElement { code: "sd"; name: "Sudanese" }
+        ListElement { code: "lb"; name: "Lebanese" }
+        ListElement { code: "jo"; name: "Jordanian" }
+        ListElement { code: "ps"; name: "Palestinian" }
+        ListElement { code: "sa"; name: "Saudi Arabian" }
+        ListElement { code: "kw"; name: "Kuwaiti" }
+        ListElement { code: "bh"; name: "Bahraini" }
+        ListElement { code: "qa"; name: "Qatari" }
+        ListElement { code: "ae"; name: "UAE" }
+        ListElement { code: "om"; name: "Omani" }
+        ListElement { code: "ye"; name: "Yemeni" }
+
+        // --- Sub-Saharan Africa ---
+        ListElement { code: "za"; name: "English (South Africa)" }
+        ListElement { code: "ng"; name: "Nigerian" }
+        ListElement { code: "et"; name: "Ethiopian" }
+        ListElement { code: "sn"; name: "Senegalese" }
+        ListElement { code: "ke"; name: "Kenyan" }
+        ListElement { code: "tz"; name: "Tanzanian" }
+        ListElement { code: "gh"; name: "Ghanaian" }
+        ListElement { code: "cm"; name: "Cameroonian" }
+        ListElement { code: "ci"; name: "Ivorian" }
+        ListElement { code: "ml"; name: "Malian" }
+        ListElement { code: "gn"; name: "Guinean" }
+        ListElement { code: "cd"; name: "Congolese (DRC)" }
+        ListElement { code: "cg"; name: "Congolese (RC)" }
+        ListElement { code: "rw"; name: "Rwandan" }
+        ListElement { code: "bi"; name: "Burundian" }
+        ListElement { code: "ug"; name: "Ugandan" }
+        ListElement { code: "zm"; name: "Zambian" }
+        ListElement { code: "zw"; name: "Zimbabwean" }
+        ListElement { code: "mw"; name: "Malawian" }
+        ListElement { code: "mz"; name: "Mozambican" }
+        ListElement { code: "ao"; name: "Angolan" }
+        ListElement { code: "na"; name: "Namibian" }
+        ListElement { code: "bw"; name: "Motswana" }
+        ListElement { code: "mg"; name: "Malagasy" }
+        ListElement { code: "so"; name: "Somali" }
+        ListElement { code: "dj"; name: "Djiboutian" }
+        ListElement { code: "er"; name: "Eritrean" }
+        ListElement { code: "tg"; name: "Togolese" }
+        ListElement { code: "bj"; name: "Beninese" }
+        ListElement { code: "bf"; name: "Burkinabe" }
+        ListElement { code: "ne"; name: "Nigerien" }
+        ListElement { code: "td"; name: "Chadian" }
+        ListElement { code: "cf"; name: "Central African" }
+        ListElement { code: "gq"; name: "Equatorial Guinean" }
+        ListElement { code: "ga"; name: "Gabonese" }
+
+        // --- Alternative Layouts ---
+        ListElement { code: "us-intl"; name: "US International" }
+        ListElement { code: "dvorak"; name: "US Dvorak" }
+        ListElement { code: "colemak"; name: "US Colemak" }
+        ListElement { code: "norman"; name: "US Norman" }
+        ListElement { code: "workman"; name: "US Workman" }
+        ListElement { code: "math"; name: "Mathematics" }
+        ListElement { code: "brai"; name: "Braille" }
     }
 
     ListModel { id: pathSuggestModel }
@@ -882,9 +888,17 @@ Item {
     }
 
     property real introContent: 0.0
-    Component.onCompleted: { 
+    Component.onCompleted: {
         root.tab0Loaded = true;
-        startupSequence.start(); 
+        startupSequence.start();
+        if (Config.dataReady && dynamicKeybindsModel.count === 0) {
+            dynamicKeybindsModel.append(Config.keybindsData);
+        }
+        if (Config.dataReady && dynamicStartupModel.count === 0) {
+            for (let s of Config.startupData) {
+                dynamicStartupModel.append({ command: s.command || "", isEditing: false });
+            }
+        }
     }
 
     SequentialAnimation {
@@ -912,16 +926,7 @@ Item {
         ScriptAction { 
             script: {
                 Quickshell.execDetached(["hyprctl", "dispatch", "submap", "reset"]);
-
-                if (root.requiresReload) {
-                    let script = Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh close; " +
-                                 "while [ -n \"$(cat /tmp/qs_current_widget 2>/dev/null)\" ]; do sleep 0.1; done; " +
-                                 "sleep 0.2; " + 
-                                 "qs -p ~/.config/hypr/scripts/quickshell/TopBar.qml ipc call topbar forceReload";
-                    Quickshell.execDetached(["bash", "-c", script]);
-                } else {
-                    Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
-                }
+                Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
             } 
         }    
     }
@@ -937,7 +942,7 @@ Item {
             function layoutListDecrementIndex() { layoutListView.decrementCurrentIndex(); }
             function acceptLayoutSelection() {
                 if (layoutListView.currentIndex >= 0 && layoutListView.currentIndex < root.kbToggleModelArr.length) {
-                    root.setKbOptions = root.kbToggleModelArr[layoutListView.currentIndex].val;
+                    Config.kbOptions = root.kbToggleModelArr[layoutListView.currentIndex].val;
                 }
             }
             function scrollTo(y) {
@@ -1036,20 +1041,20 @@ Item {
                                 radius: root.s(11)
                                 scale: toggle1Ma.containsMouse ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                                color: root.setOpenGuideAtStartup
+                                color: Config.openGuideAtStartup
                                     ? (box0.isActive ? root.base : root.peach)
                                     : Qt.alpha(root.surface2, box0.isActive ? 0.4 : 1.0)
                                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 Rectangle {
                                     width: root.s(16); height: root.s(16); radius: root.s(8)
-                                    color: root.setOpenGuideAtStartup
+                                    color: Config.openGuideAtStartup
                                         ? (box0.isActive ? root.peach : root.base)
                                         : (box0.isActive ? root.peach : root.surface0)
-                                    y: root.s(3); x: root.setOpenGuideAtStartup ? root.s(21) : root.s(3)
+                                    y: root.s(3); x: Config.openGuideAtStartup ? root.s(21) : root.s(3)
                                     Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
-                                MouseArea { id: toggle1Ma; anchors.fill: parent; hoverEnabled: true; onClicked: root.setOpenGuideAtStartup = !root.setOpenGuideAtStartup; cursorShape: Qt.PointingHandCursor }
+                                MouseArea { id: toggle1Ma; anchors.fill: parent; hoverEnabled: true; onClicked: Config.openGuideAtStartup = !Config.openGuideAtStartup; cursorShape: Qt.PointingHandCursor }
                             }
                         }
                     }
@@ -1104,26 +1109,25 @@ Item {
                                 Layout.preferredWidth: root.s(40); Layout.preferredHeight: root.s(22); radius: root.s(11)
                                 scale: toggle2Ma.containsMouse ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                                color: root.setTopbarHelpIcon
+                                color: Config.topbarHelpIcon
                                     ? (box1.isActive ? root.base : root.blue)
                                     : Qt.alpha(root.surface2, box1.isActive ? 0.4 : 1.0)
                                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 Rectangle {
                                     width: root.s(16); height: root.s(16); radius: root.s(8)
-                                    color: root.setTopbarHelpIcon
+                                    color: Config.topbarHelpIcon
                                         ? (box1.isActive ? root.blue : root.base)
                                         : (box1.isActive ? root.blue : root.surface0)
-                                    y: root.s(3); x: root.setTopbarHelpIcon ? root.s(21) : root.s(3)
+                                    y: root.s(3); x: Config.topbarHelpIcon ? root.s(21) : root.s(3)
                                     Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
-                                MouseArea { id: toggle2Ma; anchors.fill: parent; hoverEnabled: true; onClicked: root.setTopbarHelpIcon = !root.setTopbarHelpIcon; cursorShape: Qt.PointingHandCursor }
+                                MouseArea { id: toggle2Ma; anchors.fill: parent; hoverEnabled: true; onClicked: Config.topbarHelpIcon = !Config.topbarHelpIcon; cursorShape: Qt.PointingHandCursor }
                             }
                         }
                     }
 
                     // ── Box 2: UI Scale ──────────────────────────────────────
-                    // FIX 1: Changed color from pink to sapphire
                     Rectangle {
                         id: box2
                         Layout.fillWidth: true
@@ -1183,10 +1187,10 @@ Item {
                                             color: box2.isActive ? root.base : root.sapphire
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
-                                        MouseArea { id: sMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: root.setUiScale = Math.max(0.5, (root.setUiScale - 0.1).toFixed(1)) }
+                                        MouseArea { id: sMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.uiScale = Math.max(0.5, (Config.uiScale - 0.1).toFixed(1)) }
                                     }
                                     Text { 
-                                        text: root.setUiScale.toFixed(1) + "x"
+                                        text: Config.uiScale.toFixed(1) + "x"
                                         font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(13)
                                         color: box2.isActive ? root.base : root.sapphire
                                         Layout.minimumWidth: root.s(36); horizontalAlignment: Text.AlignHCenter
@@ -1206,7 +1210,7 @@ Item {
                                             color: box2.isActive ? root.base : root.sapphire
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
-                                        MouseArea { id: sPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: root.setUiScale = Math.min(2.0, (root.setUiScale + 0.1).toFixed(1)) }
+                                        MouseArea { id: sPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.uiScale = Math.min(2.0, (Config.uiScale + 0.1).toFixed(1)) }
                                     }
                                 }
                             }
@@ -1258,7 +1262,7 @@ Item {
                                     Flow {
                                         Layout.fillWidth: true; spacing: root.s(6); Layout.topMargin: root.s(8)
                                         Repeater {
-                                            model: root.setLanguage ? root.setLanguage.split(",").filter(x => x.trim() !== "") : []
+                                            model: Config.language ? Config.language.split(",").filter(x => x.trim() !== "") : []
                                             Rectangle {
                                                 width: langChipLayout.implicitWidth + root.s(20); height: root.s(26); radius: root.s(13)
                                                 color: box3.isActive ? Qt.alpha(root.base, 0.2) : root.surface1
@@ -1283,9 +1287,9 @@ Item {
                                                 MouseArea {
                                                     id: chipMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
-                                                        let arr = root.setLanguage.split(",").filter(x => x.trim() !== "");
+                                                        let arr = Config.language.split(",").filter(x => x.trim() !== "");
                                                         arr.splice(index, 1);
-                                                        root.setLanguage = arr.join(",");
+                                                        Config.language = arr.join(",");
                                                     }
                                                 }
                                             }
@@ -1293,7 +1297,6 @@ Item {
                                     }
                                 }
                             }
-                            // FIX 4: Language search input - colors adapt when box3 is active
                             Rectangle {
                                 Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
                                 radius: root.s(7)
@@ -1323,8 +1326,8 @@ Item {
                                     function langInputAccept(event) {
                                         if (langSearchModel.count > 0 && langListView.currentIndex >= 0) {
                                             let item = langSearchModel.get(langListView.currentIndex);
-                                            let arr = root.setLanguage ? root.setLanguage.split(",").filter(x => x.trim() !== "") : [];
-                                            if (!arr.includes(item.code)) { arr.push(item.code); root.setLanguage = arr.join(","); }
+                                            let arr = Config.language ? Config.language.split(",").filter(x => x.trim() !== "") : [];
+                                            if (!arr.includes(item.code)) { arr.push(item.code); Config.language = arr.join(","); }
                                         }
                                         text = ""; focus = false; event.accepted = true;
                                     }
@@ -1338,7 +1341,6 @@ Item {
                                     }
                                 }
                             }
-                            // FIX 4: Language dropdown list - colors adapt when box3 is active
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: langInput.activeFocus && langSearchModel.count > 0 ? Math.min(root.s(160), langSearchModel.count * root.s(30) + root.s(8)) : 0
@@ -1372,8 +1374,8 @@ Item {
                                         MouseArea {
                                             id: sMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                let arr = root.setLanguage ? root.setLanguage.split(",").filter(x => x.trim() !== "") : [];
-                                                if (!arr.includes(model.code)) { arr.push(model.code); root.setLanguage = arr.join(","); }
+                                                let arr = Config.language ? Config.language.split(",").filter(x => x.trim() !== "") : [];
+                                                if (!arr.includes(model.code)) { arr.push(model.code); Config.language = arr.join(","); }
                                                 langInput.text = ""; langInput.focus = false;
                                             }
                                         }
@@ -1425,7 +1427,6 @@ Item {
                                         color: box4.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
-                                    // FIX 4: Dropdown button colors adapt when box4 is active
                                     Rectangle {
                                         Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
                                         radius: root.s(7)
@@ -1439,7 +1440,7 @@ Item {
                                         RowLayout {
                                             anchors.fill: parent; anchors.margins: root.s(9)
                                             Text {
-                                                text: root.getKbToggleLabel(root.setKbOptions)
+                                                text: root.getKbToggleLabel(Config.kbOptions)
                                                 font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
                                                 color: box4.isActive ? root.base : root.text; Layout.fillWidth: true
                                                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
@@ -1455,14 +1456,13 @@ Item {
                                             onClicked: {
                                                 root.isLayoutDropdownOpen = !root.isLayoutDropdownOpen;
                                                 if (root.isLayoutDropdownOpen) {
-                                                    let idx = root.kbToggleModelArr.findIndex(x => x.val === root.setKbOptions);
+                                                    let idx = root.kbToggleModelArr.findIndex(x => x.val === Config.kbOptions);
                                                     layoutListView.currentIndex = Math.max(0, idx);
                                                 }
                                                 root.forceActiveFocus();
                                             }
                                         }
                                     }
-                                    // FIX 4: Layout dropdown list colors adapt when box4 is active
                                     Rectangle {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: root.isLayoutDropdownOpen ? root.kbToggleModelArr.length * root.s(30) + root.s(8) : 0
@@ -1491,14 +1491,14 @@ Item {
                                                     anchors.fill: parent; anchors.leftMargin: root.s(8); anchors.rightMargin: root.s(8)
                                                     Text {
                                                         text: modelData.label; font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
-                                                        color: root.setKbOptions === modelData.val
+                                                        color: Config.kbOptions === modelData.val
                                                             ? (box4.isActive ? root.base : root.teal)
                                                             : (box4.isActive ? Qt.alpha(root.base, 0.8) : root.text)
                                                         Layout.fillWidth: true
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
                                                 }
-                                                MouseArea { id: toggleMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.setKbOptions = modelData.val; root.isLayoutDropdownOpen = false; } }
+                                                MouseArea { id: toggleMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { Config.kbOptions = modelData.val; root.isLayoutDropdownOpen = false; } }
                                             }
                                         }
                                     }
@@ -1562,7 +1562,7 @@ Item {
                                             id: wpDirInput
                                             anchors.fill: parent; anchors.margins: root.s(9)
                                             verticalAlignment: TextInput.AlignVCenter
-                                            text: root.setWallpaperDir
+                                            text: Config.wallpaperDir
                                             font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
                                             color: box5.isActive ? root.base : root.text; clip: true; selectByMouse: true
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
@@ -1578,7 +1578,7 @@ Item {
                                             function wpDirInputAccept(event) {
                                                 if (pathSuggestModel.count > 0 && wpSuggestListView.currentIndex >= 0) {
                                                     let item = pathSuggestModel.get(wpSuggestListView.currentIndex);
-                                                    if (item) { text = item.path; root.setWallpaperDir = text; }
+                                                    if (item) { text = item.path; Config.wallpaperDir = text; }
                                                 }
                                                 pathSuggestModel.clear(); focus = false; event.accepted = true;
                                             }
@@ -1586,7 +1586,7 @@ Item {
                                                 if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
                                             }
                                             onTextChanged: {
-                                                root.setWallpaperDir = text;
+                                                Config.wallpaperDir = text;
                                                 if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
                                             }
                                             Text {
@@ -1595,7 +1595,6 @@ Item {
                                             }
                                         }
                                     }
-                                    // FIX 4: Wallpaper dir suggestion list colors adapt when box5 is active
                                     Rectangle {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: wpDirInput.activeFocus && pathSuggestModel.count > 0 ? pathSuggestModel.count * root.s(28) + root.s(8) : 0
@@ -1691,10 +1690,10 @@ Item {
                                             color: box6.isActive ? root.base : root.red
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
-                                        MouseArea { id: wsMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: root.setWorkspaceCount = Math.max(2, root.setWorkspaceCount - 1) }
+                                        MouseArea { id: wsMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.workspaceCount = Math.max(2, Config.workspaceCount - 1) }
                                     }
                                     Text { 
-                                        text: root.setWorkspaceCount.toString()
+                                        text: Config.workspaceCount.toString()
                                         font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(14)
                                         color: box6.isActive ? root.base : root.red
                                         Layout.minimumWidth: root.s(36); horizontalAlignment: Text.AlignHCenter
@@ -1712,14 +1711,14 @@ Item {
                                             color: box6.isActive ? root.base : root.red
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
-                                        MouseArea { id: wsPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: root.setWorkspaceCount = Math.min(10, root.setWorkspaceCount + 1) }
+                                        MouseArea { id: wsPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.workspaceCount = Math.min(10, Config.workspaceCount + 1) }
                                     }
                                 }
                             }
                         }
                     }
                 }
-	    }        
+            }        
         }
     }
 
@@ -1748,15 +1747,17 @@ Item {
             }
 
             Component.onCompleted: {
-                apiKeyInput.text = root._apiKeyText;
-                cityIdInput.text = root._cityIdText;
+                apiKeyInput.text = Config.weatherApiKey;
+                cityIdInput.text = Config.weatherCityId;
             }
 
             Connections {
-                target: root
-                function on_ApiKeyTextChanged() { if (apiKeyInput.text !== root._apiKeyText) apiKeyInput.text = root._apiKeyText; }
-                function on_CityIdTextChanged() { if (cityIdInput.text !== root._cityIdText) cityIdInput.text = root._cityIdText; }
+                target: Config
+                function onWeatherApiKeyChanged() { if (apiKeyInput.text !== Config.weatherApiKey) apiKeyInput.text = Config.weatherApiKey; }
+                function onWeatherCityIdChanged() { if (cityIdInput.text !== Config.weatherCityId) cityIdInput.text = Config.weatherCityId; }
             }
+
+            property bool apiKeyVisible: false
 
             Flickable {
                 id: weatherFlickable
@@ -1825,7 +1826,6 @@ Item {
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: root.s(6); Layout.topMargin: root.s(2); Layout.bottomMargin: root.s(2)
-                                    // FIX 4: Step items inside instructions adapt color when wBox0 is active
                                     Repeater {
                                         model: ["Go to openweathermap.org & create an account.", "Navigate to profile -> 'My API keys'.", "Generate a new key and paste it below."]
                                         Rectangle {
@@ -1874,7 +1874,6 @@ Item {
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: root.s(6); Layout.topMargin: root.s(2); Layout.bottomMargin: root.s(2)
-                                    // FIX 4: Step items for city ID section also adapt color
                                     Repeater {
                                         model: ["Search for your city on openweathermap.org.", "Look at the URL (e.g. .../city/2643743).", "Copy the number at the end and paste below."]
                                         Rectangle {
@@ -1966,9 +1965,9 @@ Item {
                                         verticalAlignment: TextInput.AlignVCenter
                                         font.family: "JetBrains Mono"; font.pixelSize: root.s(12)
                                         color: wBox1.isActive ? root.base : root.text; clip: true; selectByMouse: true
-                                        echoMode: root.apiKeyVisible ? TextInput.Normal : TextInput.Password
+                                        echoMode: weatherTabRoot.apiKeyVisible ? TextInput.Normal : TextInput.Password
                                         passwordCharacter: "•"
-                                        onTextChanged: root._apiKeyText = text
+                                        onTextChanged: Config.weatherApiKey = text
                                         Behavior on color { ColorAnimation { duration: 220 } }
                                         Text {
                                             text: "Enter API Key..."; color: wBox1.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
@@ -1979,13 +1978,13 @@ Item {
                                     Rectangle {
                                         width: root.s(24); height: root.s(24); radius: root.s(4); color: "transparent"
                                         Text {
-                                            anchors.centerIn: parent; text: root.apiKeyVisible ? "󰈈" : "󰈉"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(16)
+                                            anchors.centerIn: parent; text: weatherTabRoot.apiKeyVisible ? "󰈈" : "󰈉"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(16)
                                             color: eyeMa.containsMouse
                                                 ? (wBox1.isActive ? root.base : root.blue)
                                                 : (wBox1.isActive ? Qt.alpha(root.base, 0.6) : root.subtext0)
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                         }
-                                        MouseArea { id: eyeMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.apiKeyVisible = !root.apiKeyVisible }
+                                        MouseArea { id: eyeMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: weatherTabRoot.apiKeyVisible = !weatherTabRoot.apiKeyVisible }
                                     }
                                 }
                             }
@@ -2051,7 +2050,7 @@ Item {
                                     verticalAlignment: TextInput.AlignVCenter
                                     font.family: "JetBrains Mono"; font.pixelSize: root.s(12)
                                     color: wBox2.isActive ? root.base : root.text; clip: true; selectByMouse: true
-                                    onTextChanged: root._cityIdText = text
+                                    onTextChanged: Config.weatherCityId = text
                                     Behavior on color { ColorAnimation { duration: 220 } }
                                     Text {
                                         text: "City ID (e.g. 2624652)"; color: wBox2.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
@@ -2112,7 +2111,7 @@ Item {
                                     model: [{ val: "metric", label: "Celsius" }, { val: "imperial", label: "Fahrenheit" }, { val: "standard", label: "Kelvin" }]
                                     Rectangle {
                                         Layout.preferredWidth: root.s(88); Layout.preferredHeight: root.s(30); radius: root.s(6)
-                                        property bool isSelected: root.selectedUnit === modelData.val
+                                        property bool isSelected: Config.weatherUnit === modelData.val
                                         property bool parentActive: wBox3.isActive
                                         color: isSelected
                                             ? (parentActive ? Qt.alpha(root.base, 0.25) : root.blue)
@@ -2131,7 +2130,7 @@ Item {
                                                 : (parentActive ? Qt.alpha(root.base, 0.6) : root.subtext0)
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                         }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.selectedUnit = modelData.val }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Config.weatherUnit = modelData.val }
                                     }
                                 }
                             }
@@ -2231,10 +2230,9 @@ Item {
 
                         delegate: Rectangle {
                             id: kbRowRect
-                            property int outerIndex: index // FIX 1: Store outer index to avoid shadowing inside dropdown lists
+                            property int outerIndex: index 
                             property bool isJumpHighlighted: root.highlightedBox === outerIndex
                             
-                            // FIX 2: Layout Ready flag to prevent initial sweeping animations
                             property bool layoutReady: false
                             Component.onCompleted: Qt.callLater(() => layoutReady = true)
 
@@ -2306,7 +2304,6 @@ Item {
                                             ? root.peach
                                             : (editMa.containsMouse ? root.peach : root.surface2)
                                             
-                                        // FIX 2: Only allow animation when layout is ready
                                         Behavior on x { 
                                             enabled: kbRowRect.layoutReady
                                             NumberAnimation { duration: 250; easing.type: Easing.OutQuart } 
@@ -2344,7 +2341,6 @@ Item {
                                         property int marqueeSpacing: root.s(60)
                                         property bool shouldMarquee: kbRowRect.isHovered && cmdTextMain.implicitWidth > width
 
-                                        // FIX 3: Restored original marquee layout structure, which aligns it right.
                                         Item {
                                             id: marqueeContainer
                                             height: parent.height
@@ -2701,226 +2697,6 @@ Item {
     } 
 
 
-    Component {
-        id: startupTabComponent
-        Item {
-            id: startupTabRoot
-
-            function scrollTo(y) {
-                let maxY = Math.max(0, startupFlickable.contentHeight - startupFlickable.height);
-                startupFlickable.contentY = Math.max(0, Math.min(y - root.s(40), maxY > 0 ? maxY : y));
-            }
-            function scrollToBottom() {
-                startupFlickable.contentY = Math.max(0, startupColLayout.implicitHeight - startupFlickable.height + root.s(100));
-            }
-            function scrollToBox(approxItemY) {
-                let viewH = startupFlickable.height;
-                let itemTop = approxItemY;
-                let itemBottom = approxItemY + root.s(56);
-                let curY = startupFlickable.contentY;
-                let maxY = Math.max(0, startupFlickable.contentHeight - viewH);
-                if (itemTop < curY + root.s(10)) {
-                    startupFlickable.contentY = Math.max(0, itemTop - root.s(20));
-                } else if (itemBottom > curY + viewH - root.s(10)) {
-                    startupFlickable.contentY = Math.min(maxY, itemBottom - viewH + root.s(20));
-                }
-            }
-
-            Flickable {
-                id: startupFlickable
-                anchors.fill: parent
-                contentWidth: width
-                contentHeight: startupColLayout.implicitHeight + root.s(100)
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
-
-                MouseArea { anchors.fill: parent; onClicked: root.clearHighlight(); z: -1 }
-
-                ColumnLayout {
-                    id: startupColLayout
-                    width: parent.width
-                    spacing: root.s(8)
-
-
-                    ListView {
-                        id: startupListView
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: implicitHeight
-                        implicitHeight: dynamicStartupModel.count * root.s(56) + root.s(20)
-                        model: dynamicStartupModel
-                        interactive: false
-                        cacheBuffer: root.s(2000)
-                        spacing: root.s(8)
-
-                        delegate: Rectangle {
-                            id: startupRowRect
-                            property int outerIndex: index
-                            property bool isJumpHighlighted: root.highlightedBox === outerIndex
-
-                            property bool layoutReady: false
-                            Component.onCompleted: Qt.callLater(() => layoutReady = true)
-
-                            width: startupListView.width
-                            height: root.s(44) + (model.isEditing ? editPanel.implicitHeight + root.s(12) : 0)
-                            radius: root.s(8)
-
-                            HoverHandler { id: startupRowHover }
-                            property bool isHovered: startupRowHover.hovered || model.isEditing || isJumpHighlighted
-                            color: isJumpHighlighted ? root.surface1 : (isHovered ? root.surface1 : root.surface0)
-                            border.color: isJumpHighlighted ? root.green : (isHovered ? Qt.alpha(root.green, 0.5) : root.surface1)
-                            border.width: isJumpHighlighted ? 2 : 1
-
-                            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-                            Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutExpo } }
-                            Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutExpo } }
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
-
-                            MouseArea { anchors.fill: parent; z: -2; onClicked: root.highlightedBox = outerIndex; }
-
-                            ColumnLayout {
-                                anchors.fill: parent; anchors.margins: root.s(10); spacing: root.s(10)
-
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: root.s(24); clip: true
-
-                                    // Edit button
-                                    Rectangle {
-                                        id: startupEditBtn
-                                        width: root.s(26); height: root.s(26); radius: root.s(6)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        x: startupRowRect.isHovered ? parent.width - width : parent.width
-                                        color: model.isEditing
-                                            ? root.green
-                                            : (startupEditMa.containsMouse ? root.green : root.surface2)
-                                        Behavior on x {
-                                            enabled: startupRowRect.layoutReady
-                                            NumberAnimation { duration: 250; easing.type: Easing.OutQuart }
-                                        }
-                                        Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutExpo } }
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: model.isEditing ? "▴" : "󰏫"
-                                            font.family: model.isEditing ? "Inter" : "Iosevka Nerd Font"
-                                            font.pixelSize: root.s(13)
-                                            color: model.isEditing
-                                                ? root.base
-                                                : (startupEditMa.containsMouse ? root.base : root.subtext0)
-                                            Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutExpo } }
-                                        }
-                                        MouseArea {
-                                            id: startupEditMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor;
-                                            onClicked: {
-                                                dynamicStartupModel.setProperty(outerIndex, "isEditing", !model.isEditing);
-                                                if (!model.isEditing) root.forceActiveFocus();
-                                            }
-                                        }
-                                    }
-
-                                    // Command preview
-                                    Item {
-                                        anchors.left: parent.left
-                                        anchors.right: startupEditBtn.left; anchors.rightMargin: root.s(6)
-                                        anchors.verticalCenter: parent.verticalCenter; height: parent.height; clip: true
-
-                                        Text {
-                                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                            text: model.command !== "" ? model.command : "(empty command)"
-                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(10)
-                                            color: model.command !== "" ? root.text : root.overlay0
-                                            elide: Text.ElideRight; width: parent.width
-                                        }
-                                    }
-                                }
-
-                                // Edit panel
-                                Item {
-                                    id: editPanel
-                                    Layout.fillWidth: true
-                                    implicitHeight: editPanelCol.implicitHeight
-                                    visible: model.isEditing
-                                    opacity: model.isEditing ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutExpo } }
-
-                                    ColumnLayout {
-                                        id: editPanelCol
-                                        anchors.left: parent.left; anchors.right: parent.right
-                                        spacing: root.s(8)
-
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: root.s(32); radius: root.s(6)
-                                            color: root.surface0; border.color: cmdInputFocus.activeFocus ? root.green : root.surface2; border.width: 1
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            RowLayout {
-                                                anchors.fill: parent; anchors.leftMargin: root.s(10); anchors.rightMargin: root.s(10); spacing: root.s(8)
-                                                TextInput {
-                                                    id: cmdInputFocus
-                                                    Layout.fillWidth: true; Layout.fillHeight: true; verticalAlignment: TextInput.AlignVCenter
-                                                    font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: root.text; clip: true; selectByMouse: true
-                                                    text: model.command
-                                                    onTextChanged: dynamicStartupModel.setProperty(outerIndex, "command", text)
-                                                    Keys.onEscapePressed: { dynamicStartupModel.setProperty(outerIndex, "isEditing", false); root.forceActiveFocus(); }
-                                                    Text {
-                                                        anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                        text: "e.g. waybar, dunst, nm-applet"
-                                                        color: Qt.alpha(root.subtext0, 0.45); visible: !parent.text && !parent.activeFocus
-                                                        font.family: "JetBrains Mono"; font.pixelSize: root.s(10)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        RowLayout {
-                                            Layout.fillWidth: true; spacing: root.s(8)
-
-                                            // Delete button
-                                            Rectangle {
-                                                Layout.preferredHeight: root.s(28); Layout.preferredWidth: startupDelRow.implicitWidth + root.s(16)
-                                                radius: root.s(6)
-                                                color: startupDelMa.containsMouse ? root.red : root.surface1
-                                                border.color: startupDelMa.containsMouse ? root.red : root.surface2; border.width: 1
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                                RowLayout {
-                                                    id: startupDelRow; anchors.centerIn: parent; spacing: root.s(5)
-                                                    Text { text: "󰆴"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                    Text { text: "Delete"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                }
-                                                MouseArea { id: startupDelMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { dynamicStartupModel.remove(outerIndex); root.saveAllStartup(); } }
-                                            }
-
-                                            Item { Layout.fillWidth: true }
-
-                                            // Done button
-                                            Rectangle {
-                                                Layout.preferredHeight: root.s(28); Layout.preferredWidth: startupDoneRow.implicitWidth + root.s(16)
-                                                radius: root.s(6)
-                                                color: startupDoneMa.containsMouse ? root.green : root.surface1
-                                                border.color: startupDoneMa.containsMouse ? root.green : root.surface2; border.width: 1
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                                RowLayout {
-                                                    id: startupDoneRow; anchors.centerIn: parent; spacing: root.s(5)
-                                                    Text { text: "󰸞"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                    Text { text: "Done"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                }
-                                                MouseArea {
-                                                    id: startupDoneMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        dynamicStartupModel.setProperty(outerIndex, "isEditing", false);
-                                                        root.forceActiveFocus();
-                                                        root.saveAllStartup();
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // ── Main Panel ─────────────────────────────────────────────────────────────
     Rectangle {
         id: sidebarPanel
@@ -3027,8 +2803,8 @@ Item {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                if (root.currentTab === 0) root.saveAppSettings();
-                                else if (root.currentTab === 1) root.saveWeatherConfig();
+                                if (root.currentTab === 0) Config.saveAppSettings();
+                                else if (root.currentTab === 1) Config.saveWeatherConfig();
                             }
                         }
                     }
@@ -3167,102 +2943,135 @@ Item {
 
                 // ── Tab bar ───────────────────────────────────────────────────
                 Item {
+                    id: tabBarContainer
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.s(38)
                     visible: !root.isSearchMode
                     opacity: root.isSearchMode ? 0.0 : 1.0
                     Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
+                    clip: true
 
-                    // Background track
                     Rectangle {
                         anchors.fill: parent; radius: root.s(10)
                         color: root.surface0; border.color: root.surface1; border.width: 1
                     }
 
-                    // Morphing pill
-                    Rectangle {
-                        id: tabHighlightPill
-                        y: root.s(3)
-                        height: root.s(32)
-                        radius: root.s(8)
-
-                        property color c0: root.teal
-                        property color c1: root.blue
-                        property color c2: root.peach
-                        property color c3: root.green
-                        property color targetColor: {
-                            if (root.currentTab === 0) return c0;
-                            if (root.currentTab === 1) return c1;
-                            if (root.currentTab === 2) return c2;
-                            return c3;
-                        }
-                        color: targetColor
-                        Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutExpo } }
-
-                        property int prevTab: 0
-                        property int curTab: root.currentTab
-
-                        onCurTabChanged: {
-                            if (curTab > prevTab) {
-                                tabRightAnim.duration = 200; tabLeftAnim.duration = 350;
-                            } else if (curTab < prevTab) {
-                                tabLeftAnim.duration = 200; tabRightAnim.duration = 350;
-                            }
-                            prevTab = curTab;
-                        }
-
-                        property real tabW: (parent.width - root.s(6)) / 4
-                        property real targetLeft: root.s(3) + curTab * tabW
-                        property real targetRight: targetLeft + tabW
-
-                        property real actualLeft: targetLeft
-                        property real actualRight: targetRight
-
-                        Behavior on actualLeft { NumberAnimation { id: tabLeftAnim; duration: 250; easing.type: Easing.OutExpo } }
-                        Behavior on actualRight { NumberAnimation { id: tabRightAnim; duration: 250; easing.type: Easing.OutExpo } }
-
-                        x: actualLeft
-                        width: actualRight - actualLeft
-                    }
-
-                    Row {
+                    Flickable {
+                        id: tabBarFlickable
                         anchors.fill: parent
-                        anchors.margins: root.s(3)
-                        spacing: 0
+                        clip: false
+                        boundsBehavior: Flickable.StopAtBounds
 
-                        Repeater {
-                            model: root.tabNames.length
-                            Item {
-                                width: (parent.width) / 4
-                                height: parent.height
+                        property real tabItemW: (tabBarContainer.width - root.s(6)) / (root.tabNames.length <= 3 ? 3 : 3.3)
+                        contentWidth: root.tabNames.length * tabItemW + root.s(6)
+                        contentHeight: height
 
-                                property bool isActive: root.currentTab === index
+                        WheelHandler {
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                            onWheel: (event) => {
+                                tabBarFlickable.contentX = Math.max(0, Math.min(
+                                    tabBarFlickable.contentWidth - tabBarFlickable.width,
+                                    tabBarFlickable.contentX - event.angleDelta.y / 2
+                                ));
+                                event.accepted = true;
+                            }
+                        }
 
-                                RowLayout {
-                                    anchors.centerIn: parent
-                                    spacing: root.s(7)
-                                    Text {
-                                        text: root.tabIcons[index]
-                                        font.family: "Iosevka Nerd Font"
-                                        font.pixelSize: root.s(14)
-                                        color: isActive ? root.base : root.subtext0
-                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                    }
-                                    Text {
-                                        text: root.tabNames[index]
-                                        font.family: "JetBrains Mono"
-                                        font.weight: isActive ? Font.Bold : Font.Medium
-                                        font.pixelSize: root.s(12)
-                                        color: isActive ? root.base : root.subtext0
-                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                    }
+                        Rectangle {
+                            id: tabHighlightPill
+                            y: root.s(3)
+                            height: root.s(32)
+                            radius: root.s(8)
+
+                            property color c0: root.teal
+                            property color c1: root.blue
+                            property color c2: root.peach
+                            property color c3: root.green
+                            property color targetColor: {
+                                if (root.currentTab === 0) return c0;
+                                if (root.currentTab === 1) return c1;
+                                if (root.currentTab === 2) return c2;
+                                return c3;
+                            }
+                            color: targetColor
+                            Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutExpo } }
+
+                            property int prevTab: 0
+                            property int curTab: root.currentTab
+
+                            onCurTabChanged: {
+                                if (curTab > prevTab) {
+                                    tabRightAnim.duration = 200; tabLeftAnim.duration = 350;
+                                } else if (curTab < prevTab) {
+                                    tabLeftAnim.duration = 200; tabRightAnim.duration = 350;
                                 }
+                                prevTab = curTab;
+                                let tLeft = root.s(3) + curTab * tabBarFlickable.tabItemW;
+                                let tRight = tLeft + tabBarFlickable.tabItemW;
+                                let visLeft = tabBarFlickable.contentX;
+                                let visRight = visLeft + tabBarFlickable.width;
+                                if (tLeft < visLeft) {
+                                    tabBarFlickable.contentX = Math.max(0, tLeft - root.s(3));
+                                } else if (tRight > visRight) {
+                                    tabBarFlickable.contentX = Math.min(
+                                        tabBarFlickable.contentWidth - tabBarFlickable.width,
+                                        tRight - tabBarFlickable.width + root.s(3)
+                                    );
+                                }
+                            }
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: { root.currentTab = index; root.clearHighlight(); }
+                            property real targetLeft: root.s(3) + curTab * tabBarFlickable.tabItemW
+                            property real targetRight: targetLeft + tabBarFlickable.tabItemW
+
+                            property real actualLeft: targetLeft
+                            property real actualRight: targetRight
+
+                            Behavior on actualLeft { NumberAnimation { id: tabLeftAnim; duration: 250; easing.type: Easing.OutExpo } }
+                            Behavior on actualRight { NumberAnimation { id: tabRightAnim; duration: 250; easing.type: Easing.OutExpo } }
+
+                            x: actualLeft
+                            width: actualRight - actualLeft
+                        }
+
+                        Row {
+                            x: root.s(3)
+                            spacing: 0
+                            height: tabBarFlickable.height
+
+                            Repeater {
+                                model: root.tabNames.length
+                                Item {
+                                    width: tabBarFlickable.tabItemW
+                                    height: parent.height
+
+                                    property bool isActive: root.currentTab === index
+
+                                    RowLayout {
+                                        anchors.centerIn: parent
+                                        spacing: root.s(7)
+                                        Text {
+                                            text: root.tabIcons[index]
+                                            font.family: "Iosevka Nerd Font"
+                                            font.pixelSize: root.s(14)
+                                            color: isActive ? root.base : root.subtext0
+                                            Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
+                                        }
+                                        Text {
+                                            text: root.tabNames[index]
+                                            font.family: "JetBrains Mono"
+                                            font.weight: isActive ? Font.Bold : Font.Medium
+                                            font.pixelSize: root.s(12)
+                                            color: isActive ? root.base : root.subtext0
+                                            Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { root.currentTab = index; root.clearHighlight(); }
+                                    }
                                 }
                             }
                         }
@@ -3320,7 +3129,6 @@ Item {
 
                                     Rectangle {
                                         anchors.fill: parent; radius: root.s(10)
-                                        // FIX 6: Search results — highlighted uses surface1 + colored border instead of full color fill
                                         color: isSearchHighlighted
                                             ? root.surface1
                                             : (searchCardMa.containsMouse ? root.surface1 : root.surface0)
@@ -3378,7 +3186,6 @@ Item {
                                                 if (card.tab === 0) root.tab0Loaded = true;
                                                 else if (card.tab === 1) root.tab1Loaded = true;
                                                 else if (card.tab === 2) root.tab2Loaded = true;
-                                                else if (card.tab === 3) root.tab3Loaded = true;
                                                 root.isSearchMode = false;
                                                 root.forceActiveFocus();
                                                 globalSearchInput.text = "";
@@ -3425,7 +3232,6 @@ Item {
 
                                     Rectangle {
                                         anchors.fill: parent; radius: root.s(10)
-                                        // FIX 6: Keybind search result — highlighted uses surface1 + peach border
                                         color: isSearchHighlighted ? root.surface1 : (kbResultMa.containsMouse ? root.surface1 : root.surface0)
                                         border.color: isSearchHighlighted ? root.peach : (kbResultMa.containsMouse ? root.peach : root.surface1)
                                         border.width: isSearchHighlighted ? 2 : 1
@@ -3522,7 +3328,7 @@ Item {
                     Loader {
                         id: generalLoader
                         anchors.fill: parent
-                        active: root.tab0Loaded && root.dataReady
+                        active: root.tab0Loaded && Config.dataReady
                         sourceComponent: generalTabComponent
                         visible: root.currentTab === 0 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
@@ -3539,7 +3345,7 @@ Item {
                     Loader {
                         id: weatherLoader
                         anchors.fill: parent
-                        active: root.tab1Loaded && root.dataReady
+                        active: root.tab1Loaded && Config.dataReady
                         sourceComponent: weatherTabComponent
                         visible: root.currentTab === 1 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
@@ -3553,7 +3359,7 @@ Item {
                     Loader {
                         id: keybindLoader
                         anchors.fill: parent
-                        active: root.tab2Loaded && root.dataReady
+                        active: root.tab2Loaded && Config.dataReady
                         sourceComponent: keybindTabComponent
                         visible: root.currentTab === 2 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
@@ -3566,7 +3372,7 @@ Item {
                     Loader {
                         id: startupLoader
                         anchors.fill: parent
-                        active: root.tab3Loaded
+                        active: root.tab3Loaded && Config.dataReady
                         sourceComponent: startupTabComponent
                         visible: root.currentTab === 3 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
@@ -3574,6 +3380,218 @@ Item {
                         function scrollToBottom() { if (item) item.scrollToBottom(); }
                         function scrollTo(y) { if (item) item.scrollTo(y); }
                         function scrollToBox(y) { if (item) item.scrollToBox(y); }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: startupTabComponent
+        Item {
+            id: startupTabRoot
+
+            function scrollTo(y) {
+                let maxY = Math.max(0, startupFlickable.contentHeight - startupFlickable.height);
+                startupFlickable.contentY = Math.max(0, Math.min(y - root.s(40), maxY > 0 ? maxY : y));
+            }
+            function scrollToBottom() {
+                startupFlickable.contentY = Math.max(0, startupColLayout.implicitHeight - startupFlickable.height + root.s(100));
+            }
+            function scrollToBox(approxItemY) {
+                let viewH = startupFlickable.height;
+                let itemTop = approxItemY;
+                let itemBottom = approxItemY + root.s(56);
+                let curY = startupFlickable.contentY;
+                let maxY = Math.max(0, startupFlickable.contentHeight - viewH);
+                if (itemTop < curY + root.s(10)) {
+                    startupFlickable.contentY = Math.max(0, itemTop - root.s(20));
+                } else if (itemBottom > curY + viewH - root.s(10)) {
+                    startupFlickable.contentY = Math.min(maxY, itemBottom - viewH + root.s(20));
+                }
+            }
+
+            Flickable {
+                id: startupFlickable
+                anchors.fill: parent
+                contentWidth: width
+                contentHeight: startupColLayout.implicitHeight + root.s(100)
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+
+                MouseArea { anchors.fill: parent; onClicked: root.clearHighlight(); z: -1 }
+
+                ColumnLayout {
+                    id: startupColLayout
+                    width: parent.width
+                    spacing: root.s(8)
+
+                    ListView {
+                        id: startupListView
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        implicitHeight: dynamicStartupModel.count * root.s(56) + root.s(20)
+                        model: dynamicStartupModel
+                        interactive: false
+                        cacheBuffer: root.s(2000)
+                        spacing: root.s(8)
+
+                        delegate: Rectangle {
+                            id: startupRowRect
+                            property int outerIndex: index
+                            property bool isJumpHighlighted: root.highlightedBox === outerIndex
+
+                            property bool layoutReady: false
+                            Component.onCompleted: Qt.callLater(() => layoutReady = true)
+
+                            width: startupListView.width
+                            height: root.s(44) + (model.isEditing ? editPanel.implicitHeight + root.s(12) : 0)
+                            radius: root.s(8)
+
+                            HoverHandler { id: startupRowHover }
+                            property bool isHovered: startupRowHover.hovered || model.isEditing || isJumpHighlighted
+                            color: isJumpHighlighted ? root.surface1 : (isHovered ? root.surface1 : root.surface0)
+                            border.color: isJumpHighlighted ? root.green : (isHovered ? Qt.alpha(root.green, 0.5) : root.surface1)
+                            border.width: isJumpHighlighted ? 2 : 1
+
+                            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
+                            Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutExpo } }
+                            Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutExpo } }
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
+
+                            MouseArea { anchors.fill: parent; z: -2; onClicked: root.highlightedBox = outerIndex; }
+
+                            ColumnLayout {
+                                anchors.fill: parent; anchors.margins: root.s(10); spacing: root.s(10)
+
+                                Item {
+                                    Layout.fillWidth: true; Layout.preferredHeight: root.s(24); clip: true
+
+                                    Rectangle {
+                                        id: startupEditBtn
+                                        width: root.s(26); height: root.s(26); radius: root.s(6)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: startupRowRect.isHovered ? parent.width - width : parent.width
+                                        color: model.isEditing
+                                            ? root.green
+                                            : (startupEditMa.containsMouse ? root.green : root.surface2)
+                                        Behavior on x {
+                                            enabled: startupRowRect.layoutReady
+                                            NumberAnimation { duration: 250; easing.type: Easing.OutQuart }
+                                        }
+                                        Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutExpo } }
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: model.isEditing ? "▴" : "󰏫"
+                                            font.family: model.isEditing ? "Inter" : "Iosevka Nerd Font"
+                                            font.pixelSize: root.s(13)
+                                            color: model.isEditing
+                                                ? root.base
+                                                : (startupEditMa.containsMouse ? root.base : root.subtext0)
+                                            Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutExpo } }
+                                        }
+                                        MouseArea {
+                                            id: startupEditMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor;
+                                            onClicked: {
+                                                dynamicStartupModel.setProperty(outerIndex, "isEditing", !model.isEditing);
+                                                if (!model.isEditing) root.forceActiveFocus();
+                                            }
+                                        }
+                                    }
+
+                                    Item {
+                                        anchors.left: parent.left
+                                        anchors.right: startupEditBtn.left; anchors.rightMargin: root.s(6)
+                                        anchors.verticalCenter: parent.verticalCenter; height: parent.height; clip: true
+
+                                        Text {
+                                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                            text: model.command !== "" ? model.command : "(empty command)"
+                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(10)
+                                            color: model.command !== "" ? root.text : root.overlay0
+                                            elide: Text.ElideRight; width: parent.width
+                                        }
+                                    }
+                                }
+
+                                Item {
+                                    id: editPanel
+                                    Layout.fillWidth: true
+                                    implicitHeight: editPanelCol.implicitHeight
+                                    visible: model.isEditing
+                                    opacity: model.isEditing ? 1.0 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutExpo } }
+
+                                    ColumnLayout {
+                                        id: editPanelCol
+                                        anchors.left: parent.left; anchors.right: parent.right
+                                        spacing: root.s(8)
+
+                                        Rectangle {
+                                            Layout.fillWidth: true; Layout.preferredHeight: root.s(32); radius: root.s(6)
+                                            color: root.surface0; border.color: cmdInputFocus.activeFocus ? root.green : root.surface2; border.width: 1
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            RowLayout {
+                                                anchors.fill: parent; anchors.leftMargin: root.s(10); anchors.rightMargin: root.s(10); spacing: root.s(8)
+                                                TextInput {
+                                                    id: cmdInputFocus
+                                                    Layout.fillWidth: true; Layout.fillHeight: true; verticalAlignment: TextInput.AlignVCenter
+                                                    font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: root.text; clip: true; selectByMouse: true
+                                                    text: model.command
+                                                    onTextChanged: dynamicStartupModel.setProperty(outerIndex, "command", text)
+                                                    Keys.onEscapePressed: { dynamicStartupModel.setProperty(outerIndex, "isEditing", false); root.forceActiveFocus(); }
+                                                    Text {
+                                                        anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                                                        text: "e.g. waybar, dunst, nm-applet"
+                                                        color: Qt.alpha(root.subtext0, 0.45); visible: !parent.text && !parent.activeFocus
+                                                        font.family: "JetBrains Mono"; font.pixelSize: root.s(10)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        RowLayout {
+                                            Layout.fillWidth: true; Layout.alignment: Qt.AlignRight; spacing: root.s(8)
+
+                                            Rectangle {
+                                                Layout.preferredHeight: root.s(28); Layout.preferredWidth: startupDelRow.implicitWidth + root.s(16)
+                                                radius: root.s(6)
+                                                color: startupDelMa.containsMouse ? root.red : root.surface1
+                                                border.color: startupDelMa.containsMouse ? root.red : root.surface2; border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                RowLayout {
+                                                    id: startupDelRow; anchors.centerIn: parent; spacing: root.s(5)
+                                                    Text { text: "󰆴"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: "Delete"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                }
+                                                MouseArea { id: startupDelMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { dynamicStartupModel.remove(outerIndex); root.saveAllStartup(); } }
+                                            }
+
+                                            Rectangle {
+                                                Layout.preferredHeight: root.s(28); Layout.preferredWidth: startupDoneRow.implicitWidth + root.s(16)
+                                                radius: root.s(6)
+                                                color: startupDoneMa.containsMouse ? root.green : root.surface1
+                                                border.color: startupDoneMa.containsMouse ? root.green : root.surface2; border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                RowLayout {
+                                                    id: startupDoneRow; anchors.centerIn: parent; spacing: root.s(5)
+                                                    Text { text: "󰸞"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: "Done"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                }
+                                                MouseArea {
+                                                    id: startupDoneMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        dynamicStartupModel.setProperty(outerIndex, "isEditing", false);
+                                                        root.forceActiveFocus();
+                                                        root.saveAllStartup();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

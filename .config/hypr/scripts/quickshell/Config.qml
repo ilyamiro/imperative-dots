@@ -111,6 +111,9 @@ Item {
     property var keybindsData: []
     signal keybindsLoaded()
 
+    property var startupData: []
+    signal startupLoaded()
+
 
     // =========================================================================
     // Legacy Specific Functions (Bound to Settings.qml)
@@ -125,13 +128,19 @@ Item {
             "kbOptions": config.kbOptions,
             "workspaceCount": config.workspaceCount
         };
-        
+
         config.updateJsonBulk(configObj);
         sh("notify-send 'Quickshell' 'Settings Applied Successfully!'");
 
+        let patchCmd = config.openGuideAtStartup
+            ? `sed -i 's|^#*[[:space:]]*exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' "${config.hyprDir}/config/autostart.conf"`
+            : `sed -i 's|^exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide.*|# exec-once = ~/.config/hypr/scripts/qs_manager.sh toggle guide \\&|' "${config.hyprDir}/config/autostart.conf"`;
+        sh(patchCmd);
+        guideAutostartSyncTimer.restart();
+
         if (config.workspaceCount !== config.initialWorkspaceCount) {
             sh(`qs -p "${qsScriptsDir}/TopBar.qml" ipc call topbar queueReload`);
-            config.initialWorkspaceCount = config.workspaceCount; 
+            config.initialWorkspaceCount = config.workspaceCount;
         }
     }
 
@@ -151,6 +160,17 @@ Item {
         config.keybindsData = bindsArray;
         config.setSetting("keybinds", bindsArray);
         sh("notify-send 'Quickshell' 'Keybinds Saved Successfully!'");
+    }
+
+    function saveAllStartup(startupArray) {
+        config.startupData = startupArray;
+        config.setSetting("startup", startupArray);
+        sh("notify-send 'Quickshell' 'Startup entries saved!'");
+    }
+
+    function runAutostartMigrator() {
+        autostartMigrator.running = false;
+        autostartMigrator.running = true;
     }
 
     // =========================================================================
@@ -198,6 +218,33 @@ Item {
         }
     }
 
+    Timer {
+        id: guideAutostartSyncTimer
+        interval: 300
+        onTriggered: {
+            autostartMigrator.running = false;
+            autostartMigrator.running = true;
+        }
+    }
+
+    Process {
+        id: autostartMigrator
+        command: ["bash", "-c", `grep -E '^\\s*exec-once\\s*=' "${config.hyprDir}/config/autostart.conf" 2>/dev/null | sed 's/^\\s*exec-once\\s*=\\s*//'`]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let lines = this.text ? this.text.trim().split('\n') : [];
+                let tempStartup = [];
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.length > 0) tempStartup.push({ command: line });
+                }
+                config.startupData = tempStartup;
+                config.saveAllStartup(tempStartup);
+            }
+        }
+    }
+
     Process {
         id: settingsReader
         command: ["bash", "-c", `cat "${config.settingsJsonPath}" 2>/dev/null || echo '{}'`]
@@ -238,16 +285,32 @@ Item {
                             config.keybindsData = [];
                             config.saveAllKeybinds([]);
                         }
+
+                        if (config.rawSettings.startup !== undefined && Array.isArray(config.rawSettings.startup)) {
+                            let tempStartup = [];
+                            for (let s of config.rawSettings.startup) {
+                                tempStartup.push({ command: s.command || "" });
+                            }
+                            config.startupData = tempStartup;
+                        } else {
+                            config.startupData = [];
+                            autostartMigrator.running = true;
+                        }
                     } else {
                         config.saveAppSettings();
                         config.keybindsData = [];
                         config.saveAllKeybinds([]);
+                        config.startupData = [];
+                        autostartMigrator.running = true;
                     }
                 } catch (e) {
                     console.log("Error parsing global settings:", e);
                     config.keybindsData = [];
+                    config.startupData = [];
+                    autostartMigrator.running = true;
                 }
                 config.keybindsLoaded();
+                config.startupLoaded();
                 config.dataReady = true;
             }
         }

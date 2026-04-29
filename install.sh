@@ -110,6 +110,7 @@ OPT_NVIM=false
 OPT_ZSH=false
 OPT_WALLPAPERS=false
 OPT_OVERRIDE_KEYBINDS=false
+OPT_OVERRIDE_STARTUPS=false
 
 INSTALL_NVIM=false
 INSTALL_ZSH=false
@@ -971,14 +972,16 @@ prompt_optional_features_menu() {
         local S_ZSH=$( [ "$OPT_ZSH" = true ] && echo -e "${C_GREEN}[x]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
         local S_WP=$( [ "$OPT_WALLPAPERS" = true ] && echo -e "${C_GREEN}[x]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
         local S_KB_OVR=$( [ "$OPT_OVERRIDE_KEYBINDS" = true ] && echo -e "${C_GREEN}[x]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
+        local S_STARTUPS_OVR=$( [ "$OPT_OVERRIDE_STARTUPS" = true ] && echo -e "${C_GREEN}[x]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
 
         local MENU_ITEMS="1. $S_SDDM $DM_LABEL\n"
         MENU_ITEMS+="2. $S_NVIM Neovim Matugen Configuration\n"
         MENU_ITEMS+="3. $S_ZSH Zsh Shell Setup\n"
         MENU_ITEMS+="4. $S_WP Download FULL Wallpaper Pack (Unchecked = 3 Random)\n"
         MENU_ITEMS+="5. $S_KB_OVR Override Keybinds (Unchecked = Keep Local)\n"
-        MENU_ITEMS+="6. ${BOLD}${C_GREEN}Proceed with Installation / Update${RESET}\n"
-        MENU_ITEMS+="7. ${DIM}Back to Main Menu${RESET}"
+        MENU_ITEMS+="6. $S_STARTUPS_OVR Override Startups (Unchecked = Keep Local, Add missing ones)\n"
+        MENU_ITEMS+="7. ${BOLD}${C_GREEN}Proceed with Installation / Update${RESET}\n"
+        MENU_ITEMS+="8. ${DIM}Back to Main Menu${RESET}"
 
         local choice
         choice=$(echo -e "$MENU_ITEMS" | fzf \
@@ -997,7 +1000,8 @@ prompt_optional_features_menu() {
             *"3."*) OPT_ZSH=$([ "$OPT_ZSH" = true ] && echo false || echo true) ;;
             *"4."*) OPT_WALLPAPERS=$([ "$OPT_WALLPAPERS" = true ] && echo false || echo true) ;;
             *"5."*) OPT_OVERRIDE_KEYBINDS=$([ "$OPT_OVERRIDE_KEYBINDS" = true ] && echo false || echo true) ;;
-            *"6."*) 
+            *"6."*) OPT_OVERRIDE_STARTUPS=$([ "$OPT_OVERRIDE_STARTUPS" = true ] && echo false || echo true) ;;
+            *"7."*) 
                 # Apply chosen toggles to installation logic
                 if [ "$OPT_SDDM" = true ]; then
                     if [[ -z "$CURRENT_DM" ]]; then
@@ -1858,30 +1862,97 @@ else
     ')
 fi
 
-# 4. Inject the parsed array into settings.json
+# 3.2. Parse UPSTREAM autostart.conf dynamically into a JSON array safely
+UPSTREAM_STARTUPS_CONF="$REPO_DIR/.config/hypr/config/autostart.conf"
+UPSTREAM_STARTUPS_JSON="[]"
+
+if [ -f "$UPSTREAM_STARTUPS_CONF" ]; then
+    echo -e "  -> Parsing upstream $UPSTREAM_STARTUPS_CONF into settings.json..."
+    TMP_STARTUPS=$(mktemp)
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" =~ ^[[:space:]]*#.*$ ]] && continue
+        [[ -z "${line// }" ]] && continue
+        [[ ! "$line" =~ ^[[:space:]]*exec-once[[:space:]]*= ]] && continue
+
+        cmd="${line#*=}"
+        cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+        cmd="${cmd%"${cmd##*[![:space:]]}"}"
+
+        jq -c -n --arg c "$cmd" '{command: $c}' >> "$TMP_STARTUPS"
+    done < "$UPSTREAM_STARTUPS_CONF"
+
+    if [ -s "$TMP_STARTUPS" ]; then
+        UPSTREAM_STARTUPS_JSON=$(jq -s '.' "$TMP_STARTUPS")
+    fi
+    rm -f "$TMP_STARTUPS"
+else
+    echo -e "  -> \e[33mUpstream autostart.conf not found. Skipping autostart parsing.\e[0m"
+fi
+
+# 3.4. Extract LOCAL startups from the existing settings.json
+LOCAL_STARTUPS_JSON="[]"
+if [ -f "$SETTINGS_FILE" ]; then
+    LOCAL_STARTUPS_JSON=$(jq '.startup // []' "$SETTINGS_FILE" 2>/dev/null || echo "[]")
+fi
+
+# 3.5. MERGE Startups
+if [ "$OPT_OVERRIDE_STARTUPS" = true ]; then
+    # Upstream overwrites Local
+    MERGED_STARTUPS_JSON="$UPSTREAM_STARTUPS_JSON"
+else
+    # Only add missing from upstream
+    MERGED_STARTUPS_JSON=$(jq -n \
+        --argjson local "$LOCAL_STARTUPS_JSON" \
+        --argjson up "$UPSTREAM_STARTUPS_JSON" '
+        $local +
+        (
+          $up
+          | map(
+              select(
+                .command as $cmd
+                | ($local | map(.command) | index($cmd)) == null
+              )
+            )
+        )
+    ')
+fi
+
+# 4. Inject merged arrays into settings.json
 if [ -f "$SETTINGS_FILE" ]; then
     tmp_json=$(mktemp)
-    # Merge existing user fields, overwriting installer variables and the new merged keybinds array
-    if jq --arg langs "$KB_LAYOUTS" \
+
+    if jq \
+       --arg langs "$KB_LAYOUTS" \
        --arg wpdir "$WALLPAPER_DIR" \
        --arg kbopt "$KB_OPTIONS" \
        --argjson binds "$MERGED_BINDS_JSON" \
-       '.language = $langs | .wallpaperDir = $wpdir | .kbOptions = $kbopt | .keybinds = $binds' \
+       --argjson startup "$MERGED_STARTUPS_JSON" \
+       '.language = $langs
+        | .wallpaperDir = $wpdir
+        | .kbOptions = $kbopt
+        | .keybinds = $binds
+        | .startup = $startup' \
        "$SETTINGS_FILE" > "$tmp_json"; then
-       mv "$tmp_json" "$SETTINGS_FILE"
-       printf "  -> settings.json updated (merged keybinds & user fields preserved) %-3s \e[32m[ OK ]\e[0m\n" ""
+
+        mv "$tmp_json" "$SETTINGS_FILE"
+        printf "  -> settings.json updated (merged keybinds + startup, user fields preserved) %-3s \e[32m[ OK ]\e[0m\n" ""
+
     else
-       echo -e "  -> \e[31mFailed to update settings.json. Continuing...\e[0m"
-       rm -f "$tmp_json"
+        echo -e "  -> \e[31mFailed to update settings.json. Continuing...\e[0m"
+        rm -f "$tmp_json"
     fi
+
 else
-    # File does not exist yet (or was deleted by the user) — generate the full default structure dynamically
+    # Missing / deleted settings.json → rebuild clean default structure
     mkdir -p "$(dirname "$SETTINGS_FILE")"
+
     if jq -n \
        --arg langs "$KB_LAYOUTS" \
        --arg wpdir "$WALLPAPER_DIR" \
        --arg kbopt "$KB_OPTIONS" \
        --argjson binds "$MERGED_BINDS_JSON" \
+       --argjson startup "$MERGED_STARTUPS_JSON" \
        '{
          uiScale: 1.0,
          openGuideAtStartup: true,
@@ -1890,11 +1961,14 @@ else
          language: $langs,
          kbOptions: $kbopt,
          keybinds: $binds,
+         startup: $startup,
          monitors: []
        }' > "$SETTINGS_FILE"; then
-       printf "  -> settings.json rebuilt from scratch with upstream keybinds %-13s \e[32m[ OK ]\e[0m\n" ""
+
+        printf "  -> settings.json rebuilt from scratch with upstream keybinds + startup %-4s \e[32m[ OK ]\e[0m\n" ""
+
     else
-       echo -e "  -> \e[31mFailed to create settings.json. Check syntax.\e[0m"
+        echo -e "  -> \e[31mFailed to create settings.json. Check syntax.\e[0m"
     fi
 fi
 
