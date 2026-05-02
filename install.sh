@@ -32,7 +32,7 @@ else
 fi
 
 case "$DETECTED_OS" in
-    arch|endeavouros|manjaro|cachyos)
+    arch|endeavouros|manjaro|cachyos|parch)
         OS="$DETECTED_OS"
         ;;
     fedora)
