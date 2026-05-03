@@ -1929,21 +1929,21 @@ UPSTREAM_SETTINGS_CONF="$REPO_DIR/.config/hypr/config/settings.conf"
 UPSTREAM_HYPRLAND_JSON='[{"key":"general:border_size","value":2},{"key":"general:gaps_in","value":4},{"key":"general:gaps_out","value":4},{"key":"decoration:rounding","value":4},{"key":"general:float_gaps","value":6},{"key":"general:resize_on_border","value":true},{"key":"general:extend_border_grab_area","value":30},{"key":"decoration:active_opacity","value":1},{"key":"decoration:inactive_opacity","value":1},{"key":"decoration:blur:enabled","value":false},{"key":"decoration:shadow:enabled","value":false}]'
 
 if [ -f "$UPSTREAM_SETTINGS_CONF" ]; then
-    _border=$(grep -m1 'border_size\s*='          "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _gaps_in=$(grep -m1 'gaps_in\s*='             "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _gaps_out=$(grep -m1 'gaps_out\s*='           "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _rounding=$(grep -m1 'rounding\s*='           "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _float_gaps=$(grep -m1 'float_gaps\s*='       "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _ebga=$(grep -m1 'extend_border_grab_area\s*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
-    _ao=$(grep -m1 'active_opacity\s*='           "$UPSTREAM_SETTINGS_CONF" | grep -oP '[0-9.]+' | head -1)
-    _io=$(grep -m1 'inactive_opacity\s*='         "$UPSTREAM_SETTINGS_CONF" | grep -oP '[0-9.]+' | head -1)
+    _border=$(grep -E -m1 'border_size[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _gaps_in=$(grep -E -m1 'gaps_in[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _gaps_out=$(grep -E -m1 'gaps_out[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _rounding=$(grep -E -m1 'rounding[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _float_gaps=$(grep -E -m1 'float_gaps[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _ebga=$(grep -E -m1 'extend_border_grab_area[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '\d+' | head -1)
+    _ao=$(grep -E -m1 'active_opacity[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '[0-9.]+' | head -1)
+    _io=$(grep -E -m1 'inactive_opacity[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | grep -oP '[0-9.]+' | head -1)
     # resize_on_border: true/false string in conf
-    _rob_raw=$(grep -m1 'resize_on_border\s*=' "$UPSTREAM_SETTINGS_CONF" | sed 's/.*=\s*//' | tr -d ' \n')
+    _rob_raw=$(grep -E -m1 'resize_on_border[[:space:]]*=' "$UPSTREAM_SETTINGS_CONF" | sed 's/.*=[[:space:]]*//' | tr -d ' \n')
     _rob=$([ "$_rob_raw" = "true" ] && echo "true" || echo "false")
     # blur/shadow enabled inside nested blocks
-    _blur_raw=$(awk '/blur[[:space:]]*\{/,/\}/' "$UPSTREAM_SETTINGS_CONF" | grep -m1 'enabled\s*=' | sed 's/.*=\s*//' | tr -d ' \n')
+    _blur_raw=$(awk '/blur[[:space:]]*\{/,/\}/' "$UPSTREAM_SETTINGS_CONF" | grep -E -m1 'enabled[[:space:]]*=' | sed 's/.*=[[:space:]]*//' | tr -d ' \n')
     _blur=$([ "$_blur_raw" = "true" ] && echo "true" || echo "false")
-    _shadow_raw=$(awk '/shadow[[:space:]]*\{/,/\}/' "$UPSTREAM_SETTINGS_CONF" | grep -m1 'enabled\s*=' | sed 's/.*=\s*//' | tr -d ' \n')
+    _shadow_raw=$(awk '/shadow[[:space:]]*\{/,/\}/' "$UPSTREAM_SETTINGS_CONF" | grep -E -m1 'enabled[[:space:]]*=' | sed 's/.*=[[:space:]]*//' | tr -d ' \n')
     _shadow=$([ "$_shadow_raw" = "true" ] && echo "true" || echo "false")
     UPSTREAM_HYPRLAND_JSON=$(jq -n \
         --argjson b    "${_border:-2}" \
