@@ -59,6 +59,36 @@ Item {
         for (let key in dataObj) rawSettings[key] = dataObj[key];
     }
 
+    // --- Translation System ---
+    property string uiLanguage: "en"
+    property var translations: ({})
+    property int langUpdateTrigger: 0
+
+    Process {
+        id: translationReader
+        command: ["bash", "-c", `cat "${qsScriptsDir}/i18n/${config.uiLanguage}.json" 2>/dev/null || echo '{}'`]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    config.translations = JSON.parse(this.text);
+                } catch(e) {
+                    config.translations = {};
+                }
+                config.langUpdateTrigger += 1;
+            }
+        }
+    }
+
+    function loadTranslations() {
+        translationReader.running = false;
+        translationReader.running = true;
+    }
+
+    function tr(key, fallback, dummyTrigger) {
+        return config.translations.hasOwnProperty(key) ? config.translations[key] : fallback;
+    }
+
     // --- Env Operations ---
     function getEnv(key, fallbackValue) {
         return rawEnvs.hasOwnProperty(key) ? rawEnvs[key] : fallbackValue;
@@ -108,12 +138,13 @@ Item {
             "topbarHelpIcon": config.topbarHelpIcon,
             "wallpaperDir": config.wallpaperDir,
             "language": config.language,
+            "uiLanguage": config.uiLanguage,
             "kbOptions": config.kbOptions,
             "workspaceCount": config.workspaceCount
         };
 
         config.updateJsonBulk(configObj);
-        sh("notify-send 'Quickshell' 'Settings Applied Successfully!'");
+        sh("notify-send 'Quickshell' '" + config.tr("notify.settings_saved", "Settings Applied Successfully!", config.langUpdateTrigger) + "'");
 
         if (config.workspaceCount !== config.initialWorkspaceCount) {
             sh(`qs -p "${qsScriptsDir}/TopBar.qml" ipc call topbar queueReload`);
@@ -130,19 +161,19 @@ Item {
         
         config.updateEnvBulk(config.weatherEnvPath, envs);
         sh(`rm -rf "${cacheDir}/weather"`);
-        sh("notify-send 'Weather' 'API configuration saved successfully!'");
+        sh("notify-send 'Weather' '" + config.tr("notify.weather_saved", "API configuration saved successfully!", config.langUpdateTrigger) + "'");
     }
 
     function saveAllKeybinds(bindsArray) {
         config.keybindsData = bindsArray;
         config.setSetting("keybinds", bindsArray);
-        sh("notify-send 'Quickshell' 'Keybinds Saved Successfully!'");
+        sh("notify-send 'Quickshell' '" + config.tr("notify.keybinds_saved", "Keybinds Saved Successfully!", config.langUpdateTrigger) + "'");
     }
 
     function saveAllStartup(startupArray) {
         config.startupData = startupArray;
         config.setSetting("startup", startupArray);
-        sh("notify-send 'Quickshell' 'Startup entries saved!'");
+        sh("notify-send 'Quickshell' '" + config.tr("notify.startup_saved", "Startup entries saved!", config.langUpdateTrigger) + "'");
     }
 
     // =========================================================================
@@ -193,6 +224,7 @@ Item {
                         if (config.rawSettings.topbarHelpIcon !== undefined) config.topbarHelpIcon = config.rawSettings.topbarHelpIcon;
                         if (config.rawSettings.wallpaperDir !== undefined) config.wallpaperDir = config.rawSettings.wallpaperDir;
                         if (config.rawSettings.language !== undefined && config.rawSettings.language !== "") config.language = config.rawSettings.language;
+                        if (config.rawSettings.uiLanguage !== undefined && config.rawSettings.uiLanguage !== "") config.uiLanguage = config.rawSettings.uiLanguage;
                         if (config.rawSettings.kbOptions !== undefined) config.kbOptions = config.rawSettings.kbOptions;
                         if (config.rawSettings.workspaceCount !== undefined) {
                             config.workspaceCount = config.rawSettings.workspaceCount;
@@ -238,6 +270,7 @@ Item {
                     config.keybindsData = [];
                     config.startupData = [];
                 }
+                config.loadTranslations();
                 config.keybindsLoaded();
                 config.startupLoaded();
                 config.dataReady = true;

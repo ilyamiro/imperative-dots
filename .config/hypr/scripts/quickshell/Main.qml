@@ -181,6 +181,10 @@ PanelWindow {
                         if (parsed.uiScale !== undefined && masterWindow.globalUiScale !== parsed.uiScale) {
                             masterWindow.globalUiScale = parsed.uiScale;
                         }
+                        if (parsed.uiLanguage !== undefined && Config.uiLanguage !== parsed.uiLanguage) {
+                            Config.uiLanguage = parsed.uiLanguage;
+                            Config.loadTranslations();
+                        }
                     }
                 } catch (e) {
                     console.log("Error parsing settings.json in main.qml:", e);

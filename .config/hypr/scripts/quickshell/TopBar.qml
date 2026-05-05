@@ -178,6 +178,11 @@ Variants {
                                     wsDaemon.running = false;
                                     wsDaemon.running = true;
                                 }
+                                
+                                if (parsed.uiLanguage !== undefined && Config.uiLanguage !== parsed.uiLanguage) {
+                                    Config.uiLanguage = parsed.uiLanguage;
+                                    Config.loadTranslations();
+                                }
                             }
                         } catch (e) {}
                     }
@@ -558,7 +563,17 @@ Variants {
                 onTriggered: {
                     let d = new Date();
                     barWindow.timeStr = Qt.formatDateTime(d, "HH:mm:ss");
-                    barWindow.fullDateStr = Qt.formatDateTime(d, "dddd, MMMM dd");
+                    let days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+                    let months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+                    let dayName = days[d.getDay()];
+                    let monthName = months[d.getMonth()];
+                    let dayNum = Qt.formatDateTime(d, "dd");
+                    let fallbackDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+                    let fallbackMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                    let trDayRaw = Config.tr("topbar.day_" + dayName, fallbackDay, Config.langUpdateTrigger);
+                    let trMonth = Config.tr("topbar.month_" + monthName, fallbackMonth, Config.langUpdateTrigger);
+                    let trDay = trDayRaw.charAt(0).toUpperCase() + trDayRaw.slice(1);
+                    barWindow.fullDateStr = trDay + ", " + (Config.langUpdateTrigger >= 0 && Config.uiLanguage === "ru" ? dayNum + " " + trMonth : trMonth + " " + dayNum);
                     if (barWindow.typeInIndex >= barWindow.fullDateStr.length) {
                         barWindow.typeInIndex = barWindow.fullDateStr.length;
                     }
@@ -1334,7 +1349,7 @@ Variants {
                                     Text { 
                                         id: wifiText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.showEthernet ? barWindow.ethStatus : ((barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"))
+                                        text: barWindow.showEthernet ? barWindow.ethStatus : ((barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : Config.tr("topbar.on", "On", Config.langUpdateTrigger)) : Config.tr("topbar.off", "Off", Config.langUpdateTrigger)))
                                         visible: text !== ""
                                         font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black;
                                         color: barWindow.showEthernet ? (barWindow.ethStatus === "Connected" ? mocha.base : mocha.text) : (barWindow.isWifiOn ? mocha.base : mocha.text);
@@ -1388,7 +1403,7 @@ Variants {
                                     Text { 
                                         id: btText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: barWindow.btDevice
+                                        text: Config.tr("bt." + barWindow.btDevice.toLowerCase(), barWindow.btDevice, Config.langUpdateTrigger)
                                         visible: text !== ""; 
                                         font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
                                         color: barWindow.isBtOn ? mocha.base : mocha.text; 

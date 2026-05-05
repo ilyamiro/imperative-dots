@@ -370,7 +370,7 @@ Item {
     // SCHEDULE DATA & CONDITIONAL RENDERING
     // -------------------------------------------------------------------------
     property bool scheduleModuleExists: false
-    property var scheduleData: { "header": "Loading Schedule...", "link": "", "lessons": [] }
+    property var scheduleData: { "header": Config.tr("calendar.schedule_loading", "Loading Schedule...", Config.langUpdateTrigger), "link": "", "lessons": [] }
 
     // Dynamic offset based on whether the schedule module exists
     property real centerOffset: window.scheduleModuleExists ? Math.round(-100 * window.sf) : 0
@@ -470,7 +470,9 @@ Item {
         let isRealCurrentMonth = (actualToday.getMonth() === targetMonth && actualToday.getFullYear() === targetYear);
         let todayDate = actualToday.getDate();
 
-        window.targetMonthName = Qt.formatDateTime(d, "MMMM yyyy");
+        let mName = Qt.formatDateTime(d, "MMMM");
+        let mYear = Qt.formatDateTime(d, "yyyy");
+        window.targetMonthName = Config.tr("calendar.month_" + mName.toLowerCase(), mName, Config.langUpdateTrigger) + " " + mYear;
 
         let firstDay = new Date(targetYear, targetMonth, 1).getDay();
         firstDay = (firstDay === 0) ? 6 : firstDay - 1; 
@@ -700,7 +702,20 @@ Item {
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: Qt.formatDateTime(window.currentTime, "dddd, MMMM dd")
+                        text: {
+                            let d = window.currentTime;
+                            let days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+                            let months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+                            let dayName = days[d.getDay()];
+                            let monthName = months[d.getMonth()];
+                            let dayNum = Qt.formatDateTime(d, "dd");
+                            let fallbackDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+                            let fallbackMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                            let trDayRaw = Config.tr("topbar.day_" + dayName, fallbackDay, Config.langUpdateTrigger);
+                            let trMonth = Config.tr("topbar.month_" + monthName, fallbackMonth, Config.langUpdateTrigger);
+                            let trDay = trDayRaw.charAt(0).toUpperCase() + trDayRaw.slice(1);
+                            return trDay + ", " + (Config.uiLanguage === "ru" ? dayNum + " " + trMonth : trMonth + " " + dayNum);
+                        }
                         font.family: "JetBrains Mono"
                         font.weight: Font.Bold
                         font.pixelSize: Math.round(16 * window.sf)
@@ -882,7 +897,7 @@ Item {
                             model: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
                             Text {
                                 Layout.fillWidth: true
-                                text: modelData
+                                text: Config.tr("calendar.day_" + modelData.toLowerCase(), modelData, Config.langUpdateTrigger)
                                 font.family: "JetBrains Mono"
                                 font.weight: Font.Black
                                 font.pixelSize: Math.round(14 * window.sf)
@@ -979,7 +994,7 @@ Item {
                         Text {
                             Layout.fillWidth: true 
                             horizontalAlignment: Text.AlignHCenter 
-                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].day_full.toUpperCase() : "LOADING..."
+                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? Config.tr("weather.day_" + window.weatherData.forecast[window.weatherView].day_full.toLowerCase(), window.weatherData.forecast[window.weatherView].day_full, Config.langUpdateTrigger).toUpperCase() : "LOADING..."
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: Math.round(16 * window.sf)
@@ -1031,7 +1046,7 @@ Item {
                             Layout.alignment: Qt.AlignRight
                             Layout.maximumWidth: Math.round(320 * window.sf)
                             horizontalAlignment: Text.AlignRight
-                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].desc : ""
+                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? Config.tr("weather.desc." + window.weatherData.forecast[window.weatherView].desc.toLowerCase(), window.weatherData.forecast[window.weatherView].desc, Config.langUpdateTrigger) : ""
                             font.family: "JetBrains Mono"
                             font.weight: Font.Bold
                             font.pixelSize: Math.round(16 * window.sf)
@@ -1066,7 +1081,7 @@ Item {
                                 property var forecast: window.weatherData && window.weatherData.forecast[window.targetWeatherView] ? window.weatherData.forecast[window.targetWeatherView] : null
 
                                 property string gaugeIcon: index === 0 ? "" : index === 1 ? "" : index === 2 ? "" : ""
-                                property string gaugeLbl: index === 0 ? "WIND" : index === 1 ? "HUMID" : index === 2 ? "RAIN" : "FEELS"
+                                property string gaugeLbl: index === 0 ? Config.tr("weather.wind", "WIND", Config.langUpdateTrigger) : index === 1 ? Config.tr("weather.humid", "HUMID", Config.langUpdateTrigger) : index === 2 ? Config.tr("weather.rain", "RAIN", Config.langUpdateTrigger) : Config.tr("weather.feels", "FEELS", Config.langUpdateTrigger)
 
                                 property string gaugeVal: forecast ? (
                                     index === 0 ? forecast.wind + "m/s" :
@@ -1309,7 +1324,7 @@ Item {
                         
                         Text { 
                             Layout.fillWidth: true // FIX: Ensures text shrinks/elides instead of expanding layout infinitely
-                            text: window.scheduleData ? window.scheduleData.header : "Loading Schedule..."
+                            text: window.scheduleData ? window.scheduleData.header : Config.tr("calendar.schedule_loading", "Loading Schedule...", Config.langUpdateTrigger)
                             font.family: "JetBrains Mono"
                             font.weight: Font.Bold
                             font.pixelSize: Math.round(16 * window.sf)
@@ -1344,7 +1359,7 @@ Item {
                         Layout.fillHeight: true
 
                         Text {
-                            text: "Data stream offline. No scheduled events."
+                            text: Config.tr("calendar.offline", "Data stream offline. No scheduled events.", Config.langUpdateTrigger)
                             font.family: "JetBrains Mono"
                             font.italic: true
                             font.pixelSize: Math.round(14 * window.sf)
