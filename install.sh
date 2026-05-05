@@ -121,6 +121,7 @@ main() {
     setup_repo
     fetch_wallpapers
     copy_dotfiles
+    bake_hardware_env
     persist_weather_config
     restore_qs_colors 
     deploy_cava_wrapper

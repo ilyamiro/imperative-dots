@@ -264,3 +264,21 @@ OPENWEATHER_UNIT=${WEATHER_UNIT}
 EOF
     chmod 600 "$dir/.env"
 }
+
+bake_hardware_env() {
+    echo "  -> Baking hardware environment variables into template..."
+    if [ "$GPU_VENDOR" == "NVIDIA" ]; then
+        NVIDIA_VARS="env = ELECTRON_OZONE_PLATFORM_HINT,auto\n\
+env = __NV_PRIME_RENDER_OFFLOAD,1\n\
+env = __NV_PRIME_RENDER_OFFLOAD_PROVIDER,NVIDIA-G0\n\
+env = __GL_GSYNC_ALLOWED,0\n\
+env = __GL_VRR_ALLOWED,0\n\
+env = __GL_SHADER_DISK_CACHE,1\n\
+env = __GL_SHADER_DISK_CACHE_PATH,$HOME/.cache/nvidia\n\
+env = __GLX_VENDOR_LIBRARY_NAME,nvidia\n\
+env = LIBVA_DRIVER_NAME,nvidia"
+        sed -i "s|{{HARDWARE_ENV}}|$NVIDIA_VARS|g" "$TARGET_CONFIG_DIR/hypr/templates/env.conf.template"
+    else
+        sed -i "s|{{HARDWARE_ENV}}||g" "$TARGET_CONFIG_DIR/hypr/templates/env.conf.template"
+    fi
+}
