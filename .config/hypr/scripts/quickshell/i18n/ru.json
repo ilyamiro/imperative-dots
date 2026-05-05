@@ -296,7 +296,7 @@
     "settings.inline.workspaces": "Рабочие столы",
     "settings.inline.workspaces_desc": "Кол-во в панели",
     "settings.inline.temp_unit": "Единицы температуры",
-    "settings.inline.temp_desc": "Цельсии / Фаренгейты / Кельвины",
+    "settings.inline.temp_desc": "Цельсий / Фаренгейт / Кельвин",
     "settings.inline.settings_header": "Настройки",
     "settings.inline.get_api_key": "Получить API-ключ",
     "settings.inline.api_step1": "Перейдите на openweathermap.org и создайте аккаунт.",
@@ -331,9 +331,10 @@
     "notify.keybinds_saved": "Горячие клавиши сохранены!",
     "notify.startup_saved": "Элементы автозапуска сохранены!",
     "settings.inline.kb_matches": "Синхронизировано с hyprland.conf. Клик ✖ для удаления.",
-    "settings.temp.celsius": "Цельсии",
-    "settings.temp.fahrenheit": "Фаренгейты",
-    "settings.temp.kelvin": "Кельвины",
+    "settings.temp.celsius": "Цельсий",
+    "settings.temp.fahrenheit": "Фаренгейт",
+    "settings.temp.kelvin": "Кельвин",
     "bt.disconnected": "Отключено",
-    "bt.off": "Откл"
+    "bt.off": "Откл",
+    "settings.search_hint": "Поиск по настройкам и горячим клавишам..."
 }

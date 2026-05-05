@@ -3250,7 +3250,7 @@ Item {
                                 ColumnLayout {
                                     anchors.centerIn: parent; spacing: root.s(8)
                                     Text { Layout.alignment: Qt.AlignHCenter; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(30); color: Qt.alpha(root.subtext0, 0.25) }
-                                    Text { Layout.alignment: Qt.AlignHCenter; text: "Type to search settings & keybinds..."; font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: Qt.alpha(root.subtext0, 0.35) }
+                                    Text { Layout.alignment: Qt.AlignHCenter; text: Config.tr("settings.search_hint", "Type to search settings & keybinds...", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: Qt.alpha(root.subtext0, 0.35) }
                                 }
                             }
 
