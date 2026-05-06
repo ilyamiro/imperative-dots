@@ -158,7 +158,7 @@ ARCH_PKGS=(
     "hyprland" "hypridle" "kitty" "cava" "zbar" "pavucontrol" "alsa-utils" "awww" "networkmanager-dmenu-git"
     "wl-clipboard" "fd" "qt6-multimedia" "qt6-5compat" "ripgrep"
     "cliphist" "jq" "socat" "inotify-tools" "pamixer" "brightnessctl" "acpi" "iw"
-    "bluez" "bluez-utils" "libnotify" "networkmanager" "lm_sensors" "bc" 
+    "bluez" "bluez-utils" "libnotify" "networkmanager" "lm_sensors" "bc"
     "pipewire" "wireplumber" "pipewire-pulse" "pipewire-alsa" "pipewire-jack" "libpulse" "python"
     "imagemagick" "wget" "file" "git" "psmisc"
     "matugen-bin" "ffmpeg" "fastfetch" "quickshell-git" "unzip" "python-websockets" "qt6-websockets"
@@ -282,11 +282,11 @@ EOF
                 if [[ ${#FAILED_PKGS[@]} -gt 0 ]]; then
                     failed_str="${FAILED_PKGS[*]}"
                 fi
-                
+
                 local ram=$(awk '/MemTotal/ {printf "%.1f GB", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo "Unknown")
                 local kernel=$(uname -r 2>/dev/null || echo "Unknown")
                 local current_de=${XDG_CURRENT_DESKTOP:-"TTY / Unknown"}
-                
+
                 payload=$(cat <<EOF
 {
   "type": "done",
@@ -323,15 +323,15 @@ EOF
 send_telemetry "init"
 
 draw_header() {
-    clear 
+    clear
     printf "${BOLD}${C_CYAN}"
     cat << "EOF"
- ██╗██╗     ██╗   ██╗ █████╗ ███╗   ███╗██╗██████╗  ██████╗ 
+ ██╗██╗     ██╗   ██╗ █████╗ ███╗   ███╗██╗██████╗  ██████╗
  ██║██║     ╚██╗ ██╔╝██╔══██╗████╗ ████║██║██╔══██╗██╔═══██╗
  ██║██║      ╚████╔╝ ███████║██╔████╔██║██║██████╔╝██║   ██║
  ██║██║       ╚██╔╝  ██╔══██║██║╚██╔╝██║██║██╔══██╗██║   ██║
  ██║███████╗   ██║   ██║  ██║██║ ╚═╝ ██║██║██║  ██║╚██████╔╝
- ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ 
+ ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝
 EOF
     printf "${RESET}\n"
 
@@ -512,37 +512,37 @@ manage_keyboard() {
     local available_layouts=(
         "us - English (US)" "ca - English/French (Canada)" "ca-multix - Canadian Multilingual"
         "latam - Spanish (Latin America)" "br - Portuguese (Brazil)" "ar - Arabic (Latin America)"
-        "bo - Bolivia" "cl - Chile" "co - Colombia" "cr - Costa Rica" "cu - Cuba" 
-        "do - Dominican Republic" "ec - Ecuador" "sv - El Salvador" "gt - Guatemala" 
-        "hn - Honduras" "mx - Mexico" "ni - Nicaragua" "pa - Panama" "py - Paraguay" 
+        "bo - Bolivia" "cl - Chile" "co - Colombia" "cr - Costa Rica" "cu - Cuba"
+        "do - Dominican Republic" "ec - Ecuador" "sv - El Salvador" "gt - Guatemala"
+        "hn - Honduras" "mx - Mexico" "ni - Nicaragua" "pa - Panama" "py - Paraguay"
         "pe - Peru" "pr - Puerto Rico" "uy - Uruguay" "ve - Venezuela"
         "gb - English (UK)" "ie - English (Ireland)" "gd - Scottish Gaelic" "cy-gb - Welsh"
-        "fr - French" "be - Belgian" "ch - Swiss" "de - German" "at - Austrian" 
-        "nl - Dutch" "lu - Luxembourgish" "es - Spanish" "pt - Portuguese" 
-        "it - Italian" "mt - Maltese" "se - Swedish" "no - Norwegian" "dk - Danish" 
+        "fr - French" "be - Belgian" "ch - Swiss" "de - German" "at - Austrian"
+        "nl - Dutch" "lu - Luxembourgish" "es - Spanish" "pt - Portuguese"
+        "it - Italian" "mt - Maltese" "se - Swedish" "no - Norwegian" "dk - Danish"
         "fi - Finnish" "is - Icelandic" "fo - Faroese" "gl - Greenlandic"
-        "pl - Polish" "cz - Czech" "sk - Slovak" "hu - Hungarian" 
+        "pl - Polish" "cz - Czech" "sk - Slovak" "hu - Hungarian"
         "ad - Andorra" "mc - Monaco" "sm - San Marino" "va - Vatican"
-        "epo - Esperanto" "eu - Basque" "ca-fr - Catalan" 
-        "ru - Russian" "ua - Ukrainian" "by - Belarusian" "ro - Romanian" "bg - Bulgarian" 
-        "rs - Serbian" "hr - Croatian" "si - Slovenian" "mk - Macedonian" "ba - Bosnian" 
-        "me - Montenegrin" "gr - Greek" "cy - Cyprus" "ee - Estonian" "lv - Latvian" 
-        "lt - Lithuanian" "md - Moldovan" "am - Armenian" "ge - Georgian" "az - Azerbaijani" 
-        "kz - Kazakh" "kg - Kyrgyz" "tj - Tajik" "tm - Turkmen" "uz - Uzbek" 
-        "mn - Mongolian" "tat - Tatar" "chu - Chuvash" "os - Ossetian" "udm - Udmurt" 
+        "epo - Esperanto" "eu - Basque" "ca-fr - Catalan"
+        "ru - Russian" "ua - Ukrainian" "by - Belarusian" "ro - Romanian" "bg - Bulgarian"
+        "rs - Serbian" "hr - Croatian" "si - Slovenian" "mk - Macedonian" "ba - Bosnian"
+        "me - Montenegrin" "gr - Greek" "cy - Cyprus" "ee - Estonian" "lv - Latvian"
+        "lt - Lithuanian" "md - Moldovan" "am - Armenian" "ge - Georgian" "az - Azerbaijani"
+        "kz - Kazakh" "kg - Kyrgyz" "tj - Tajik" "tm - Turkmen" "uz - Uzbek"
+        "mn - Mongolian" "tat - Tatar" "chu - Chuvash" "os - Ossetian" "udm - Udmurt"
         "kbd - Kabardian" "che - Chechen"
-        "au - English (Australia)" "nz - English (New Zealand)" 
+        "au - English (Australia)" "nz - English (New Zealand)"
         "cn - Chinese" "jp - Japanese" "kr - Korean" "tw - Taiwanese" "hk - Hong Kong"
-        "in - Indian" "pk - Pakistani" "bd - Bangla" "lk - Sri Lankan" "np - Nepali" 
+        "in - Indian" "pk - Pakistani" "bd - Bangla" "lk - Sri Lankan" "np - Nepali"
         "mv - Maldivian (Dhivehi)" "bt - Bhutanese (Dzongkha)" "af - Afghan (Pashto/Dari)"
-        "th - Thai" "vn - Vietnamese" "la - Lao" "mm - Burmese" "kh - Khmer" 
-        "id - Indonesian" "my - Malay" "ph - Filipino" "sg - Singaporean" 
-        "bn - Bengali" "ta - Tamil" "te - Telugu" "gu - Gujarati" "pa - Punjabi" 
+        "th - Thai" "vn - Vietnamese" "la - Lao" "mm - Burmese" "kh - Khmer"
+        "id - Indonesian" "my - Malay" "ph - Filipino" "sg - Singaporean"
+        "bn - Bengali" "ta - Tamil" "te - Telugu" "gu - Gujarati" "pa - Punjabi"
         "ml - Malayalam" "kn - Kannada" "or - Odia" "as - Assamese" "ur - Urdu"
         "il - Hebrew" "ara - Arabic" "iq - Iraqi" "sy - Syrian" "ir - Persian (Farsi)"
-        "ma - Moroccan" "dz - Algerian" "eg - Egyptian" "ly - Libyan" "tn - Tunisian" 
-        "sd - Sudanese" "lb - Lebanese" "jo - Jordanian" "ps - Palestinian" 
-        "sa - Saudi Arabian" "kw - Kuwaiti" "bh - Bahraini" "qa - Qatari" "ae - UAE" 
+        "ma - Moroccan" "dz - Algerian" "eg - Egyptian" "ly - Libyan" "tn - Tunisian"
+        "sd - Sudanese" "lb - Lebanese" "jo - Jordanian" "ps - Palestinian"
+        "sa - Saudi Arabian" "kw - Kuwaiti" "bh - Bahraini" "qa - Qatari" "ae - UAE"
         "om - Omani" "ye - Yemeni"
         "za - English (South Africa)" "ng - Nigerian" "et - Ethiopian" "sn - Senegalese"
         "ke - Kenyan" "tz - Tanzanian" "gh - Ghanaian" "cm - Cameroonian" "ci - Ivorian"
@@ -552,10 +552,10 @@ manage_keyboard() {
         "mg - Malagasy" "so - Somali" "dj - Djiboutian" "er - Eritrean" "tg - Togolese"
         "bj - Beninese" "bf - Burkinabe" "ne - Nigerien" "td - Chadian" "cf - Central African"
         "gq - Equatorial Guinean" "ga - Gabonese"
-        "us-intl - US International" "dvorak - US Dvorak" "colemak - US Colemak" 
+        "us-intl - US International" "dvorak - US Dvorak" "colemak - US Colemak"
         "norman - US Norman" "workman - US Workman" "math - Mathematics" "brai - Braille"
     )
-    
+
     local selected_codes=()
     local selected_names=()
 
@@ -598,7 +598,7 @@ manage_keyboard() {
         if [[ -z "$choice" || "$choice" == *"Done"* ]]; then
             break
         fi
-        
+
         if [[ "$choice" == *"Reset"* ]]; then
             selected_codes=("us")
             selected_names=("English (US)")
@@ -900,7 +900,7 @@ prompt_optional_features_menu() {
     while true; do
         draw_header
         echo -e "${BOLD}${C_CYAN}=== Optional Component Setup ===${RESET}\n"
-        
+
         local S_SDDM=$( [ "$OPT_SDDM" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
         local S_NVIM=$( [ "$OPT_NVIM" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
         local S_ZSH=$( [ "$OPT_ZSH" = true ] && echo -e "${C_GREEN}[✓]${RESET}" || echo -e "${DIM}[ ]${RESET}" )
@@ -943,26 +943,26 @@ prompt_optional_features_menu() {
             *"2."*) OPT_NVIM=$([ "$OPT_NVIM" = true ] && echo false || echo true) ;;
             *"3."*) OPT_ZSH=$([ "$OPT_ZSH" = true ] && echo false || echo true) ;;
             *"4."*) OPT_WALLPAPERS=$([ "$OPT_WALLPAPERS" = true ] && echo false || echo true) ;;
-            *"5."*) 
+            *"5."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     OPT_OVERRIDE_KEYBINDS=$([ "$OPT_OVERRIDE_KEYBINDS" = true ] && echo false || echo true)
                 else
                     break_and_proceed=true
                 fi
                 ;;
-            *"6."*) 
+            *"6."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     OPT_OVERRIDE_STARTUPS=$([ "$OPT_OVERRIDE_STARTUPS" = true ] && echo false || echo true)
                 else
                     return 1
                 fi
                 ;;
-            *"7."*) 
+            *"7."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     break_and_proceed=true
                 fi
                 ;;
-            *"8."*) 
+            *"8."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     return 1
                 fi
@@ -984,7 +984,7 @@ prompt_optional_features_menu() {
                     SETUP_SDDM_THEME=true
                     PKGS+=("sddm")
                 fi
-                
+
                 clear
                 draw_header
                 echo -e "${BOLD}${C_CYAN}=== SDDM Configuration ===${RESET}\n"
@@ -1005,7 +1005,7 @@ prompt_optional_features_menu() {
                 INSTALL_ZSH=true
                 PKGS+=("zsh")
             fi
-            return 0 
+            return 0
         fi
     done
 }
@@ -1065,14 +1065,14 @@ while true; do
         *"4."*) manage_drivers ;;
         *"5."*) manage_keyboard ;;
         *"6."*) manage_telemetry ;;
-        *"7."*) 
+        *"7."*)
             if [ "$VISITED_KEYBOARD" = false ]; then
                 echo -e "\n${C_RED}[!] You must configure your Keyboard Layouts in the submenu before starting.${RESET}"
                 sleep 2.5
                 continue
             fi
             if prompt_optional_features_menu; then
-                break 
+                break
             else
                 continue
             fi
@@ -1125,10 +1125,10 @@ MISSING_PKGS=()
 
 echo -e "\n${C_CYAN}[ INFO ]${RESET} Checking for already installed packages..."
 for pkg in "${ALL_PKGS[@]}"; do
-    [[ -z "$pkg" ]] && continue 
+    [[ -z "$pkg" ]] && continue
 
     if pacman -Q "$pkg" &>/dev/null; then
-        true 
+        true
     else
         MISSING_PKGS+=("$pkg")
     fi
@@ -1229,7 +1229,7 @@ else
                 printf "\r\033[K  -> Downloading repo: [%s%s] %3d%%" "$fill" "$empty" "$pc"
             fi
         done
-        echo "" 
+        echo ""
         NEW_COMMIT=$(git -C "$CLONE_DIR" rev-parse HEAD 2>/dev/null)
     fi
     REPO_DIR="$CLONE_DIR"
@@ -1257,7 +1257,7 @@ else
                 printf "\r\033[K  -> Downloading: [%s%s] %3d%%" "$fill" "$empty" "$pc"
             fi
         done
-        echo "" 
+        echo ""
 
         if [ -d "$WALLPAPER_CLONE_DIR/images" ]; then
             cp -r "$WALLPAPER_CLONE_DIR/images/"* "$WALLPAPER_DIR/" 2>/dev/null || true
@@ -1357,37 +1357,37 @@ jq -n --slurpfile local "$OLD_JSON" --slurpfile up "$UPSTREAM_JSON" \
    --arg kbopt "$KB_OPTIONS" \
    --arg ovr_kb "$OPT_OVERRIDE_KEYBINDS" \
    --arg ovr_su "$OPT_OVERRIDE_STARTUPS" '
-   
+
    $up[0] as $u |
    (if ($local | length > 0) then $local[0] else $u end) as $l |
-   
-   ($u + $l) | 
+
+   ($u + $l) |
    .language = $langs |
    .wallpaperDir = $wpdir |
    .kbOptions = $kbopt |
-   
+
    .keybinds = (
-       if $ovr_kb == "true" then 
-           $u.keybinds 
-       else 
+       if $ovr_kb == "true" then
+           $u.keybinds
+       else
            ($l.keybinds | map(((.mods // "") + "|" + (.key // "")))) as $local_keys |
            ($l.keybinds | map(.command)) as $local_cmds |
-           
+
            ($u.keybinds | map(select(
                # Key combo must not be claimed by user
                (((.mods // "") + "|" + (.key // "")) as $k | ($local_keys | index($k)) == null) and
                # Command must not already exist under a different user-defined key
                (.command as $cmd | ($local_cmds | index($cmd)) == null)
            ))) as $new_upstream |
-           
+
            ($l.keybinds + $new_upstream)
        end
    ) |
-   
+
    .startup = (
-       if $ovr_su == "true" then 
-           $u.startup 
-       else 
+       if $ovr_su == "true" then
+           $u.startup
+       else
            ($l.startup | map(.command)) as $local_startups |
            ($u.startup | map(select(.command as $cmd | ($local_startups | index($cmd)) == null))) as $new_startups |
            ($l.startup + $new_startups)
@@ -1684,7 +1684,7 @@ WALLPAPER_DIR="$WALLPAPER_DIR"
 TELEMETRY_ID="$TELEMETRY_ID"
 EOF
 
-rm -f ~/.cache/qs_update_pending 
+rm -f ~/.cache/qs_update_pending
 rm -f ~/.cache/wallpaper_initialized
 
 printf "  -> Configuration and version state saved %-7s ${C_GREEN}[ OK ]${RESET}\n" ""
@@ -1694,7 +1694,7 @@ printf "  -> Configuration and version state saved %-7s ${C_GREEN}[ OK ]${RESET}
 # ==============================================================================
 echo -e "\n${BOLD}${C_GREEN}"
 cat << "EOF"
- ___ _  _ ___ _____ _   _    _      _ _____ ___ ___  _  _    ___ ___  __  __ ___ _    ___ _____ ___ 
+ ___ _  _ ___ _____ _   _    _      _ _____ ___ ___  _  _    ___ ___  __  __ ___ _    ___ _____ ___
 |_ _| \| / __|_   _/_\ | |  | |    /_\_   _|_ _/ _ \| \| |  / __/ _ \ | \/  | _ \ |  | __|_   _| __|
  | || .` \__ \ | |/ _ \| |__| |__ / _ \| |  | | (_) | .` | | (_| (_) | |\/| |  _/ |__| _|  | | | _|
 |___|_|\_|___/ |_/_/ \_\____|____/_/ \_\_| |___\___/|_|\_|  \___\___/|_|  |_|_| |____|___| |_| |___|

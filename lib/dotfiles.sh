@@ -119,6 +119,11 @@ copy_dotfiles() {
 
     mkdir -p "$TARGET_CONFIG_DIR" "$BACKUP_DIR"
 
+    if [ -f "$SETTINGS_FILE" ]; then
+        mkdir -p "$BACKUP_DIR/hypr"
+        cp "$SETTINGS_FILE" "$BACKUP_DIR/hypr/settings.json"
+    fi
+
     local DO_FULL_INSTALL=true
     if [ -z "$OLD_COMMIT" ]; then
         echo -e "  -> No previous commit tracked. Forcing a full overwrite."
@@ -141,8 +146,6 @@ copy_dotfiles() {
 _full_install() {
     echo "  -> Performing Full Install / Overwrite..."
 
-    [ -f "$SETTINGS_FILE" ] && cp "$SETTINGS_FILE" "$BACKUP_DIR/settings.json.bak"
-
     for folder in "${CONFIG_FOLDERS[@]}"; do
         local TARGET_PATH="$TARGET_CONFIG_DIR/$folder"
         local SOURCE_PATH="$REPO_DIR/.config/$folder"
@@ -157,26 +160,22 @@ _full_install() {
         printf "  -> Copied %-31s ${C_GREEN}[ OK ]${RESET}\n" "$folder"
     done
 
-    if [ -f "$BACKUP_DIR/settings.json.bak" ]; then
-        mkdir -p "$(dirname "$SETTINGS_FILE")"
-        cp "$BACKUP_DIR/settings.json.bak" "$SETTINGS_FILE"
-        printf "  -> Restored existing settings.json  %-12s ${C_GREEN}[ OK ]${RESET}\n" ""
-    fi
 }
 
 _partial_update() {
     local CHANGED_FILES="" DELETED_FILES=""
+
+    if [ -f "$SETTINGS_FILE" ]; then
+        mkdir -p "$BACKUP_DIR/hypr"
+        cp "$SETTINGS_FILE" "$BACKUP_DIR/hypr/settings.json"
+        echo "  -> Backed up existing settings.json"
+    fi
 
     if [ "$OLD_COMMIT" != "$NEW_COMMIT" ]; then
         CHANGED_FILES=$(git -C "$REPO_DIR" diff --name-only --no-renames --diff-filter=AM \
             "$OLD_COMMIT" "$NEW_COMMIT" | grep "^\.config/")
         DELETED_FILES=$(git -C "$REPO_DIR" diff --name-only --no-renames --diff-filter=D \
             "$OLD_COMMIT" "$NEW_COMMIT" | grep "^\.config/")
-    fi
-
-    if [ -z "$CHANGED_FILES" ] && [ -z "$DELETED_FILES" ]; then
-        echo "  -> No target config files were changed upstream. Local files kept intact."
-        return
     fi
 
     echo -e "  -> Performing ${C_GREEN}Partial Update${RESET} based on upstream changes..."
