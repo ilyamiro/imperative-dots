@@ -4,12 +4,12 @@ draw_header() {
     clear
     printf "${BOLD}${C_CYAN}"
     cat << "EOF"
- ██╗██╗     ██╗   ██╗ █████╗ ███╗   ███╗██╗██████╗  ██████╗ 
+ ██╗██╗     ██╗   ██╗ █████╗ ███╗   ███╗██╗██████╗  ██████╗
  ██║██║     ╚██╗ ██╔╝██╔══██╗████╗ ████║██║██╔══██╗██╔═══██╗
  ██║██║      ╚████╔╝ ███████║██╔████╔██║██║██████╔╝██║   ██║
  ██║██║       ╚██╔╝  ██╔══██║██║╚██╔╝██║██║██╔══██╗██║   ██║
  ██║███████╗   ██║   ██║  ██║██║ ╚═╝ ██║██║██║  ██║╚██████╔╝
- ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ 
+ ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝
 EOF
     printf "${RESET}\n"
 
@@ -166,45 +166,45 @@ manage_keyboard() {
         # --- Americas ---
         "us - English (US)" "ca - English/French (Canada)" "ca-multix - Canadian Multilingual"
         "latam - Spanish (Latin America)" "br - Portuguese (Brazil)" "ar - Arabic (Latin America)"
-        "bo - Bolivia" "cl - Chile" "co - Colombia" "cr - Costa Rica" "cu - Cuba" 
-        "do - Dominican Republic" "ec - Ecuador" "sv - El Salvador" "gt - Guatemala" 
-        "hn - Honduras" "mx - Mexico" "ni - Nicaragua" "pa - Panama" "py - Paraguay" 
+        "bo - Bolivia" "cl - Chile" "co - Colombia" "cr - Costa Rica" "cu - Cuba"
+        "do - Dominican Republic" "ec - Ecuador" "sv - El Salvador" "gt - Guatemala"
+        "hn - Honduras" "mx - Mexico" "ni - Nicaragua" "pa - Panama" "py - Paraguay"
         "pe - Peru" "pr - Puerto Rico" "uy - Uruguay" "ve - Venezuela"
 
         # --- Europe (West, Central, & North) ---
         "gb - English (UK)" "ie - English (Ireland)" "gd - Scottish Gaelic" "cy-gb - Welsh"
-        "fr - French" "be - Belgian" "ch - Swiss" "de - German" "at - Austrian" 
-        "nl - Dutch" "lu - Luxembourgish" "es - Spanish" "pt - Portuguese" 
-        "it - Italian" "mt - Maltese" "se - Swedish" "no - Norwegian" "dk - Danish" 
+        "fr - French" "be - Belgian" "ch - Swiss" "de - German" "at - Austrian"
+        "nl - Dutch" "lu - Luxembourgish" "es - Spanish" "pt - Portuguese"
+        "it - Italian" "mt - Maltese" "se - Swedish" "no - Norwegian" "dk - Danish"
         "fi - Finnish" "is - Icelandic" "fo - Faroese" "gl - Greenlandic"
-        "pl - Polish" "cz - Czech" "sk - Slovak" "hu - Hungarian" 
+        "pl - Polish" "cz - Czech" "sk - Slovak" "hu - Hungarian"
         "ad - Andorra" "mc - Monaco" "sm - San Marino" "va - Vatican"
-        "epo - Esperanto" "eu - Basque" "ca-fr - Catalan" 
+        "epo - Esperanto" "eu - Basque" "ca-fr - Catalan"
 
         # --- Europe (East) & Caucasus ---
-        "ru - Russian" "ua - Ukrainian" "by - Belarusian" "ro - Romanian" "bg - Bulgarian" 
-        "rs - Serbian" "hr - Croatian" "si - Slovenian" "mk - Macedonian" "ba - Bosnian" 
-        "me - Montenegrin" "gr - Greek" "cy - Cyprus" "ee - Estonian" "lv - Latvian" 
-        "lt - Lithuanian" "md - Moldovan" "am - Armenian" "ge - Georgian" "az - Azerbaijani" 
-        "kz - Kazakh" "kg - Kyrgyz" "tj - Tajik" "tm - Turkmen" "uz - Uzbek" 
-        "mn - Mongolian" "tat - Tatar" "chu - Chuvash" "os - Ossetian" "udm - Udmurt" 
+        "ru - Russian" "ua - Ukrainian" "by - Belarusian" "ro - Romanian" "bg - Bulgarian"
+        "rs - Serbian" "hr - Croatian" "si - Slovenian" "mk - Macedonian" "ba - Bosnian"
+        "me - Montenegrin" "gr - Greek" "cy - Cyprus" "ee - Estonian" "lv - Latvian"
+        "lt - Lithuanian" "md - Moldovan" "am - Armenian" "ge - Georgian" "az - Azerbaijani"
+        "kz - Kazakh" "kg - Kyrgyz" "tj - Tajik" "tm - Turkmen" "uz - Uzbek"
+        "mn - Mongolian" "tat - Tatar" "chu - Chuvash" "os - Ossetian" "udm - Udmurt"
         "kbd - Kabardian" "che - Chechen"
 
         # --- Asia & Pacific ---
-        "au - English (Australia)" "nz - English (New Zealand)" 
+        "au - English (Australia)" "nz - English (New Zealand)"
         "cn - Chinese" "jp - Japanese" "kr - Korean" "tw - Taiwanese" "hk - Hong Kong"
-        "in - Indian" "pk - Pakistani" "bd - Bangla" "lk - Sri Lankan" "np - Nepali" 
+        "in - Indian" "pk - Pakistani" "bd - Bangla" "lk - Sri Lankan" "np - Nepali"
         "mv - Maldivian (Dhivehi)" "bt - Bhutanese (Dzongkha)" "af - Afghan (Pashto/Dari)"
-        "th - Thai" "vn - Vietnamese" "la - Lao" "mm - Burmese" "kh - Khmer" 
-        "id - Indonesian" "my - Malay" "ph - Filipino" "sg - Singaporean" 
-        "bn - Bengali" "ta - Tamil" "te - Telugu" "gu - Gujarati" "pa - Punjabi" 
+        "th - Thai" "vn - Vietnamese" "la - Lao" "mm - Burmese" "kh - Khmer"
+        "id - Indonesian" "my - Malay" "ph - Filipino" "sg - Singaporean"
+        "bn - Bengali" "ta - Tamil" "te - Telugu" "gu - Gujarati" "pa - Punjabi"
         "ml - Malayalam" "kn - Kannada" "or - Odia" "as - Assamese" "ur - Urdu"
 
         # --- Middle East & North Africa ---
         "il - Hebrew" "ara - Arabic" "iq - Iraqi" "sy - Syrian" "ir - Persian (Farsi)"
-        "ma - Moroccan" "dz - Algerian" "eg - Egyptian" "ly - Libyan" "tn - Tunisian" 
-        "sd - Sudanese" "lb - Lebanese" "jo - Jordanian" "ps - Palestinian" 
-        "sa - Saudi Arabian" "kw - Kuwaiti" "bh - Bahraini" "qa - Qatari" "ae - UAE" 
+        "ma - Moroccan" "dz - Algerian" "eg - Egyptian" "ly - Libyan" "tn - Tunisian"
+        "sd - Sudanese" "lb - Lebanese" "jo - Jordanian" "ps - Palestinian"
+        "sa - Saudi Arabian" "kw - Kuwaiti" "bh - Bahraini" "qa - Qatari" "ae - UAE"
         "om - Omani" "ye - Yemeni"
 
         # --- Sub-Saharan Africa ---
@@ -218,7 +218,7 @@ manage_keyboard() {
         "gq - Equatorial Guinean" "ga - Gabonese"
 
         # --- Alternative Layouts ---
-        "us-intl - US International" "dvorak - US Dvorak" "colemak - US Colemak" 
+        "us-intl - US International" "dvorak - US Dvorak" "colemak - US Colemak"
         "norman - US Norman" "workman - US Workman" "math - Mathematics" "brai - Braille"
     )
 
@@ -544,26 +544,26 @@ prompt_optional_features_menu() {
             *"2."*) OPT_NVIM=$([ "$OPT_NVIM" = true ] && echo false || echo true) ;;
             *"3."*) OPT_ZSH=$([ "$OPT_ZSH" = true ] && echo false || echo true) ;;
             *"4."*) OPT_WALLPAPERS=$([ "$OPT_WALLPAPERS" = true ] && echo false || echo true) ;;
-            *"5."*) 
+            *"5."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     OPT_OVERRIDE_KEYBINDS=$([ "$OPT_OVERRIDE_KEYBINDS" = true ] && echo false || echo true)
                 else
                     break_and_proceed=true
                 fi
                 ;;
-            *"6."*) 
+            *"6."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     OPT_OVERRIDE_STARTUPS=$([ "$OPT_OVERRIDE_STARTUPS" = true ] && echo false || echo true)
                 else
                     return 1
                 fi
                 ;;
-            *"7."*) 
+            *"7."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     break_and_proceed=true
                 fi
                 ;;
-            *"8."*) 
+            *"8."*)
                 if [ "$HAS_HISTORY" = true ]; then
                     return 1
                 fi

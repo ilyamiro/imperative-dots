@@ -32,13 +32,13 @@ compile_settings() {
     LANG=$(jq -r '.language // "us"' "$SETTINGS_FILE")
     KB_OPT=$(jq -r '.kbOptions // "grp:alt_shift_toggle"' "$SETTINGS_FILE")
     WP_DIR=$(jq -r '.wallpaperDir // empty' "$SETTINGS_FILE")
-    
+
     # Safely parse booleans so "false" doesn't trigger a fallback
     GUIDE_STARTUP=$(jq -r 'if has("openGuideAtStartup") then .openGuideAtStartup else true end' "$SETTINGS_FILE")
-    
+
     PIC_DIR="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
     VID_DIR="$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME/Videos")"
-    
+
     # Read the hardware variables injected by install.sh directly out of the JSON
     HW_ENV=$(jq -r '.hardwareEnvs[]? // empty' "$SETTINGS_FILE")
 
@@ -49,7 +49,7 @@ compile_settings() {
         -e "s|{{WALLPAPER_DIR}}|$WP_DIR|g" \
         -e "s|{{SCRIPT_DIR}}|$HOME/.config/hypr/scripts|g" \
         "$TMPL_DIR/env.conf.template" > "${ENV_CONF}.tmp"
-    
+
     # Use awk to safely substitute the multi-line HW_ENV array without breaking escapes
     awk -v hw="$HW_ENV" '{
         if (index($0, "{{HARDWARE_ENV}}")) {
@@ -74,7 +74,7 @@ compile_settings() {
     # 3. Regenerate autostart.conf
     echo "Regenerating autostart.conf..."
     cp "$TMPL_DIR/autostart.conf.template" "$AUTOSTART_CONF"
-    
+
     # Dump normal startup entries
     jq -r '.startup[]? | "exec-once = \(.command)"' "$SETTINGS_FILE" >> "$AUTOSTART_CONF"
 
@@ -82,7 +82,7 @@ compile_settings() {
     if [[ $(jq -r 'if (if type == "object" and has("openGuideAtStartup") then .openGuideAtStartup else true end) then "yes" else "no" end' "$SETTINGS_FILE") == "yes" ]]; then
         echo "exec-once = bash -c 'sleep 1 && ~/.config/hypr/scripts/qs_manager.sh toggle guide'" >> "$AUTOSTART_CONF"
     fi
-        
+
     # 4. Regenerate keybindings.conf
     echo "Regenerating keybindings.conf..."
     cp "$TMPL_DIR/keybinds.conf.template" "$KEYBINDS_CONF"
@@ -116,7 +116,7 @@ fi
 echo "Started watching settings directories for changes..."
 
 inotifywait -m -q -e close_write,moved_to --format '%w%f' "$(dirname "$SETTINGS_FILE")" "$(dirname "$ENV_FILE")" | while read -r filepath; do
-    
+
     # ---------------------------------------------------------
     # SETTINGS JSON TRIGGER
     # ---------------------------------------------------------

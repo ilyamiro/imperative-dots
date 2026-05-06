@@ -24,7 +24,7 @@ get_network_data() {
     # Find the active interface routing internet traffic
     local active_iface=$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')
     local iface_type=""
-    
+
     if [ -n "$active_iface" ]; then
         iface_type=$(LC_ALL=C nmcli -t -f DEVICE,TYPE d 2>/dev/null | awk -F: -v dev="$active_iface" '$1==dev {print $2; exit}')
     fi
@@ -40,7 +40,7 @@ get_network_data() {
         ssid="Ethernet"
         icon="󰈀"
         eth_status="Connected"
-        
+
     # Scenario 2: Wi-Fi is actively providing internet
     elif [ "$iface_type" = "wifi" ]; then
         status="enabled"
@@ -50,16 +50,16 @@ get_network_data() {
         elif [ "$signal" -ge 50 ]; then icon="󰤥"
         elif [ "$signal" -ge 25 ]; then icon="󰤢"
         else icon="󰤟"; fi
-        
+
         # Still check if an ethernet cable is plugged in silently in the background
         local eth_dev=$(LC_ALL=C nmcli -t -f DEVICE,TYPE,STATE d 2>/dev/null | awk -F: '$2=="ethernet" && $3=="connected" && $1 != "lo" {print $1; exit}')
         if [ -n "$eth_dev" ]; then eth_status="Connected"; fi
-        
+
     # Scenario 3: No active internet connection
     else
         local radio=$(get_wifi_radio)
         local wifi_dev=$(LC_ALL=C nmcli -t -f DEVICE,TYPE d 2>/dev/null | awk -F: '$2=="wifi" {print $1; exit}')
-        
+
         if [ -z "$wifi_dev" ]; then
             # No Wi-Fi hardware exists, and Ethernet is unplugged
             status="disabled"
@@ -93,9 +93,9 @@ toggle_wifi() {
 
 case $1 in
     --toggle) toggle_wifi ;;
-    *) 
+    *)
         IFS='|' read -r status ssid icon eth <<< "$(get_network_data)"
-        
+
         jq -n -c \
             --arg status "$status" \
             --arg ssid "$ssid" \

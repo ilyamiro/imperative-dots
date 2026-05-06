@@ -22,14 +22,14 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
     rawUrl=$($PT metadata mpris:artUrl 2>/dev/null)
     title=$($PT metadata xesam:title 2>/dev/null)
     artist=$($PT metadata xesam:artist 2>/dev/null)
-    
+
     if [ -n "$rawUrl" ]; then
         trackHash=$(echo "$rawUrl" | md5sum | cut -d" " -f1)
     else
         idStr="${title:-unknown}-${artist:-unknown}"
         trackHash=$(echo "$idStr" | md5sum | cut -d" " -f1)
     fi
-    
+
     finalArt="$TMP_DIR/${trackHash}_art.jpg"
     blurPath="$TMP_DIR/${trackHash}_blur.png"
     colorPath="$TMP_DIR/${trackHash}_grad.txt"
@@ -72,21 +72,21 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
                 fi
 
                 isPlaceholder=$(convert "$tempArt" -format "%[hex:u.p{0,0}]" info: 2>/dev/null | cut -c1-6)
-                
+
                 if [[ "$isPlaceholder" == "313244" ]] || [[ -z "$isPlaceholder" ]]; then
                     cp "$tempArt" "$tempBlur"
                 else
                     convert "$tempArt" -blur 0x20 -brightness-contrast -30x-10 "$tempBlur" 2>/dev/null
-                    
+
                     colors=$(convert "$tempArt" -resize 50x50 -alpha off +dither -quantize RGB -colors 3 -depth 8 -format "%c" histogram:info: 2>/dev/null | grep -E -o '#[0-9A-Fa-f]{6}' | head -n 3 | tr '\n' ' ')
                     read -r -a color_array <<< "$colors"
-                    
+
                     c1=${color_array[0]:-#cba6f7}
                     c2=${color_array[1]:-$c1}
                     c3=${color_array[2]:-$c1}
-                    
+
                     echo "linear-gradient(45deg, $c1, $c2, $c3, $c1)" > "$colorPath"
-                    
+
                     opp_raw=$(convert xc:"$c1" -alpha off -negate -depth 8 -format "%[hex:u]" info: 2>/dev/null | grep -E -o '[0-9A-Fa-f]{6}' | head -n 1)
                     if [ -n "$opp_raw" ]; then
                         echo "#$opp_raw" > "$textPath"
@@ -100,7 +100,7 @@ if [ "$STATUS" = "Playing" ] || [ "$STATUS" = "Paused" ]; then
 
                 rm "$lockFile"
                 (cd "$TMP_DIR" && ls -1t | tail -n +21 | xargs -r rm 2>/dev/null)
-            ) </dev/null >/dev/null 2>&1 & 
+            ) </dev/null >/dev/null 2>&1 &
             # ^^^ This is the magic line that fixes the freeze.
         fi
     fi

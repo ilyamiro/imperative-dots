@@ -22,7 +22,7 @@ STATE=$(LC_ALL=C nmcli -t -f DEVICE,STATE d 2>/dev/null | awk -F: -v dev="$ETH_D
 
 if [[ "$STATE" == "connected" || "$STATE" == "connecting" ]]; then
     POWER="on"
-    
+
     # Fetch connection statistics
     IP=$(ip -4 addr show dev "$ETH_DEV" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
     [ -z "$IP" ] && IP="No IP"

@@ -23,36 +23,36 @@ sync_settings() {
        --arg kbopt "$KB_OPTIONS" \
        --arg ovr_kb "$OPT_OVERRIDE_KEYBINDS" \
        --arg ovr_su "$OPT_OVERRIDE_STARTUPS" '
-       
+
        $up[0] as $u |
        (if ($local | length > 0) then $local[0] else $u end) as $l |
-       
-       ($u + $l) | 
+
+       ($u + $l) |
        .language = $langs |
        .wallpaperDir = $wpdir |
        .kbOptions = $kbopt |
-       
+
        .keybinds = (
-           if $ovr_kb == "true" then 
-               $u.keybinds 
-           else 
+           if $ovr_kb == "true" then
+               $u.keybinds
+           else
                ($l.keybinds | map(((.mods // "") + "|" + (.key // "")))) as $local_keys |
                ($l.keybinds | map(.command)) as $local_cmds |
-               
+
                ($u.keybinds | map(select(
                    # Key combo must not be claimed by user
                (((.mods // "") + "|" + (.key // "")) as $k | ($local_keys | index($k)) == null) and
                # Command must not already exist under a different user-defined key
                (.command as $cmd | ($local_cmds | index($cmd)) == null)
-               
+
                ($l.keybinds + $new_upstream)
            end
        ) |
-       
+
        .startup = (
-           if $ovr_su == "true" then 
-               $u.startup 
-           else 
+           if $ovr_su == "true" then
+               $u.startup
+           else
                ($l.startup | map(.command)) as $local_startups |
                ($u.startup | map(select(.command as $cmd | ($local_startups | index($cmd)) == null))) as $new_startups |
                ($l.startup + $new_startups)

@@ -3,6 +3,7 @@
 # ==============================================================================
 # Entry Point
 # ==============================================================================
+DOTS_VERSION="1.7.3"
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$INSTALL_DIR/lib/constants.sh"
@@ -123,7 +124,7 @@ main() {
     copy_dotfiles
     bake_hardware_env
     persist_weather_config
-    restore_qs_colors 
+    restore_qs_colors
     deploy_cava_wrapper
     setup_audio
     setup_easyeffects
@@ -134,7 +135,7 @@ main() {
     setup_gtk_qt
     echo -e "\n${C_CYAN}[ INFO ]${RESET} Enabling Core System Services..."
     setup_network
-    setup_sddm_theme 
+    setup_sddm_theme
     compile_templates
     save_version_state
 

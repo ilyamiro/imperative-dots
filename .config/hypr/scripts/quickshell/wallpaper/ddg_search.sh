@@ -15,15 +15,15 @@ mkdir -p "$SEARCH_DIR"
 
 # 2. The Pipe: Python provides links, OS provides backpressure
 python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb_url full_url; do
-    
+
     # 3. Safely read control file
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
-    
-    if [[ "$state" == "stop" ]]; then 
+
+    if [[ "$state" == "stop" ]]; then
         echo "Stop signal received. Exiting." >> "$LOG_FILE"
-        exit 0 
+        exit 0
     fi
-    
+
     while [[ "$state" == "pause" ]]; do
         sleep 1
         state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
@@ -66,16 +66,16 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
 
     # 5. Check state again AFTER the curl block
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
-    if [[ "$state" == "stop" ]]; then 
+    if [[ "$state" == "stop" ]]; then
         echo "Stop signal received during download. Discarding." >> "$LOG_FILE"
         rm -f "$tmppath"
-        exit 0 
+        exit 0
     fi
 
     # 6. Verify the thumbnail itself is valid and not corrupted
     if [ -s "$tmppath" ]; then
         actual_mime=$(file -b --mime-type "$tmppath")
-        
+
         if [[ ! "$actual_mime" =~ ^image/ ]]; then
             echo "ERROR: Thumb is not an image ($actual_mime). Discarding." >> "$LOG_FILE"
             rm -f "$tmppath"

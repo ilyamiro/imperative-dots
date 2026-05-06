@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 get_volume() {
     local vol=""
-    if command -v wpctl &> /dev/null; then 
+    if command -v wpctl &> /dev/null; then
         vol=$(LC_ALL=C wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print int($2*100)}')
     fi
-    if [[ -z "$vol" ]] && command -v pamixer &> /dev/null; then 
+    if [[ -z "$vol" ]] && command -v pamixer &> /dev/null; then
         vol=$(LC_ALL=C pamixer --get-volume 2>/dev/null)
     fi
     echo "${vol:-0}"
@@ -15,7 +15,7 @@ is_muted() {
         if LC_ALL=C wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -q "MUTED"; then echo "true"; else echo "false"; fi
     elif command -v pamixer &> /dev/null; then
         if LC_ALL=C pamixer --get-mute 2>/dev/null | grep -q "true"; then echo "true"; else echo "false"; fi
-    else 
+    else
         echo "false"
     fi
 }

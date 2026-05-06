@@ -69,9 +69,9 @@ if [ "$SCAN_QR_MODE" = true ]; then
     RES_FILE="/tmp/qs_qr_result"
     export DEBUG_LOG="/tmp/qs_qr_debug.log"
     rm -f "$RES_FILE" "$DEBUG_LOG"
-    
+
     echo "=== QR SCAN INITIATED $(date) ===" > "$DEBUG_LOG"
-    
+
     if ! command -v zbarimg &> /dev/null; then
         echo -e "0,0,0,0|||ERROR: zbarimg is not installed. Please install it." > "$RES_FILE"
         exit 1
@@ -79,9 +79,9 @@ if [ "$SCAN_QR_MODE" = true ]; then
 
     TMP_IMG="/dev/shm/qs_qr_temp_$$.png"
     grim -g "$GEOMETRY" "$TMP_IMG"
-    
+
     export XML_OUT=$(zbarimg --xml -q "$TMP_IMG" 2>>"$DEBUG_LOG")
-    
+
     if [ -n "$XML_OUT" ]; then
         python3 << 'EOF' > "$RES_FILE"
 import os, sys, logging, re
@@ -99,14 +99,14 @@ try:
     xml_clean = re.sub(r'\sxmlns="[^"]+"', '', raw_xml)
     xml_clean = re.sub(r"\sxmlns='[^']+'", '', xml_clean)
     tree = ET.fromstring(xml_clean)
-    
+
     found_any = False
     for elem in tree.iter():
         if elem.tag.endswith('symbol'):
             found_any = True
             data_text = ''
             min_x, min_y, max_x, max_y = float('inf'), float('inf'), -float('inf'), -float('inf')
-            
+
             for child in elem:
                 if child.tag.endswith('data'):
                     data_text = child.text if child.text else ''
@@ -125,7 +125,7 @@ try:
                                     max_y = max(max_y, y)
                                 except ValueError:
                                     pass
-            
+
             if min_x == float('inf'): min_x, min_y, max_x, max_y = 0, 0, 0, 0
             w, h = max_x - min_x, max_y - min_y
             encoded = data_text.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '')
@@ -138,7 +138,7 @@ EOF
     else
         echo -e "0,0,0,0|||NOT_FOUND" > "$RES_FILE"
     fi
-    
+
     rm -f "$TMP_IMG"
     exit 0
 fi
@@ -202,13 +202,13 @@ rm -f "$CACHE_DIR/processing.lock"
 if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
 
     if [ "$RECORD_MODE" = true ]; then
-        
+
         # Clear out any old module IDs
         echo -n "" > "$CACHE_DIR/pw_modules"
 
         DESK_SINK=$(pactl get-default-sink 2>/dev/null)
         [ -n "$DESK_SINK" ] && DESK_DEV="${DESK_SINK}.monitor" || DESK_DEV=""
-        
+
         [ -n "$MIC_DEVICE" ] && [ "$MIC_DEVICE" != "null" ] && MIC_DEV="$MIC_DEVICE" || MIC_DEV=$(pactl get-default-source 2>/dev/null)
         MIC_DEV="${MIC_DEV:-default}"
 
@@ -223,15 +223,15 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
             D_SINK_ID=$(pactl load-module module-null-sink sink_name=qs_virt_desk sink_properties=device.description="QS_Virtual_Desk")
             # Loop the real desktop audio into the virtual sink
             D_LOOP_ID=$(pactl load-module module-loopback source="$DESK_DEV" sink=qs_virt_desk)
-            
+
             # Linearize volume calculation (0 - 65536) to prevent PulseAudio's steep cubic drop-off at 25%
             D_VOL_INT=$(awk "BEGIN {print int(${DESK_VOL//,/.} * 65536)}")
             pactl set-sink-volume qs_virt_desk "$D_VOL_INT"
-            
+
             # Save IDs for teardown
             echo "$D_SINK_ID" >> "$CACHE_DIR/pw_modules"
             echo "$D_LOOP_ID" >> "$CACHE_DIR/pw_modules"
-            
+
             # Append to mixing string
             AUDIO_MIX="${AUDIO_MIX}qs_virt_desk.monitor|"
         fi
@@ -242,15 +242,15 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
             M_SINK_ID=$(pactl load-module module-null-sink sink_name=qs_virt_mic sink_properties=device.description="QS_Virtual_Mic")
             # Loop the real mic into the virtual sink
             M_LOOP_ID=$(pactl load-module module-loopback source="$MIC_DEV" sink=qs_virt_mic)
-            
+
             # Linearize volume calculation (0 - 65536) to prevent PulseAudio's steep cubic drop-off
             M_VOL_INT=$(awk "BEGIN {print int(${MIC_VOL//,/.} * 65536)}")
             pactl set-sink-volume qs_virt_mic "$M_VOL_INT"
-            
+
             # Save IDs for teardown
             echo "$M_SINK_ID" >> "$CACHE_DIR/pw_modules"
             echo "$M_LOOP_ID" >> "$CACHE_DIR/pw_modules"
-            
+
             # Append to mixing string
             AUDIO_MIX="${AUDIO_MIX}qs_virt_mic.monitor|"
         fi

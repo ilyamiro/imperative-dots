@@ -25,19 +25,19 @@ get_audio_profile() {
     local mac="$1"
     local cards_data="$2"
     local mac_us="${mac//:/_}"
-    
+
     local active=$(echo "$cards_data" | awk -v mac="$mac_us" '
         tolower($0) ~ "name:.*"tolower(mac) { found=1 }
-        found && tolower($0) ~ "active profile:" { 
-            sub(/.*Active Profile: /, ""); print; exit 
+        found && tolower($0) ~ "active profile:" {
+            sub(/.*Active Profile: /, ""); print; exit
         }
         found && /^$/ { exit }
     ')
-    
+
     if [[ -z "$active" || "$active" == "off" ]]; then echo "None"; return; fi
     if [[ "$active" == *"a2dp"* ]]; then echo "Hi-Fi (A2DP)"; return; fi
     if [[ "$active" == *"headset"* || "$active" == *"hfp"* ]]; then echo "Headset (HFP)"; return; fi
-    
+
     echo "Connected"
 }
 
@@ -54,7 +54,7 @@ get_status() {
         return
     fi
 
-    # We keep the timeout here just in case the bluetoothd daemon is frozen, 
+    # We keep the timeout here just in case the bluetoothd daemon is frozen,
     # but the sysfs check above prevents this from running at all on machines without BT.
     controller=$(timeout 1 bluetoothctl list 2>/dev/null | head -n1)
     if [[ -z "$controller" || "$controller" == *"Waiting"* ]]; then
@@ -72,10 +72,10 @@ get_status() {
         paired_macs=$(bluetoothctl devices Paired)
         mapfile -t devices < <(bluetoothctl devices)
         mapfile -t connected_info_lines < <(bluetoothctl devices Connected)
-        
+
         # THE FIX: Cache pactl output ONCE per script execution with a strict timeout
         cached_cards=$(timeout 0.5 pactl list cards 2>/dev/null)
-        
+
         connected_macs=""
         connected_list_objs=()
         devices_list_objs=()
@@ -87,7 +87,7 @@ get_status() {
             mac="${rest%% *}"
             name="${rest#* }"
             connected_macs+="$mac "
-            
+
             CACHE_FILE="$CACHE_DIR/bt_stat_${mac//:/_}"
 
             if [ -f "$CACHE_FILE" ]; then
@@ -96,19 +96,19 @@ get_status() {
                 info=$(bluetoothctl info "$mac")
                 icon_type=$(echo "$info" | awk -F': ' '/Icon:/ {print $2}')
                 icon=$(get_icon "$icon_type" "$name")
-                
+
                 # THE FIX: Pass the cached output instead of calling pactl again
                 profile=$(get_audio_profile "$mac" "$cached_cards")
-                
+
                 echo "CACHE_NAME=\"${name//\"/\\\"}\"" > "$CACHE_FILE"
                 echo "CACHE_ICON=\"${icon//\"/\\\"}\"" >> "$CACHE_FILE"
                 echo "CACHE_PROFILE=\"${profile//\"/\\\"}\"" >> "$CACHE_FILE"
-                
+
                 CACHE_NAME="${name//\"/\\\"}"
                 CACHE_ICON="${icon//\"/\\\"}"
                 CACHE_PROFILE="${profile//\"/\\\"}"
             fi
-            
+
             bat=$(bluetoothctl info "$mac" | awk -F'[(|)]' '/Battery Percentage:/ {print $2}')
             [ -z "$bat" ] && bat="0"
 
@@ -124,7 +124,7 @@ get_status() {
             [ -z "$line" ] && continue
             rest="${line#Device }"
             mac="${rest%% *}"
-            
+
             if [[ "$connected_macs" == *"$mac"* ]]; then continue; fi
 
             name="${rest#* }"
