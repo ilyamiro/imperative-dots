@@ -178,6 +178,12 @@ Variants {
                                     wsDaemon.running = false;
                                     wsDaemon.running = true;
                                 }
+                                if (parsed.dateFormat !== undefined && barWindow.dateFormat !== parsed.dateFormat) {
+                                    barWindow.dateFormat = parsed.dateFormat;
+                                }
+                                if (parsed.timeFormat !== undefined && barWindow.timeFormat !== parsed.timeFormat) {
+                                    barWindow.timeFormat = parsed.timeFormat;
+                                }
                             }
                         } catch (e) {}
                     }
@@ -223,6 +229,9 @@ Variants {
             property bool isDataReady: fastPollerLoaded
             Timer { interval: 600; running: true; onTriggered: barWindow.isDataReady = true }
             
+            property string timeFormat: "HH:mm:ss"
+            property string dateFormat: "dddd, MMMM dd"
+
             property string timeStr: ""
             property string fullDateStr: ""
             property int typeInIndex: 0
@@ -557,8 +566,8 @@ Variants {
                 interval: 1000; running: true; repeat: true; triggeredOnStart: true
                 onTriggered: {
                     let d = new Date();
-                    barWindow.timeStr = Qt.formatDateTime(d, "HH:mm:ss");
-                    barWindow.fullDateStr = Qt.formatDateTime(d, "dddd, MMMM dd");
+                    barWindow.timeStr = d.toLocaleTimeString(Qt.locale(), barWindow.timeFormat);
+                    barWindow.fullDateStr = d.toLocaleDateString(Qt.locale(), barWindow.dateFormat);
                     if (barWindow.typeInIndex >= barWindow.fullDateStr.length) {
                         barWindow.typeInIndex = barWindow.fullDateStr.length;
                     }

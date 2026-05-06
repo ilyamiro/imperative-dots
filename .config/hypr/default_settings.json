@@ -6,6 +6,8 @@
   "wallpaperDir": "",
   "language": "us",
   "kbOptions": "grp:alt_shift_toggle",
+  "timeFormat": "HH:mm:ss",
+  "dateFormat": "dddd, MMMM dd",
   "monitors": [],
   "keybinds": [
     {"type":"bind","mods":"ALT","key":"F4","dispatcher":"exec","command":"hyprctl dispatch killactive"},
