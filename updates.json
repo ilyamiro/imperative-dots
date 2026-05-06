@@ -1,3 +1,8 @@
 {
-  "videos": []
+  "videos": [
+    {
+      "version": "1.7.3",
+      "url": "https://github.com/ilyamiro/media/releases/download/v1.7.3/update_1_7_3.mp4"
+    }
+  ]
 }

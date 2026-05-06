@@ -110,6 +110,12 @@ Item {
     property bool isTimerRunning: stateCache.timerTargetEpoch > 0
     property bool isTimerIdle: !isTimerRunning && stateCache.timerRemainingMs === stateCache.timerPresetMs
 
+    // Visibility gate — `parent` is the Loader from Floating.qml whose `visible`
+    // is bound to `index === activeIndex && expandProgress > 0.01`. Falling back
+    // to true keeps the module functional if loaded outside that Loader.
+    property bool widgetVisible: parent !== null && parent.visible !== undefined ? parent.visible : true
+    property bool anyTimerActive: stateCache.timerTargetEpoch > 0 || stateCache.swStartEpoch > 0 || stateCache.pomoTargetEpoch > 0
+
     property var interceptedShortcuts: {
         let arr = ["Return", "Enter"];
         if (stateCache.activeMode === 0 && isTimerIdle) {
@@ -165,7 +171,7 @@ Item {
             id: globalTicker
             interval: 32
             repeat: true
-            running: root.visible
+            running: root.widgetVisible && root.anyTimerActive
             onTriggered: {
                 let now = Date.now();
                 
@@ -347,7 +353,7 @@ Item {
                     property real downOffset: 0
 
                     SequentialAnimation on upOffset {
-                        running: isSelected && root.isTimerIdle
+                        running: isSelected && root.isTimerIdle && root.widgetVisible
                         loops: Animation.Infinite
                         NumberAnimation { to: -root.s(4); duration: 500; easing.type: Easing.InOutSine }
                         NumberAnimation { to: 0; duration: 500; easing.type: Easing.InOutSine }
@@ -355,7 +361,7 @@ Item {
                     onIsSelectedChanged: if (!isSelected) { upOffset = 0; downOffset = 0; }
 
                     SequentialAnimation on downOffset {
-                        running: isSelected && root.isTimerIdle
+                        running: isSelected && root.isTimerIdle && root.widgetVisible
                         loops: Animation.Infinite
                         NumberAnimation { to: root.s(4); duration: 500; easing.type: Easing.InOutSine }
                         NumberAnimation { to: 0; duration: 500; easing.type: Easing.InOutSine }
