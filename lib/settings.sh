@@ -41,11 +41,12 @@ sync_settings() {
 
                ($u.keybinds | map(select(
                    # Key combo must not be claimed by user
-               (((.mods // "") + "|" + (.key // "")) as $k | ($local_keys | index($k)) == null) and
-               # Command must not already exist under a different user-defined key
-               (.command as $cmd | ($local_cmds | index($cmd)) == null)
+                   (((.mods // "") + "|" + (.key // "")) as $k | ($local_keys | index($k)) == null) and
+                   # Command must not already exist under a different user-defined key
+                   (.command as $cmd | ($local_cmds | index($cmd)) == null)
+                ))) as $new_upstream |
 
-               ($l.keybinds + $new_upstream)
+                ($l.keybinds + $new_upstream)
            end
        ) |
 
@@ -59,7 +60,12 @@ sync_settings() {
            end
        )
     ' > "$SETTINGS_FILE"
-    printf "  -> settings.json built successfully %-15s ${C_GREEN}[ OK ]${RESET}\n" ""
+
+    if ! jq -e . "$SETTINGS_FILE" >/dev/null 2>&1; then
+        echo -e "  -> ${C_RED}settings.json is invalid after merge. Check default_settings.json.${RESET}"
+    else
+        printf "  -> settings.json built successfully %-15s ${C_GREEN}[ OK ]${RESET}\n" ""
+    fi
 }
 
 sync_state_from_settings() {
