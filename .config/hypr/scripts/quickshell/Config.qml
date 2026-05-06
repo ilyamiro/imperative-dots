@@ -92,6 +92,9 @@ Item {
     property string weatherApiKey: ""
     property string weatherCityId: ""
 
+    property string dateFormat: "dddd, MMMM dd"
+    property string timeFormat: "HH:mm:ss"
+
     property var keybindsData: []
     signal keybindsLoaded()
 
@@ -109,7 +112,9 @@ Item {
             "wallpaperDir": config.wallpaperDir,
             "language": config.language,
             "kbOptions": config.kbOptions,
-            "workspaceCount": config.workspaceCount
+            "workspaceCount": config.workspaceCount,
+            "dateFormat": config.dateFormat,
+            "timeFormat": config.timeFormat
         };
 
         config.updateJsonBulk(configObj);
@@ -194,6 +199,8 @@ Item {
                         if (config.rawSettings.wallpaperDir !== undefined) config.wallpaperDir = config.rawSettings.wallpaperDir;
                         if (config.rawSettings.language !== undefined && config.rawSettings.language !== "") config.language = config.rawSettings.language;
                         if (config.rawSettings.kbOptions !== undefined) config.kbOptions = config.rawSettings.kbOptions;
+                        if (config.rawSettings.dateFormat !== undefined) config.dateFormat = config.rawSettings.dateFormat;
+                        if (config.rawSettings.timeFormat !== undefined) config.timeFormat = config.rawSettings.timeFormat;
                         if (config.rawSettings.workspaceCount !== undefined) {
                             config.workspaceCount = config.rawSettings.workspaceCount;
                             config.initialWorkspaceCount = config.rawSettings.workspaceCount; 

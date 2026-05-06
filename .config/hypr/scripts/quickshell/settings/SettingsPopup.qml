@@ -880,6 +880,7 @@ Item {
         { tab: 0, boxIndex: 4, label: "Layout shortcut",   desc: "Toggle combination",     icon: "󰯍", color: "teal" },
         { tab: 0, boxIndex: 5, label: "Wallpaper directory",desc: "Absolute source path",  icon: "󰋩", color: "mauve" },
         { tab: 0, boxIndex: 6, label: "Workspaces",        desc: "Static count in topbar", icon: "󰽿", color: "red" },
+        { tab: 0, boxIndex: 7, label: "Datetime format",   desc: "Topbar datetime format", icon: "󰃰", color: "peach" },
         { tab: 1, boxIndex: 1, label: "API Key",           desc: "OpenWeather API key",    icon: "󰌆", color: "blue" },
         { tab: 1, boxIndex: 2, label: "City ID",           desc: "OpenWeather city ID",    icon: "󰖐", color: "blue" },
         { tab: 1, boxIndex: 3, label: "Temperature Unit",  desc: "Celsius / Fahrenheit / K", icon: "󰔄", color: "blue" }
@@ -1754,6 +1755,151 @@ Item {
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
                                         MouseArea { id: wsPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.workspaceCount = Math.min(10, Config.workspaceCount + 1) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Box 7: Datetime format ───────────────────────────
+                    Rectangle {
+                        id: box7
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: col7wp.implicitHeight + root.s(32)
+                        radius: root.s(12)
+
+                        property bool isActive: root.highlightedBox === 7
+                        color: isActive ? root.mauve : root.surface0
+                        border.color: isActive ? root.mauve : root.surface1
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.highlightedBox = 7; z: -1 }
+
+                        ColumnLayout {
+                            id: col7wp
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(16)
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignTop; Layout.topMargin: root.s(2)
+                                    Text {
+                                        anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "󰃰"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: box7.isActive ? root.base : root.mauve
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
+                                    Text {
+                                        text: "Datetime format"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        color: box7.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: "Date format"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
+                                        radius: root.s(7)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.15) : root.surface0
+                                        border.color: dateFormatInput.activeFocus
+                                            ? (box7.isActive ? root.base : root.mauve)
+                                            : (box7.isActive ? Qt.alpha(root.base, 0.3) : root.surface2)
+                                        border.width: 1
+                                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        TextInput {
+                                            id: dateFormatInput
+                                            anchors.fill: parent; anchors.margins: root.s(9)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: Config.dateFormat
+                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
+                                            color: box7.isActive ? root.base : root.text; clip: true; selectByMouse: true
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                            Keys.onPressed: (event) => {
+                                                if (event.key === Qt.Key_Tab || event.key === Qt.Key_Down) {
+                                                    if (pathSuggestModel.count > 0) { wpSuggestListView.incrementCurrentIndex(); event.accepted = true; }
+                                                } else if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Up) {
+                                                    if (pathSuggestModel.count > 0) { wpSuggestListView.decrementCurrentIndex(); event.accepted = true; }
+                                                }
+                                            }
+                                            Keys.onReturnPressed: (event) => dateFormatInputAccept(event)
+                                            Keys.onEnterPressed: (event) => dateFormatInputAccept(event)
+                                            function dateFormatInputAccept(event) {
+                                                if (pathSuggestModel.count > 0 && wpSuggestListView.currentIndex >= 0) {
+                                                    let item = pathSuggestModel.get(wpSuggestListView.currentIndex);
+                                                    if (item) { text = item.path; Config.dateFormat = text; }
+                                                }
+                                                pathSuggestModel.clear(); focus = false; event.accepted = true;
+                                            }
+                                            onActiveFocusChanged: {
+                                                if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
+                                            }
+                                            onTextChanged: {
+                                                Config.dateFormat = text;
+                                                if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
+                                            }
+                                            Text {
+                                                text: "Enter date format..."; color: box7.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
+                                                visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        text: "Time format"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
+                                        radius: root.s(7)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.15) : root.surface0
+                                        border.color: dateFormatInput.activeFocus
+                                            ? (box7.isActive ? root.base : root.mauve)
+                                            : (box7.isActive ? Qt.alpha(root.base, 0.3) : root.surface2)
+                                        border.width: 1
+                                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        TextInput {
+                                            id: timeFormatInput
+                                            anchors.fill: parent; anchors.margins: root.s(9)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: Config.timeFormat
+                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
+                                            color: box7.isActive ? root.base : root.text; clip: true; selectByMouse: true
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                            Keys.onPressed: (event) => {
+                                                if (event.key === Qt.Key_Tab || event.key === Qt.Key_Down) {
+                                                    if (pathSuggestModel.count > 0) { wpSuggestListView.incrementCurrentIndex(); event.accepted = true; }
+                                                } else if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Up) {
+                                                    if (pathSuggestModel.count > 0) { wpSuggestListView.decrementCurrentIndex(); event.accepted = true; }
+                                                }
+                                            }
+                                            Keys.onReturnPressed: (event) => timeFormatInputAccept(event)
+                                            Keys.onEnterPressed: (event) => timeFormatInputAccept(event)
+                                            function timeFormatInputAccept(event) {
+                                                if (pathSuggestModel.count > 0 && wpSuggestListView.currentIndex >= 0) {
+                                                    let item = pathSuggestModel.get(wpSuggestListView.currentIndex);
+                                                    if (item) { text = item.path; Config.timeFormat = text; }
+                                                }
+                                                pathSuggestModel.clear(); focus = false; event.accepted = true;
+                                            }
+                                            onActiveFocusChanged: {
+                                                if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
+                                            }
+                                            onTextChanged: {
+                                                Config.timeFormat = text;
+                                                if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
+                                            }
+                                            Text {
+                                                text: "Enter time format..."; color: box7.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
+                                                visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
                                     }
                                 }
                             }
