@@ -65,7 +65,7 @@ write_dummy_data() {
         f_day=$(date -d "$future_date" "+%a")
         f_full_day=$(date -d "$future_date" "+%A")
         f_date_num=$(date -d "$future_date" "+%d %b")
-        
+
         final_json="${final_json} {
             \"id\": \"${i}\",
             \"day\": \"${f_day}\",
@@ -101,13 +101,13 @@ get_data() {
     # ---------------------------------------------------------
     forecast_url="http://api.openweathermap.org/data/2.5/forecast?APPID=${KEY}&id=${ID}&units=${UNIT}"
     raw_api=$(curl -sf "$forecast_url")
-    
+
     weather_url="http://api.openweathermap.org/data/2.5/weather?APPID=${KEY}&id=${ID}&units=${UNIT}"
     raw_weather=$(curl -sf "$weather_url")
-    
+
     # Check if curl failed OR if OpenWeather returned an error
     api_cod=$(echo "$raw_api" | jq -r '.cod' 2>/dev/null)
-    
+
     if [ -z "$raw_api" ] || [ -z "$raw_weather" ] || [[ "$api_cod" != "200" ]]; then
         # If curl failed (network glitch, rate limit, API downtime), don't destroy
         # the existing working cache. Just abort the update.
@@ -163,10 +163,10 @@ get_data() {
 
     if [ ! -z "$processed_forecast" ]; then
         dates=$(echo "$processed_forecast" | jq -r '.list[].dt_txt | split(" ")[0]' | uniq | head -n 5)
-        
+
         final_json="["
         counter=0
-        
+
         for d in $dates; do
             day_data=$(echo "$processed_forecast" | jq "[.list[] | select(.dt_txt | startswith(\"$d\"))]")
 
@@ -183,13 +183,13 @@ get_data() {
             f_pop_pct=$(echo "$f_pop * 100" | bc | cut -d. -f1)
             f_wind=$(echo "$day_data" | jq '[.[].wind.speed] | max | round')
             f_hum=$(echo "$day_data" | jq '[.[].main.humidity] | add / length | round')
-            
+
             f_code=$(echo "$day_data" | jq -r '.[length/2 | floor].weather[0].icon')
             f_desc=$(echo "$day_data" | jq -r '.[length/2 | floor].weather[0].description' | sed -e "s/\b\(.\)/\u\1/g")
             f_icon_data=$(get_icon "$f_code")
             f_icon=$(echo "$f_icon_data" | cut -d'|' -f1)
             f_hex=$(get_hex "$f_code")
-            
+
             f_day=$(date -d "$d" "+%a")
             f_full_day=$(date -d "$d" "+%A")
             f_date_num=$(date -d "$d" "+%d %b")
@@ -197,19 +197,19 @@ get_data() {
             hourly_json="["
             count_slots=$(echo "$day_data" | jq '. | length')
             count_slots=$((count_slots-1))
-            
+
             for i in $(seq 0 1 $count_slots); do
                 slot_item=$(echo "$day_data" | jq ".[$i]")
-                
+
                 raw_s_temp=$(echo "$slot_item" | jq ".main.temp")
                 s_temp=$(printf "%.1f" "$raw_s_temp")
-                
+
                 s_dt=$(echo "$slot_item" | jq ".dt")
                 s_time=$(date -d @$s_dt "+%H:%M")
                 s_code=$(echo "$slot_item" | jq -r ".weather[0].icon")
                 s_hex=$(get_hex "$s_code")
                 s_icon=$(get_icon "$s_code" | cut -d'|' -f1)
-                
+
                 hourly_json="${hourly_json} {\"time\": \"${s_time}\", \"temp\": \"${s_temp}\", \"icon\": \"${s_icon}\", \"hex\": \"${s_hex}\"},"
             done
             hourly_json="${hourly_json%,}]"
@@ -250,7 +250,7 @@ elif [[ "$1" == "--json" ]]; then
         file_time=$(stat -c %Y "$json_file")
         current_time=$(date +%s)
         diff=$((current_time - file_time))
-        
+
         if grep -q '"desc": "No API Key"' "$json_file"; then
             # Key is pending/invalid. Check once an hour.
             if [ $diff -gt $PENDING_RETRY_LIMIT ]; then
@@ -294,24 +294,24 @@ elif [[ "$1" == "--nav" ]]; then
 elif [[ "$1" == "--icon" ]]; then
     cat "$json_file" | jq -r '.forecast[0].icon'
 
-elif [[ "$1" == "--temp" ]]; then 
+elif [[ "$1" == "--temp" ]]; then
     t=$(cat "$json_file" | jq -r '.forecast[0].max')
     echo "${t}${UNIT_SYM}"
 
-elif [[ "$1" == "--hex" ]]; then 
+elif [[ "$1" == "--hex" ]]; then
     cat "$json_file" | jq -r '.forecast[0].hex'
 
 elif [[ "$1" == "--current-icon" ]]; then
     icon=$(cat "$json_file" | jq -r '.current_icon // empty')
-    if [[ -z "$icon" || "$icon" == "null" ]]; then 
+    if [[ -z "$icon" || "$icon" == "null" ]]; then
         get_data
         icon=$(cat "$json_file" | jq -r '.current_icon')
     fi
     echo "$icon"
 
-elif [[ "$1" == "--current-temp" ]]; then 
+elif [[ "$1" == "--current-temp" ]]; then
     t=$(cat "$json_file" | jq -r '.current_temp // empty')
-    if [[ -z "$t" || "$t" == "null" ]]; then 
+    if [[ -z "$t" || "$t" == "null" ]]; then
         get_data
         t=$(cat "$json_file" | jq -r '.current_temp')
     fi
@@ -319,7 +319,7 @@ elif [[ "$1" == "--current-temp" ]]; then
 
 elif [[ "$1" == "--current-hex" ]]; then
     hex=$(cat "$json_file" | jq -r '.current_hex // empty')
-    if [[ -z "$hex" || "$hex" == "null" ]]; then 
+    if [[ -z "$hex" || "$hex" == "null" ]]; then
         get_data
         hex=$(cat "$json_file" | jq -r '.current_hex')
     fi

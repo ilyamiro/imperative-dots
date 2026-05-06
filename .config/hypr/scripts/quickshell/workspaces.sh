@@ -2,7 +2,7 @@
 
 # ============================================================================
 # 1. ZOMBIE PREVENTION
-# Kills any older instances of this script. When Quickshell reloads, 
+# Kills any older instances of this script. When Quickshell reloads,
 # it can leave the old listener pipelines running in the background infinitely.
 # ============================================================================
 for pid in $(pgrep -f "quickshell/workspaces.sh"); do
@@ -69,7 +69,7 @@ print_workspaces() {
             }
         )
     ' > /tmp/qs_workspaces.tmp
-    
+
     mv /tmp/qs_workspaces.tmp /tmp/qs_workspaces.json
 }
 
@@ -84,7 +84,7 @@ while true; do
     socat -u UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock - | while read -r line; do
         case "$line" in
             workspace*|focusedmon*|activewindow*|createwindow*|closewindow*|movewindow*|destroyworkspace*)
-                
+
                 # -> THE FIX <-
                 # Hyprland emits HUNDREDS of events a second when you move/resize windows.
                 # This reads and discards all subsequent events arriving within a 50ms window.

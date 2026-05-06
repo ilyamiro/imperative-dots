@@ -12,7 +12,7 @@ last_mute=$(get_mute)
 
 # 2. Loop through events
 pactl subscribe | grep --line-buffered "Event 'change' on sink" | while read -r line; do
-    
+
     current_sink=$(get_sink)
     current_vol=$(get_vol)
     current_mute=$(get_mute)
@@ -29,7 +29,7 @@ pactl subscribe | grep --line-buffered "Event 'change' on sink" | while read -r 
 
     # CHECK 2: Did the Volume/Mute actually change on the SAME device?
     if [[ "$current_vol" != "$last_vol" ]] || [[ "$current_mute" != "$last_mute" ]]; then
-        
+
         # Trigger OSD (without changing volume)
         swayosd-client --output-volume 0
 

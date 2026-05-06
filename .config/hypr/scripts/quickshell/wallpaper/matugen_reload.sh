@@ -23,12 +23,12 @@ target_file = sys.argv[1]
 try:
     with open(target_file, "r") as f:
         data = json.load(f)
-    
+
     flat_data = flatten_colors(data)
-    
+
     with open(target_file, "w") as f:
         json.dump(flat_data, f, indent=4)
-        
+
 except FileNotFoundError:
     pass
 except Exception as e:
@@ -86,14 +86,14 @@ swayosd-server --top-margin 0.9 --style "$HOME/.config/swayosd/style.css" > /dev
 disown
 
 # GTK Live-Reload Hack
-# Rapidly toggles the global theme to force GTK3 and GTK4 apps to flush 
+# Rapidly toggles the global theme to force GTK3 and GTK4 apps to flush
 # their caches and read the newly generated Matugen CSS.
 if command -v gsettings &> /dev/null; then
     # GTK3 apps
     gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita'
     sleep 0.05
     gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'
-    
+
     # GTK4 / Libadwaita apps
     gsettings set org.gnome.desktop.interface color-scheme 'default'
     sleep 0.05

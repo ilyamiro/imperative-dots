@@ -11,12 +11,12 @@ if [ -f "$FLAG" ]; then
     if [ -f "$CACHE_IMG" ]; then
         matugen image "$CACHE_IMG" --source-color-index 0
     fi
-    
+
     if [ -f "$RELOAD_SCRIPT_PATH" ]; then
         chmod +x "$RELOAD_SCRIPT_PATH"
         bash "$RELOAD_SCRIPT_PATH"
     fi
-    
+
     exit 0
 fi
 
@@ -31,11 +31,11 @@ file=$(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -in
 if [ -n "$file" ]; then
     # Copy to our persistent cache location instead of /tmp
     cp "$file" "$CACHE_IMG"
-    
+
     awww img "$file" --transition-type any --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 &
-    
+
     matugen image "$file" --source-color-index 0
-    
+
     # Execute reload script if it exists
     if [ -f "$RELOAD_SCRIPT_PATH" ]; then
         chmod +x "$RELOAD_SCRIPT_PATH"

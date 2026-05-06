@@ -24,7 +24,7 @@ case $command in
         # 2. CHECK: Is a worker already running?
         #    We check for a specific marker we create below.
         lock_file="/tmp/quickshell_music_seek_lock"
-        
+
         # If the lock file exists, a worker is already waiting to execute.
         # We just exit and let that worker pick up our new value from step 1.
         if [ -f "$lock_file" ]; then
@@ -33,14 +33,14 @@ case $command in
 
         # 3. WORKER: Create the lock and run in background
         touch "$lock_file"
-        
+
         (
             # Wait a tiny bit to gather rapid updates (Debounce)
             sleep 0.05
-            
+
             # Read the LATEST value from the file (Step 1)
             read -r final_arg final_len final_player < "$SEEK_FILE"
-            
+
             # Perform the Seek Logic
             if [ -n "$final_len" ] && [ "$final_len" != "0" ]; then
                 # Use AWK for math
@@ -48,22 +48,22 @@ case $command in
                 # Execute
                 playerctl -p "$final_player" position "$target_sec"
             fi
-            
+
             # Remove lock so a new batch can start
             rm "$lock_file"
-        ) & 
-        
+        ) &
+
         # Exit main script immediately to free up the UI
         exit 0
         ;;
-    
+
     "next")
         playerctl -p "$player_name" next ;;
-        
+
     "prev")
         playerctl -p "$player_name" previous ;;
-        
+
     "play-pause")
         playerctl -p "$player_name" play-pause ;;
-        
+
 esac
