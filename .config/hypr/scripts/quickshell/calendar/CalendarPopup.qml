@@ -994,7 +994,7 @@ Item {
                         Text {
                             Layout.fillWidth: true 
                             horizontalAlignment: Text.AlignHCenter 
-                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? Config.tr("weather.day_" + window.weatherData.forecast[window.weatherView].day_full.toLowerCase(), window.weatherData.forecast[window.weatherView].day_full, Config.langUpdateTrigger).toUpperCase() : "LOADING..."
+                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? Config.tr("weather.day_" + window.weatherData.forecast[window.weatherView].day_full.toLowerCase(), window.weatherData.forecast[window.weatherView].day_full, Config.langUpdateTrigger).toUpperCase() : Config.tr("calendar.loading", "LOADING...", Config.langUpdateTrigger)
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: Math.round(16 * window.sf)

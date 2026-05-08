@@ -66,7 +66,7 @@ Item {
 
     Process {
         id: translationReader
-        command: ["bash", "-c", `cat "${qsScriptsDir}/i18n/${config.uiLanguage}.json" 2>/dev/null || echo '{}'`]
+        command: ["cat", qsScriptsDir + "/i18n/" + config.uiLanguage + ".json"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -144,7 +144,7 @@ Item {
         };
 
         config.updateJsonBulk(configObj);
-        sh("notify-send 'Quickshell' '" + config.tr("notify.settings_saved", "Settings Applied Successfully!", config.langUpdateTrigger) + "'");
+        Quickshell.execDetached(["notify-send", "Quickshell", config.tr("notify.settings_saved", "Settings Applied Successfully!", config.langUpdateTrigger)]);
 
         if (config.workspaceCount !== config.initialWorkspaceCount) {
             sh(`qs -p "${qsScriptsDir}/TopBar.qml" ipc call topbar queueReload`);
@@ -161,19 +161,19 @@ Item {
         
         config.updateEnvBulk(config.weatherEnvPath, envs);
         sh(`rm -rf "${cacheDir}/weather"`);
-        sh("notify-send 'Weather' '" + config.tr("notify.weather_saved", "API configuration saved successfully!", config.langUpdateTrigger) + "'");
+        Quickshell.execDetached(["notify-send", "Weather", config.tr("notify.weather_saved", "API configuration saved successfully!", config.langUpdateTrigger)]);
     }
 
     function saveAllKeybinds(bindsArray) {
         config.keybindsData = bindsArray;
         config.setSetting("keybinds", bindsArray);
-        sh("notify-send 'Quickshell' '" + config.tr("notify.keybinds_saved", "Keybinds Saved Successfully!", config.langUpdateTrigger) + "'");
+        Quickshell.execDetached(["notify-send", "Quickshell", config.tr("notify.keybinds_saved", "Keybinds Saved Successfully!", config.langUpdateTrigger)]);
     }
 
     function saveAllStartup(startupArray) {
         config.startupData = startupArray;
         config.setSetting("startup", startupArray);
-        sh("notify-send 'Quickshell' '" + config.tr("notify.startup_saved", "Startup entries saved!", config.langUpdateTrigger) + "'");
+        Quickshell.execDetached(["notify-send", "Quickshell", config.tr("notify.startup_saved", "Startup entries saved!", config.langUpdateTrigger)]);
     }
 
     // =========================================================================

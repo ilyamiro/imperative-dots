@@ -194,7 +194,7 @@ Item {
             let em = window.monthNames[endD.getMonth()];
             let trSm = Config.tr("topbar.month_" + sm.toLowerCase(), sm, Config.langUpdateTrigger);
             let trEm = Config.tr("topbar.month_" + em.toLowerCase(), em, Config.langUpdateTrigger);
-            window.weekRangeStr = (Config.uiLanguage === "ru" ? `${startD.getDate()} ${trSm} - ${endD.getDate()} ${trEm}` : `${sm} ${startD.getDate()} - ${em} ${endD.getDate()}`);
+            window.weekRangeStr = (Config.uiLanguage === "ru" ? `${startD.getDate()} ${trSm} - ${endD.getDate()} ${trEm}` : `${trSm} ${startD.getDate()} - ${trEm} ${endD.getDate()}`);
         } else {
             window.weekRangeStr = data.week_range || "";
         }

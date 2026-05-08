@@ -4,6 +4,12 @@
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export PULSE_RUNTIME_PATH="$XDG_RUNTIME_DIR/pulse"
 
+get_lang() {
+    local lang
+    lang=$(grep '"uiLanguage"' ~/.config/hypr/settings.json 2>/dev/null | grep -o 'ru\|en' | head -1)
+    echo "${lang:-en}"
+}
+
 # ---------------------------------------------------------
 # DEPENDENCY CHECK
 # ---------------------------------------------------------
@@ -23,7 +29,7 @@ for cmd in "${REQUIRED_CMDS[@]}"; do
 done
 
 if [ ${#MISSING_CMDS[@]} -ne 0 ]; then
-    LANG_CODE=$(grep '"uiLanguage"' ~/.config/hypr/settings.json | grep -o 'ru\|en' | head -1)
+    LANG_CODE=$(get_lang)
     if [ "$LANG_CODE" = "ru" ]; then
         notify-send -u critical -a "Скриншот" "Отсутствуют зависимости" "Невозможно запустить. Установите:\n${MISSING_CMDS[*]}"
     else
@@ -181,7 +187,7 @@ if [ -f "$CACHE_DIR/rec_pid" ]; then
     fi
 
     # 4. SEND FINAL NOTIFICATION
-    LANG_CODE=$(grep '"uiLanguage"' ~/.config/hypr/settings.json | grep -o 'ru\|en' | head -1)
+    LANG_CODE=$(get_lang)
     if [ -f "$FINAL_FILE" ]; then
         if [ "$LANG_CODE" = "ru" ]; then
             notify-send -a "Запись Экрана" -i "$FINAL_FILE" "⏺ Запись сохранена" "Файл: $(basename "$FINAL_FILE")\nПапка: $RECORD_DIR"
@@ -282,7 +288,7 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         echo "$REC_PID" > "$CACHE_DIR/rec_pid"
         echo "$VID_FILENAME" > "$CACHE_DIR/final_file"
 
-        LANG_CODE=$(grep '"uiLanguage"' ~/.config/hypr/settings.json | grep -o 'ru\|en' | head -1)
+        LANG_CODE=$(get_lang)
         if [ "$LANG_CODE" = "ru" ]; then
             notify-send -a "Запись Экрана" "⏺ Запись началась" "Нажмите кнопку скриншота еще раз, чтобы остановить."
         else
@@ -301,7 +307,7 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         eval $GRIM_CMD | tee "$FILENAME" | wl-copy
     fi
 
-    LANG_CODE=$(grep '"uiLanguage"' ~/.config/hypr/settings.json | grep -o 'ru\|en' | head -1)
+    LANG_CODE=$(get_lang)
     if [ -s "$FILENAME" ]; then
         if [ "$LANG_CODE" = "ru" ]; then
             notify-send -a "Скриншот" -i "$FILENAME" "Скриншот сохранен" "Файл: $(basename "$FILENAME")\nПапка: $SAVE_DIR"

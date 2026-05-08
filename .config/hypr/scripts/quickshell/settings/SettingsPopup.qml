@@ -885,7 +885,7 @@ Item {
         { tab: 0, boxIndex: 4, label: Config.tr("settings.box.layout_shortcut", "Layout shortcut", Config.langUpdateTrigger),   desc: Config.tr("settings.box.shortcut_desc", "Toggle combination", Config.langUpdateTrigger),     icon: "󰯍", color: "teal" },
         { tab: 0, boxIndex: 5, label: Config.tr("settings.box.wallpaper_dir", "Wallpaper directory", Config.langUpdateTrigger),desc: Config.tr("settings.box.wallpaper_desc", "Absolute source path", Config.langUpdateTrigger),  icon: "󰋩", color: "mauve" },
         { tab: 0, boxIndex: 6, label: Config.tr("settings.box.workspaces", "Workspaces", Config.langUpdateTrigger),        desc: Config.tr("settings.box.workspaces_desc", "Static count in topbar", Config.langUpdateTrigger), icon: "󰽿", color: "red" },
-        { tab: 0, boxIndex: 7, label: Config.tr("settings.box.ui_language", "UI Language", Config.langUpdateTrigger),      desc: Config.tr("settings.box.ui_language_desc", "Requires QuickShell reload", Config.langUpdateTrigger), icon: "󰗊", color: "maroon" },
+        { tab: 0, boxIndex: 7, label: Config.tr("settings.box.ui_language", "UI Language", Config.langUpdateTrigger),      desc: Config.tr("settings.box.ui_language_desc", "Applies instantly", Config.langUpdateTrigger), icon: "󰗊", color: "maroon" },
         { tab: 1, boxIndex: 1, label: Config.tr("settings.box.api_key", "API Key", Config.langUpdateTrigger),           desc: Config.tr("settings.box.api_desc", "OpenWeather API key", Config.langUpdateTrigger),    icon: "󰌆", color: "blue" },
         { tab: 1, boxIndex: 2, label: Config.tr("settings.box.city_id", "City ID", Config.langUpdateTrigger),           desc: Config.tr("settings.box.city_desc", "OpenWeather city ID", Config.langUpdateTrigger),    icon: "󰖐", color: "blue" },
         { tab: 1, boxIndex: 3, label: Config.tr("settings.box.temp_unit", "Temperature Unit", Config.langUpdateTrigger),  desc: Config.tr("settings.box.temp_desc", "Celsius / Fahrenheit / K", Config.langUpdateTrigger), icon: "󰔄", color: "blue" }
@@ -1801,7 +1801,7 @@ Item {
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: Config.tr("settings.box.ui_language_desc", "Requires QuickShell reload", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.box.ui_language_desc", "Applies instantly", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box7.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
