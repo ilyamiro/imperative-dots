@@ -4,6 +4,12 @@
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export PULSE_RUNTIME_PATH="$XDG_RUNTIME_DIR/pulse"
 
+get_lang() {
+    local lang
+    lang=$(grep '"uiLanguage"' ~/.config/hypr/settings.json 2>/dev/null | grep -o 'ru\|en' | head -1)
+    echo "${lang:-en}"
+}
+
 # ---------------------------------------------------------
 # DEPENDENCY CHECK
 # ---------------------------------------------------------
@@ -23,7 +29,12 @@ for cmd in "${REQUIRED_CMDS[@]}"; do
 done
 
 if [ ${#MISSING_CMDS[@]} -ne 0 ]; then
-    notify-send -u critical -a "Screenshot System" "Missing Dependencies" "Cannot start. Please install:\n${MISSING_CMDS[*]}"
+    LANG_CODE=$(get_lang)
+    if [ "$LANG_CODE" = "ru" ]; then
+        notify-send -u critical -a "Скриншот" "Отсутствуют зависимости" "Невозможно запустить. Установите:\n${MISSING_CMDS[*]}"
+    else
+        notify-send -u critical -a "Screenshot System" "Missing Dependencies" "Cannot start. Please install:\n${MISSING_CMDS[*]}"
+    fi
     exit 1
 fi
 # ---------------------------------------------------------
@@ -176,10 +187,19 @@ if [ -f "$CACHE_DIR/rec_pid" ]; then
     fi
 
     # 4. SEND FINAL NOTIFICATION
+    LANG_CODE=$(get_lang)
     if [ -f "$FINAL_FILE" ]; then
-        notify-send -a "Screen Recorder" -i "$FINAL_FILE" "⏺ Recording Saved" "File: $(basename "$FINAL_FILE")\nFolder: $RECORD_DIR"
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -a "Запись Экрана" -i "$FINAL_FILE" "⏺ Запись сохранена" "Файл: $(basename "$FINAL_FILE")\nПапка: $RECORD_DIR"
+        else
+            notify-send -a "Screen Recorder" -i "$FINAL_FILE" "⏺ Recording Saved" "File: $(basename "$FINAL_FILE")\nFolder: $RECORD_DIR"
+        fi
     else
-        notify-send -a "Screen Recorder" "❌ Error" "Failed to save the video file."
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -a "Запись Экрана" "❌ Ошибка" "Не удалось сохранить видеофайл."
+        else
+            notify-send -a "Screen Recorder" "❌ Error" "Failed to save the video file."
+        fi
     fi
 
     # 5. INSTANT UI CLEANUP
@@ -268,7 +288,12 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         echo "$REC_PID" > "$CACHE_DIR/rec_pid"
         echo "$VID_FILENAME" > "$CACHE_DIR/final_file"
 
-        notify-send -a "Screen Recorder" "⏺ Recording Started" "Press your screenshot shortcut again to stop."
+        LANG_CODE=$(get_lang)
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -a "Запись Экрана" "⏺ Запись началась" "Нажмите кнопку скриншота еще раз, чтобы остановить."
+        else
+            notify-send -a "Screen Recorder" "⏺ Recording Started" "Press your screenshot shortcut again to stop."
+        fi
         exit 0
     fi
 
@@ -282,7 +307,14 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         eval $GRIM_CMD | tee "$FILENAME" | wl-copy
     fi
 
-    [ -s "$FILENAME" ] && notify-send -a "Screenshot" -i "$FILENAME" "Screenshot Saved" "File: Screenshot_$time.png\nFolder: $SAVE_DIR"
+    LANG_CODE=$(get_lang)
+    if [ -s "$FILENAME" ]; then
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -a "Скриншот" -i "$FILENAME" "Скриншот сохранен" "Файл: $(basename "$FILENAME")\nПапка: $SAVE_DIR"
+        else
+            notify-send -a "Screenshot" -i "$FILENAME" "Screenshot Saved" "File: $(basename "$FILENAME")\nFolder: $SAVE_DIR"
+        fi
+    fi
     exit 0
 fi
 

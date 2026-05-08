@@ -1433,7 +1433,7 @@ Item {
                                     font.family: "Iosevka Nerd Font"
                                     font.pixelSize: window.s(20)
                                     color: window.crust
-                                    text: "󰸵" 
+                                    text: "󰸵"
                                 }
                                 
                                 Text { 
@@ -1441,7 +1441,7 @@ Item {
                                     font.weight: Font.Black
                                     font.pixelSize: window.s(14)
                                     color: window.crust
-                                    text: monitorsModel.count > 1 ? "Apply All" : "Apply" 
+                                    text: monitorsModel.count > 1 ? Config.tr("monitor.apply_all", "Apply All", Config.langUpdateTrigger) : Config.tr("monitor.apply", "Apply", Config.langUpdateTrigger) 
                                 }
                             }
                         }

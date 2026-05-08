@@ -14,12 +14,21 @@ get_bt_icon() {
     else echo "󰂲"; fi
 }
 toggle_bt() {
+    LANG_CODE=$(grep '"uiLanguage"' ~/.config/hypr/settings.json 2>/dev/null | grep -o 'ru\|en' | head -1)
     if [ "$(get_bt_status)" = "on" ]; then
         LC_ALL=C timeout 0.5 bluetoothctl power off 2>/dev/null
-        notify-send -u low -i bluetooth-disabled "Bluetooth" "Disabled"
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -u low -i bluetooth-disabled "Bluetooth" "Отключён"
+        else
+            notify-send -u low -i bluetooth-disabled "Bluetooth" "Disabled"
+        fi
     else
         LC_ALL=C timeout 0.5 bluetoothctl power on 2>/dev/null
-        notify-send -u low -i bluetooth-active "Bluetooth" "Enabled"
+        if [ "$LANG_CODE" = "ru" ]; then
+            notify-send -u low -i bluetooth-active "Bluetooth" "Включён"
+        else
+            notify-send -u low -i bluetooth-active "Bluetooth" "Enabled"
+        fi
     fi
 }
 case $1 in

@@ -187,7 +187,17 @@ Item {
         window.totalSeconds = data.total || 0;
         window.averageSeconds = data.average || 0;
         window.yesterdaySeconds = data.yesterday || 0;
-        window.weekRangeStr = data.week_range || "";
+        if (data.week && data.week.length === 7) {
+            let startD = new Date(data.week[0].date);
+            let endD = new Date(data.week[6].date);
+            let sm = window.monthNames[startD.getMonth()];
+            let em = window.monthNames[endD.getMonth()];
+            let trSm = Config.tr("topbar.month_" + sm.toLowerCase(), sm, Config.langUpdateTrigger);
+            let trEm = Config.tr("topbar.month_" + em.toLowerCase(), em, Config.langUpdateTrigger);
+            window.weekRangeStr = (Config.uiLanguage === "ru" ? `${startD.getDate()} ${trSm} - ${endD.getDate()} ${trEm}` : `${trSm} ${startD.getDate()} - ${trEm} ${endD.getDate()}`);
+        } else {
+            window.weekRangeStr = data.week_range || "";
+        }
         window.liveActiveApp = data.current || "Unknown";
 
         if (window.isFirstLoad) firstLoadTimer.start();
@@ -319,7 +329,9 @@ Item {
         let monthName = window.monthNames[d.getMonth()];
         let dateNum = d.getDate();
         let isToday = getIsoDate(d) === getIsoDate(new Date());
-        return isToday ? "Today" : `${monthName} ${dateNum}`;
+        let trToday = Config.tr("focustime.today", "Today", Config.langUpdateTrigger);
+        let trMonth = Config.tr("topbar.month_" + monthName.toLowerCase(), monthName, Config.langUpdateTrigger);
+        return isToday ? trToday : (Config.uiLanguage === "ru" ? `${dateNum} ${trMonth}` : `${trMonth} ${dateNum}`);
     }
 
     function changeDay(offsetDays) {
@@ -462,15 +474,15 @@ Item {
     function formatTimeLarge(secs) {
         let h = Math.floor(secs / 3600);
         let m = Math.floor((secs % 3600) / 60);
-        if (h > 0) return h + "h " + m + "m";
-        return m + "m";
+        if (h > 0) return h + Config.tr("focustime.hr", "h", Config.langUpdateTrigger) + " " + m + Config.tr("focustime.min", "m", Config.langUpdateTrigger);
+        return m + Config.tr("focustime.min", "m", Config.langUpdateTrigger);
     }
 
     function formatTimeList(secs) {
         let h = Math.floor(secs / 3600);
         let m = Math.floor((secs % 3600) / 60);
-        if (h > 0) return h + "h " + m.toString().padStart(2, '0') + "m";
-        return m + "m";
+        if (h > 0) return h + Config.tr("focustime.hr", "h", Config.langUpdateTrigger) + " " + m.toString().padStart(2, '0') + Config.tr("focustime.min", "m", Config.langUpdateTrigger);
+        return m + Config.tr("focustime.min", "m", Config.langUpdateTrigger);
     }
 
     // -------------------------------------------------------------------------
@@ -642,7 +654,7 @@ Item {
                             font.weight: Font.DemiBold
                             font.pixelSize: window.s(18)
                             color: window.text
-                            text: window.isWeekView ? (window.weekRangeStr !== "" ? window.weekRangeStr : "Week Overview") : (window.selectedAppClass !== "" ? `${window.selectedAppName} - ${window.getFancyDate(window.activeDate)}` : window.getFancyDate(window.activeDate))
+                            text: window.isWeekView ? (window.weekRangeStr !== "" ? window.weekRangeStr : Config.tr("focus.week_overview", "Week Overview", Config.langUpdateTrigger)) : (window.selectedAppClass !== "" ? `${window.selectedAppName} - ${window.getFancyDate(window.activeDate)}` : window.getFancyDate(window.activeDate))
                         }
 
                         Item { Layout.fillWidth: true } // Right Spacer
@@ -713,7 +725,7 @@ Item {
                                         font.weight: Font.DemiBold
                                         font.pixelSize: window.s(14)
                                         color: window.subtext0
-                                        text: "Daily average"
+                                        text: Config.tr("focus.daily_average", "Daily average", Config.langUpdateTrigger)
                                     }
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
@@ -812,7 +824,7 @@ Item {
                                         font.weight: Font.DemiBold
                                         font.pixelSize: window.s(15)
                                         color: window.overlay0
-                                        text: (window.totalSeconds === 0 && window.yesterdaySeconds === 0) ? "No data" : "Same time"
+                                        text: (window.totalSeconds === 0 && window.yesterdaySeconds === 0) ? Config.tr("focus.no_data", "No data", Config.langUpdateTrigger) : Config.tr("focus.same_time", "Same time", Config.langUpdateTrigger)
                                         visible: (window.totalSeconds === 0 && window.yesterdaySeconds === 0) || window.totalSeconds === window.yesterdaySeconds
                                     }
                                 }
@@ -905,7 +917,7 @@ Item {
                                                 font.weight: Font.DemiBold
                                                 font.pixelSize: window.s(12)
                                                 color: model.isTarget ? window.text : window.overlay0
-                                                text: model.dayName 
+                                                text: Config.tr("calendar.day_" + model.dayName.toLowerCase().substring(0,2), model.dayName, Config.langUpdateTrigger) 
                                                 Behavior on color { ColorAnimation { duration: 400 } }
                                             }
                                         }
@@ -937,7 +949,7 @@ Item {
                                         font.weight: Font.DemiBold
                                         font.pixelSize: window.s(14)
                                         color: window.text
-                                        text: window.monthNames[window.activeDate.getMonth()]
+                                        text: Config.tr("calendar.month_" + window.monthNames[window.activeDate.getMonth()].toLowerCase(), window.monthNames[window.activeDate.getMonth()], Config.langUpdateTrigger)
                                     }
 
                                     Grid {
@@ -1140,7 +1152,7 @@ Item {
                                         font.weight: Font.DemiBold
                                         font.pixelSize: window.s(14)
                                         color: window.text
-                                        text: "Daily usage"
+                                        text: Config.tr("focus.daily_usage", "Daily usage", Config.langUpdateTrigger)
                                     }
 
                                     RowLayout {
@@ -1254,7 +1266,7 @@ Item {
                                                 transform: Translate { x: window.s(-20) * (1 - introMidLeft) + (dayIndex * window.s(5) * (1 - introMidLeft)) }
 
                                                 Text {
-                                                    text: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][dayIndex]
+                                                    text: Config.tr("focus." + ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][dayIndex], ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][dayIndex], Config.langUpdateTrigger)
                                                     font.family: "JetBrains Mono"
                                                     font.weight: Font.Normal
                                                     font.pixelSize: window.s(12)
@@ -1352,7 +1364,7 @@ Item {
                                                 font.weight: Font.Medium
                                                 font.pixelSize: window.s(12)
                                                 color: window.subtext0
-                                                text: "Daily average"
+                                                text: Config.tr("focus.daily_average", "Daily average", Config.langUpdateTrigger)
                                             }
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
@@ -1381,7 +1393,7 @@ Item {
                                                 font.weight: Font.Medium
                                                 font.pixelSize: window.s(12)
                                                 color: window.subtext0
-                                                text: "Peak hours"
+                                                text: Config.tr("focus.peak_hours", "Peak hours", Config.langUpdateTrigger)
                                             }
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter

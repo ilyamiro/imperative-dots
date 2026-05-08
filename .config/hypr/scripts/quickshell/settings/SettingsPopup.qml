@@ -200,7 +200,12 @@ Item {
     }
 
     property int currentTab: 0
-    property var tabNames: ["General", "Weather", "Keybinds", "Startup"]
+    property var tabNames: [
+        Config.tr("settings.tab.general", "General", Config.langUpdateTrigger),
+        Config.tr("settings.tab.weather", "Weather", Config.langUpdateTrigger),
+        Config.tr("settings.tab.keybinds", "Keybinds", Config.langUpdateTrigger),
+        Config.tr("settings.tab.startup", "Startup", Config.langUpdateTrigger)
+    ]
     property var tabIcons: ["󰒓", "󰖐", "󰌌", "󰐥"]
     property var tabColors: ["teal", "blue", "peach", "green"]
 
@@ -873,16 +878,17 @@ Item {
     }
 
     property var allSettingsCards: [
-        { tab: 0, boxIndex: 0, label: "Guide on startup",  desc: "Launch on login",        icon: "󰑊", color: "peach" },
-        { tab: 0, boxIndex: 1, label: "Help icon",         desc: "Show button in topbar",  icon: "󰋖", color: "blue" },
-        { tab: 0, boxIndex: 2, label: "UI Scale",          desc: "Base size scalar",       icon: "󰁦", color: "sapphire" },
-        { tab: 0, boxIndex: 3, label: "Keyboard layouts",  desc: "Matches hyprland.conf",  icon: "󰌌", color: "green" },
-        { tab: 0, boxIndex: 4, label: "Layout shortcut",   desc: "Toggle combination",     icon: "󰯍", color: "teal" },
-        { tab: 0, boxIndex: 5, label: "Wallpaper directory",desc: "Absolute source path",  icon: "󰋩", color: "mauve" },
-        { tab: 0, boxIndex: 6, label: "Workspaces",        desc: "Static count in topbar", icon: "󰽿", color: "red" },
-        { tab: 1, boxIndex: 1, label: "API Key",           desc: "OpenWeather API key",    icon: "󰌆", color: "blue" },
-        { tab: 1, boxIndex: 2, label: "City ID",           desc: "OpenWeather city ID",    icon: "󰖐", color: "blue" },
-        { tab: 1, boxIndex: 3, label: "Temperature Unit",  desc: "Celsius / Fahrenheit / K", icon: "󰔄", color: "blue" }
+        { tab: 0, boxIndex: 0, label: Config.tr("settings.box.guide_on_startup", "Guide on startup", Config.langUpdateTrigger),  desc: Config.tr("settings.box.guide_desc", "Launch on login", Config.langUpdateTrigger),        icon: "󰑊", color: "peach" },
+        { tab: 0, boxIndex: 1, label: Config.tr("settings.box.help_icon", "Help icon", Config.langUpdateTrigger),         desc: Config.tr("settings.box.help_desc", "Show button in topbar", Config.langUpdateTrigger),  icon: "󰋖", color: "blue" },
+        { tab: 0, boxIndex: 2, label: Config.tr("settings.box.ui_scale", "UI Scale", Config.langUpdateTrigger),          desc: Config.tr("settings.box.ui_scale_desc", "Base size scalar", Config.langUpdateTrigger),       icon: "󰁦", color: "sapphire" },
+        { tab: 0, boxIndex: 3, label: Config.tr("settings.box.keyboard_layouts", "Keyboard layouts", Config.langUpdateTrigger),  desc: Config.tr("settings.box.keyboard_desc", "Matches hyprland.conf", Config.langUpdateTrigger),  icon: "󰌌", color: "green" },
+        { tab: 0, boxIndex: 4, label: Config.tr("settings.box.layout_shortcut", "Layout shortcut", Config.langUpdateTrigger),   desc: Config.tr("settings.box.shortcut_desc", "Toggle combination", Config.langUpdateTrigger),     icon: "󰯍", color: "teal" },
+        { tab: 0, boxIndex: 5, label: Config.tr("settings.box.wallpaper_dir", "Wallpaper directory", Config.langUpdateTrigger),desc: Config.tr("settings.box.wallpaper_desc", "Absolute source path", Config.langUpdateTrigger),  icon: "󰋩", color: "mauve" },
+        { tab: 0, boxIndex: 6, label: Config.tr("settings.box.workspaces", "Workspaces", Config.langUpdateTrigger),        desc: Config.tr("settings.box.workspaces_desc", "Static count in topbar", Config.langUpdateTrigger), icon: "󰽿", color: "red" },
+        { tab: 0, boxIndex: 7, label: Config.tr("settings.box.ui_language", "UI Language", Config.langUpdateTrigger),      desc: Config.tr("settings.box.ui_language_desc", "Applies instantly", Config.langUpdateTrigger), icon: "󰗊", color: "maroon" },
+        { tab: 1, boxIndex: 1, label: Config.tr("settings.box.api_key", "API Key", Config.langUpdateTrigger),           desc: Config.tr("settings.box.api_desc", "OpenWeather API key", Config.langUpdateTrigger),    icon: "󰌆", color: "blue" },
+        { tab: 1, boxIndex: 2, label: Config.tr("settings.box.city_id", "City ID", Config.langUpdateTrigger),           desc: Config.tr("settings.box.city_desc", "OpenWeather city ID", Config.langUpdateTrigger),    icon: "󰖐", color: "blue" },
+        { tab: 1, boxIndex: 3, label: Config.tr("settings.box.temp_unit", "Temperature Unit", Config.langUpdateTrigger),  desc: Config.tr("settings.box.temp_desc", "Celsius / Fahrenheit / K", Config.langUpdateTrigger), icon: "󰔄", color: "blue" }
     ]
 
     function getMatchingKeybindIndices(query) {
@@ -1062,14 +1068,14 @@ Item {
                                 Layout.alignment: Qt.AlignVCenter
                                 spacing: root.s(3)
                                 Text {
-                                    text: "Guide on startup"
+                                    text: Config.tr("settings.box.guide_on_startup", "Guide on startup", Config.langUpdateTrigger)
                                     font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                     color: box0.isActive ? root.base : root.text
                                     Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
                                 Text {
-                                    text: "Launch on login"
+                                    text: Config.tr("settings.box.guide_desc", "Launch on login", Config.langUpdateTrigger)
                                     font.family: "Inter"; font.pixelSize: root.s(11)
                                     color: box0.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7)
                                     Layout.fillWidth: true
@@ -1136,12 +1142,12 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: root.s(3)
                                 Text {
-                                    text: "Help icon"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                    text: Config.tr("settings.inline.help_icon", "Help icon", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                     color: box1.isActive ? root.base : root.text; Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
                                 Text {
-                                    text: "Show button in topbar"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                    text: Config.tr("settings.inline.show_help", "Show button in topbar", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                     color: box1.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
@@ -1201,12 +1207,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: root.s(3)
                                     Text {
-                                        text: "UI Scale"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.ui_scale", "UI Scale", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                         color: box2.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Base size scalar"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.base_size", "Base size scalar", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box2.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -1292,12 +1298,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
                                     Text {
-                                        text: "Keyboard layouts"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.keyboard_layouts", "Keyboard layouts", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                         color: box3.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Matches hyprland.conf. Click ✖ to remove."; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.kb_matches", "Matches hyprland.conf. Click ✖ to remove.", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box3.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -1376,7 +1382,7 @@ Item {
                                     onActiveFocusChanged: { if (activeFocus) root.updateLangSearch(text); }
                                     onTextChanged: { root.updateLangSearch(text); }
                                     Text {
-                                        text: "Search to add..."
+                                        text: Config.tr("settings.placeholder.search_add", "Search to add...", Config.langUpdateTrigger)
                                         color: box3.isActive ? Qt.alpha(root.base, 0.5) : Qt.alpha(root.subtext0, 0.7)
                                         visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
@@ -1460,12 +1466,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
                                     Text {
-                                        text: "Layout shortcut"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.layout_shortcut", "Layout shortcut", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                         color: box4.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Toggle combination"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.shortcut_desc", "Toggle combination", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box4.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -1581,12 +1587,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
                                     Text {
-                                        text: "Wallpaper directory"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.wallpaper_dir", "Wallpaper directory", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                         color: box5.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Absolute source path"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.wallpaper_desc", "Absolute source path", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box5.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -1632,7 +1638,7 @@ Item {
                                                 if (activeFocus) { pathSuggestProc.query = text; pathSuggestProc.running = false; pathSuggestProc.running = true; }
                                             }
                                             Text {
-                                                text: "Enter directory..."; color: box5.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
+                                                text: Config.tr("settings.placeholder.enter_dir", "Enter directory...", Config.langUpdateTrigger); color: box5.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
                                                 visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
                                             }
                                         }
@@ -1708,12 +1714,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: root.s(3)
                                     Text {
-                                        text: "Workspaces"; font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.workspaces", "Workspaces", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(14)
                                         color: box6.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Static count in topbar"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.workspaces_desc", "Static count in topbar", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: box6.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -1754,6 +1760,77 @@ Item {
                                             Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                         }
                                         MouseArea { id: wsPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.workspaceCount = Math.min(10, Config.workspaceCount + 1) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // ── Box 7: UI Language ───────────────────────────────────
+                    Rectangle {
+                        id: box7
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: col7lang.implicitHeight + root.s(32)
+                        radius: root.s(12)
+
+                        property bool isActive: root.highlightedBox === 7
+                        color: isActive ? root.maroon : root.surface0
+                        border.color: isActive ? root.maroon : root.surface1
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.highlightedBox = 7; z: -1 }
+
+                        ColumnLayout {
+                            id: col7lang
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(16)
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignVCenter
+                                    Text {
+                                        anchors.centerIn: parent; text: "󰗊"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: box7.isActive ? root.base : root.maroon
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: root.s(3)
+                                    Text {
+                                        text: Config.tr("settings.box.ui_language", "UI Language", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(14)
+                                        color: box7.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: Config.tr("settings.box.ui_language_desc", "Applies instantly", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                RowLayout {
+                                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight; spacing: root.s(10)
+                                    Rectangle {
+                                        width: root.s(80); height: root.s(30); radius: root.s(8)
+                                        color: (Config.uiLanguage === "en") ? root.surface1 : "transparent"
+                                        border.color: (Config.uiLanguage === "en") ? root.maroon : root.surface2
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent; text: "English"
+                                            font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(12)
+                                            color: (Config.uiLanguage === "en") ? root.text : root.subtext0
+                                        }
+                                        MouseArea { anchors.fill: parent; onClicked: { Config.uiLanguage = "en"; Config.loadTranslations(); Config.setSetting("uiLanguage", "en"); } }
+                                    }
+                                    Rectangle {
+                                        width: root.s(80); height: root.s(30); radius: root.s(8)
+                                        color: (Config.uiLanguage === "ru") ? root.surface1 : "transparent"
+                                        border.color: (Config.uiLanguage === "ru") ? root.maroon : root.surface2
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent; text: "Русский"
+                                            font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(12)
+                                            color: (Config.uiLanguage === "ru") ? root.text : root.subtext0
+                                        }
+                                        MouseArea { anchors.fill: parent; onClicked: { Config.uiLanguage = "ru"; Config.loadTranslations(); Config.setSetting("uiLanguage", "ru"); } }
                                     }
                                 }
                             }
@@ -1837,7 +1914,7 @@ Item {
                             anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(14)
                             spacing: root.s(10)
                             Text {
-                                text: "Weather Widget Setup"; font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(15)
+                                text: Config.tr("settings.inline.weather_setup", "Weather Widget Setup", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(15)
                                 color: wBox0.isActive ? root.base : root.text; Layout.bottomMargin: root.s(2)
                                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                             }
@@ -1851,7 +1928,7 @@ Item {
                                     Text { anchors.centerIn: parent; text: "1"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(11); color: wBox0.isActive ? root.base : root.blue; Behavior on color { ColorAnimation { duration: 220 } } }
                                 }
                                 Text {
-                                    text: "Get an API Key"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(13)
+                                    text: Config.tr("settings.inline.get_api_key", "Get an API Key", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(13)
                                     color: wBox0.isActive ? root.base : root.text; Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
@@ -1869,7 +1946,7 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: root.s(6); Layout.topMargin: root.s(2); Layout.bottomMargin: root.s(2)
                                     Repeater {
-                                        model: ["Go to openweathermap.org & create an account.", "Navigate to profile -> 'My API keys'.", "Generate a new key and paste it below."]
+                                        model: [Config.tr("settings.inline.api_step1", "Go to openweathermap.org & create an account.", Config.langUpdateTrigger), Config.tr("settings.inline.api_step2", "Navigate to profile -> 'My API keys'.", Config.langUpdateTrigger), Config.tr("settings.inline.api_step3", "Generate a new key and paste it below.", Config.langUpdateTrigger)]
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: root.s(30)
                                             radius: root.s(6)
@@ -1895,7 +1972,7 @@ Item {
                                     Text { anchors.centerIn: parent; text: "2"; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(11); color: wBox0.isActive ? root.base : root.peach; Behavior on color { ColorAnimation { duration: 220 } } }
                                 }
                                 Text {
-                                    text: "Find your City ID"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(13)
+                                    text: Config.tr("settings.inline.find_city", "Find your City ID", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(13)
                                     color: wBox0.isActive ? root.base : root.text; Layout.fillWidth: true
                                     Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                 }
@@ -1917,7 +1994,7 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: root.s(6); Layout.topMargin: root.s(2); Layout.bottomMargin: root.s(2)
                                     Repeater {
-                                        model: ["Search for your city on openweathermap.org.", "Look at the URL (e.g. .../city/2643743).", "Copy the number at the end and paste below."]
+                                        model: [Config.tr("settings.inline.city_step1", "Search for your city on openweathermap.org.", Config.langUpdateTrigger), Config.tr("settings.inline.city_step2", "Look at the URL (e.g. .../city/2643743).", Config.langUpdateTrigger), Config.tr("settings.inline.city_step3", "Copy the number at the end and paste below.", Config.langUpdateTrigger)]
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: root.s(30)
                                             radius: root.s(6)
@@ -1934,7 +2011,7 @@ Item {
                                 }
                             }
                             Text {
-                                text: "* Note: New API keys may take a few hours to activate."; font.family: "Inter"; font.pixelSize: root.s(10)
+                                text: Config.tr("settings.inline.api_note", "* Note: New API keys may take a few hours to activate.", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(10)
                                 color: wBox0.isActive ? Qt.alpha(root.base, 0.7) : root.yellow; font.italic: true; Layout.topMargin: root.s(2)
                                 Behavior on color { ColorAnimation { duration: 220 } }
                             }
@@ -1978,7 +2055,7 @@ Item {
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "OpenWeather API key"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.api_key", "OpenWeather API key", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: wBox1.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -2012,7 +2089,7 @@ Item {
                                         onTextChanged: Config.weatherApiKey = text
                                         Behavior on color { ColorAnimation { duration: 220 } }
                                         Text {
-                                            text: "Enter API Key..."; color: wBox1.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
+                                            text: Config.tr("settings.placeholder.enter_api", "Enter API Key...", Config.langUpdateTrigger); color: wBox1.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
                                             visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
                                             Behavior on color { ColorAnimation { duration: 220 } }
                                         }
@@ -2070,7 +2147,7 @@ Item {
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "OpenWeather city ID"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.city_id", "OpenWeather city ID", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: wBox2.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -2095,7 +2172,7 @@ Item {
                                     onTextChanged: Config.weatherCityId = text
                                     Behavior on color { ColorAnimation { duration: 220 } }
                                     Text {
-                                        text: "City ID (e.g. 2624652)"; color: wBox2.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
+                                        text: Config.tr("settings.placeholder.enter_city", "City ID (e.g. 2624652)", Config.langUpdateTrigger); color: wBox2.isActive ? Qt.alpha(root.base, 0.5) : root.subtext0
                                         visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
                                         Behavior on color { ColorAnimation { duration: 220 } }
                                     }
@@ -2136,12 +2213,12 @@ Item {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: root.s(3)
                                     Text {
-                                        text: "Temperature Unit"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        text: Config.tr("settings.inline.temp_unit", "Temperature Unit", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
                                         color: wBox3.isActive ? root.base : root.text; Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
                                     Text {
-                                        text: "Celsius / Fahrenheit / Kelvin"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        text: Config.tr("settings.inline.temp_desc", "Celsius / Fahrenheit / Kelvin", Config.langUpdateTrigger); font.family: "Inter"; font.pixelSize: root.s(11)
                                         color: wBox3.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
                                         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
                                     }
@@ -2150,7 +2227,7 @@ Item {
                             RowLayout {
                                 Layout.fillWidth: true; spacing: root.s(8)
                                 Repeater {
-                                    model: [{ val: "metric", label: "Celsius" }, { val: "imperial", label: "Fahrenheit" }, { val: "standard", label: "Kelvin" }]
+                                    model: [{ val: "metric", labelKey: "settings.temp.celsius", fb: "Celsius" }, { val: "imperial", labelKey: "settings.temp.fahrenheit", fb: "Fahrenheit" }, { val: "standard", labelKey: "settings.temp.kelvin", fb: "Kelvin" }]
                                     Rectangle {
                                         Layout.preferredWidth: root.s(88); Layout.preferredHeight: root.s(30); radius: root.s(6)
                                         property bool isSelected: Config.weatherUnit === modelData.val
@@ -2165,7 +2242,7 @@ Item {
                                         Behavior on color { ColorAnimation { duration: 150 } }
                                         Behavior on border.color { ColorAnimation { duration: 150 } }
                                         Text {
-                                            anchors.centerIn: parent; text: modelData.label
+                                            anchors.centerIn: parent; text: Config.tr(modelData.labelKey, modelData.fb, Config.langUpdateTrigger)
                                             font.family: "JetBrains Mono"; font.pixelSize: root.s(10); font.capitalization: Font.Capitalize
                                             color: isSelected
                                                 ? (parentActive ? root.base : root.base)
@@ -2454,7 +2531,7 @@ Item {
                                             anchors.centerIn: parent; font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(11)
                                             color: captureTrap.activeFocus ? root.red : root.text
                                             Behavior on color { ColorAnimation { duration: 150 } }
-                                            text: captureTrap.activeFocus ? "Press Keys (Esc to confirm)..." : (model.mods ? model.mods + " + " : "") + (model.key || "[Click to Record Shortcut]")
+                                            text: captureTrap.activeFocus ? Config.tr("settings.placeholder.record_keys", "Press Keys (Esc to confirm)...", Config.langUpdateTrigger) : (model.mods ? model.mods + " + " : "") + (model.key || Config.tr("settings.placeholder.click_record", "[Click to Record Shortcut]", Config.langUpdateTrigger))
                                         }
                                         MouseArea {
                                             id: recordMa; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -2654,7 +2731,7 @@ Item {
                                             color: root.text; clip: true; selectByMouse: true
                                             onTextChanged: dynamicKeybindsModel.setProperty(outerIndex, "command", text)
                                             Text {
-                                                text: "Command arguments..."
+                                                text: Config.tr("settings.placeholder.command", "Command arguments...", Config.langUpdateTrigger)
                                                 color: root.subtext0
                                                 visible: !parent.text && !parent.activeFocus; font: parent.font; anchors.verticalCenter: parent.verticalCenter
                                             }
@@ -2679,7 +2756,7 @@ Item {
                                                     Behavior on color { ColorAnimation { duration: 180 } }
                                                 }
                                                 Text {
-                                                    text: "Delete"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); font.weight: Font.Medium
+                                                    text: Config.tr("ui.delete", "Delete", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(10); font.weight: Font.Medium
                                                     color: delMa.containsMouse ? root.base : root.red
                                                     Behavior on color { ColorAnimation { duration: 180 } }
                                                 }
@@ -2709,7 +2786,7 @@ Item {
                                                     Behavior on color { ColorAnimation { duration: 180 } }
                                                 }
                                                 Text {
-                                                    text: "Save"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); font.weight: Font.Medium
+                                                     text: Config.tr("ui.save", "Save", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(10); font.weight: Font.Medium
                                                     color: rowSaveMa.containsMouse ? root.base : root.green
                                                     Behavior on color { ColorAnimation { duration: 180 } }
                                                 }
@@ -2774,7 +2851,7 @@ Item {
                     spacing: root.s(10)
 
                     Text { 
-                        text: "Settings"; font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(24)
+                        text: Config.tr("settings.inline.settings_header", "Settings", Config.langUpdateTrigger); font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(24)
                         color: root.text; Layout.alignment: Qt.AlignVCenter 
                     }
 
@@ -2830,7 +2907,7 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 180 } }
                             }
                             Text { 
-                                text: "Save"
+                                text: Config.tr("ui.save", "Save", Config.langUpdateTrigger)
                                 font.family: "JetBrains Mono"
                                 font.weight: Font.Bold
                                 font.pixelSize: root.s(12)
@@ -2887,7 +2964,7 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 180 } }
                             }
                             Text { 
-                                text: "Add"
+                                text: Config.tr("ui.add", "Add", Config.langUpdateTrigger)
                                 font.family: "JetBrains Mono"
                                 font.weight: Font.Bold
                                 font.pixelSize: root.s(12)
@@ -2940,7 +3017,7 @@ Item {
                             font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: root.text; clip: true; selectByMouse: true
                             Text {
                                 anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                text: root.isSearchMode ? "Search settings & keybinds..." : "Search"
+                                text: root.isSearchMode ? Config.tr("ui.search_placeholder", "Search settings & keybinds...", Config.langUpdateTrigger) : Config.tr("ui.search_short", "Search", Config.langUpdateTrigger)
                                 color: Qt.alpha(root.subtext0, 0.45)
                                 visible: !globalSearchInput.text && !globalSearchInput.activeFocus
                                 font.family: "JetBrains Mono"; font.pixelSize: root.s(12)
@@ -3173,7 +3250,7 @@ Item {
                                 ColumnLayout {
                                     anchors.centerIn: parent; spacing: root.s(8)
                                     Text { Layout.alignment: Qt.AlignHCenter; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(30); color: Qt.alpha(root.subtext0, 0.25) }
-                                    Text { Layout.alignment: Qt.AlignHCenter; text: "Type to search settings & keybinds..."; font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: Qt.alpha(root.subtext0, 0.35) }
+                                    Text { Layout.alignment: Qt.AlignHCenter; text: Config.tr("settings.search_hint", "Type to search settings & keybinds...", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(12); color: Qt.alpha(root.subtext0, 0.35) }
                                 }
                             }
 
@@ -3364,7 +3441,7 @@ Item {
                                                 color: Qt.alpha(root.peach, 0.12)
                                                 border.color: Qt.alpha(root.peach, 0.35); border.width: 1
                                                 Text {
-                                                    id: kbBadgeText; anchors.centerIn: parent; text: "Keybinds"
+                                                    id: kbBadgeText; anchors.centerIn: parent; text: Config.tr("settings.label.keybinds", "Keybinds", Config.langUpdateTrigger)
                                                     font.family: "JetBrains Mono"; font.pixelSize: root.s(9)
                                                     color: root.peach
                                                 }
@@ -3612,7 +3689,7 @@ Item {
                                                     Keys.onEscapePressed: { dynamicStartupModel.setProperty(outerIndex, "isEditing", false); root.forceActiveFocus(); }
                                                     Text {
                                                         anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                                                        text: "e.g. waybar, dunst, nm-applet"
+                                                        text: Config.tr("settings.placeholder.startup_cmd", "e.g. waybar, dunst, nm-applet", Config.langUpdateTrigger)
                                                         color: Qt.alpha(root.subtext0, 0.45); visible: !parent.text && !parent.activeFocus
                                                         font.family: "JetBrains Mono"; font.pixelSize: root.s(10)
                                                     }
@@ -3632,7 +3709,7 @@ Item {
                                                 RowLayout {
                                                     id: startupDelRow; anchors.centerIn: parent; spacing: root.s(5)
                                                     Text { text: "󰆴"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                    Text { text: "Delete"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: Config.tr("ui.delete", "Delete", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDelMa.containsMouse ? root.base : root.red; Behavior on color { ColorAnimation { duration: 150 } } }
                                                 }
                                                 MouseArea { id: startupDelMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { dynamicStartupModel.remove(outerIndex); root.saveAllStartup(); } }
                                             }
@@ -3646,7 +3723,7 @@ Item {
                                                 RowLayout {
                                                     id: startupDoneRow; anchors.centerIn: parent; spacing: root.s(5)
                                                     Text { text: "󰸞"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(12); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                    Text { text: "Done"; font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: Config.tr("ui.done", "Done", Config.langUpdateTrigger); font.family: "JetBrains Mono"; font.pixelSize: root.s(10); color: startupDoneMa.containsMouse ? root.base : root.green; Behavior on color { ColorAnimation { duration: 150 } } }
                                                 }
                                                 MouseArea {
                                                     id: startupDoneMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
