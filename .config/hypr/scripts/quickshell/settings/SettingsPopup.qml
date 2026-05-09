@@ -3887,7 +3887,7 @@ Item {
                     Item {
                         id: multiMonContainer
                         Layout.fillWidth: true
-                        Layout.preferredHeight: contentH
+                        Layout.preferredHeight: root.s(175)
                         visible: Config.monitorsModel.count > 1
                         clip: true
 
@@ -3898,34 +3898,22 @@ Item {
                         }
 
                         property real targetScale: {
-                            let _ = root.monChangeTrigger;
                             if (Config.monitorsModel.count < 2) return 1.0;
-                            let mnX = 999999, mxX = -999999;
+                            let mnX = 999999, mnY = 999999, mxX = -999999, mxY = -999999;
                             for (let i = 0; i < Config.monitorsModel.count; i++) {
                                 let m = Config.monitorsModel.get(i);
                                 let isP = m.transform === 1 || m.transform === 3;
                                 let w = ((isP ? m.resH : m.resW) / m.sysScale) * Config.monUiScale;
-                                mnX = Math.min(mnX, m.uiX); mxX = Math.max(mxX, m.uiX + w);
+                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * Config.monUiScale;
+                                mnX = Math.min(mnX, m.uiX); mnY = Math.min(mnY, m.uiY);
+                                mxX = Math.max(mxX, m.uiX + w); mxY = Math.max(mxY, m.uiY + h);
                             }
                             let reqW = (mxX - mnX) + root.s(30);
-                            return Math.min(1.4 * scaler.baseScale, (multiMonContainer.width - root.s(20)) / reqW);
-                        }
-
-                        property real contentH: {
-                            let _ = root.monChangeTrigger;
-                            if (Config.monitorsModel.count < 2) return root.s(175);
-                            let mnY = 999999, mxY = -999999;
-                            for (let i = 0; i < Config.monitorsModel.count; i++) {
-                                let m = Config.monitorsModel.get(i);
-                                let isP = m.transform === 1 || m.transform === 3;
-                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * Config.monUiScale;
-                                mnY = Math.min(mnY, m.uiY); mxY = Math.max(mxY, m.uiY + h);
-                            }
-                            return (mxY - mnY) * targetScale + root.s(30);
+                            let reqH = (mxY - mnY) + root.s(30);
+                            return Math.min(1.4 * scaler.baseScale, Math.min((multiMonContainer.width - root.s(20)) / reqW, (multiMonContainer.height - root.s(20)) / reqH));
                         }
 
                         property real offsetX: {
-                            let _ = root.monChangeTrigger;
                             if (Config.monitorsModel.count < 2) return 0;
                             let mnX = 999999, mxX = -999999;
                             for (let i = 0; i < Config.monitorsModel.count; i++) {
@@ -3938,12 +3926,15 @@ Item {
                         }
 
                         property real offsetY: {
-                            let _ = root.monChangeTrigger;
-                            if (Config.monitorsModel.count < 2) return root.s(15);
-                            let mnY = 999999;
-                            for (let i = 0; i < Config.monitorsModel.count; i++)
-                                mnY = Math.min(mnY, Config.monitorsModel.get(i).uiY);
-                            return root.s(15) - mnY * targetScale;
+                            if (Config.monitorsModel.count < 2) return 0;
+                            let mnY = 999999, mxY = -999999;
+                            for (let i = 0; i < Config.monitorsModel.count; i++) {
+                                let m = Config.monitorsModel.get(i);
+                                let isP = m.transform === 1 || m.transform === 3;
+                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * Config.monUiScale;
+                                mnY = Math.min(mnY, m.uiY); mxY = Math.max(mxY, m.uiY + h);
+                            }
+                            return multiMonContainer.height / 2 - ((mnY + (mxY - mnY) / 2) * targetScale);
                         }
 
                         Item {
