@@ -145,7 +145,8 @@ Item {
         }
     }
 
-    function launchApp(execStr) {
+    function launchApp(name, execStr) {
+        Quickshell.execDetached(["python3", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/applauncher/app_fetcher.py", "--increment", name]);
         Quickshell.execDetached(["hyprctl", "dispatch", "exec", "--", execStr]);
         Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
     }
@@ -308,7 +309,8 @@ Item {
                         }
                         Keys.onReturnPressed: {
                             if (appList.currentIndex >= 0 && appList.currentIndex < appModel.count) {
-                                launchApp(appModel.get(appList.currentIndex).exec);
+                                let item = appModel.get(appList.currentIndex);
+                                launchApp(item.name, item.exec);
                             }
                             event.accepted = true;
                         }
@@ -548,7 +550,7 @@ Item {
                             hoverEnabled: true
                             onClicked: {
                                 appList.currentIndex = index;
-                                launchApp(model.exec);
+                                launchApp(model.name, model.exec);
                             }
                         }
                     }
