@@ -24,6 +24,27 @@ if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
     exit 0
 fi
 
+if [[ "$ACTION" == "prev" || "$ACTION" == "next" ]]; then
+    read CURRENT WORKSPACE_COUNT < <(
+        hyprctl activeworkspace -j 2>/dev/null |
+        jq -r --slurpfile cfg <(cat "$HOME/.config/hypr/settings.json" 2>/dev/null || echo '{}') \
+            '"\(.id // empty) \($cfg[0].workspaceCount // 10)"'
+    )
+    [[ "$CURRENT" =~ ^[0-9]+$ ]] || exit 1
+    (( WORKSPACE_COUNT >= 1 )) || WORKSPACE_COUNT=8
+
+    if [[ "$ACTION" == "next" ]]; then
+        TARGET_WS=$(( CURRENT % WORKSPACE_COUNT + 1 ))
+    else
+        TARGET_WS=$(( (CURRENT - 2 + WORKSPACE_COUNT) % WORKSPACE_COUNT + 1 ))
+    fi
+
+    quickshell -p "$SHELL_QML_PATH" ipc call main handleCommand "close" "" "" >/dev/null 2>&1
+    CMD="workspace $TARGET_WS"
+    [[ "$TARGET" == "move" ]] && CMD="movetoworkspace $TARGET_WS"
+    hyprctl --batch "dispatch $CMD" >/dev/null 2>&1
+    exit 0
+fi
 # -----------------------------------------------------------------------------
 # SLOW PATH: Everything below only runs for non-workspace actions
 # -----------------------------------------------------------------------------
