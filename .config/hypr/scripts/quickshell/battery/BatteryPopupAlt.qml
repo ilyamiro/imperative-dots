@@ -14,6 +14,42 @@ Item {
 
     // --- RECEIVE THE DBUS LIST FROM MAIN.QML ---
     property var notifModel
+    property var liveNotifs // <-- ADDED: Receive the live QObject map from Main.qml
+
+    // Ensure actionable notifications are continually bubbled to the top
+    onNotifModelChanged: Qt.callLater(window.enforceNotificationSort)
+    
+    Connections {
+        target: window.notifModel
+        function onCountChanged() {
+            Qt.callLater(window.enforceNotificationSort);
+        }
+    }
+
+    function enforceNotificationSort() {
+        if (!notifModel || notifModel.count <= 1) return;
+        let firstNonAction = -1;
+        for (let i = 0; i < notifModel.count; i++) {
+            let item = notifModel.get(i);
+            let hasAction = false;
+            try {
+                let parsed = item.actionsJson ? JSON.parse(item.actionsJson) : [];
+                // Fix applied: removed filter so default actions correctly flag the notification as actionable
+                hasAction = parsed.length > 0;
+            } catch(e) {}
+
+            if (hasAction) {
+                if (firstNonAction !== -1 && i > firstNonAction) {
+                    notifModel.move(i, firstNonAction, 1);
+                    firstNonAction++;
+                }
+            } else {
+                if (firstNonAction === -1) {
+                    firstNonAction = i;
+                }
+            }
+        }
+    }
 
     // State object for collapsible notification groups
     property var collapsedGroups: ({})
@@ -33,6 +69,10 @@ Item {
         if (!notifModel) return;
         for (let i = notifModel.count - 1; i >= 0; i--) {
             if (notifModel.get(i).appName === appName) {
+                let uid = notifModel.get(i).uid;
+                if (window.liveNotifs && window.liveNotifs[uid]) {
+                    delete window.liveNotifs[uid]; // <-- ADDED: Memory cleanup
+                }
                 notifModel.remove(i);
             }
         }
@@ -141,7 +181,7 @@ Item {
     Process {
         id: dndInit
         running: true
-	command: ["bash", "-c", "cat " + paths.getCacheDir("dnd") + "/state 2>/dev/null || echo '0'"]
+    command: ["bash", "-c", "cat " + paths.getCacheDir("dnd") + "/state 2>/dev/null || echo '0'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 window.dndEnabled = (this.text.trim() === "1");
@@ -551,6 +591,39 @@ Item {
                                 Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
                                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutQuint } }
 
+                                // <-- ADDED: Retrieve the raw QObject to restore method calls & bindings
+                                property var realNotif: window.liveNotifs ? window.liveNotifs[model.uid] : null
+
+                                // Auto-clean linkage to DBus so if it's accepted via hotkey/elsewhere, it deletes here
+                                Connections {
+                                    target: delegateWrapper.realNotif || null
+                                    function onClosed() {
+                                        delegateWrapper.removeThisNotif();
+                                    }
+                                }
+
+                                function removeThisNotif() {
+                                    if (!window.notifModel) return;
+                                    for (let i = 0; i < window.notifModel.count; i++) {
+                                        if (window.notifModel.get(i).uid === model.uid) {
+                                            if (window.liveNotifs && window.liveNotifs[model.uid]) {
+                                                delete window.liveNotifs[model.uid]; // <-- ADDED: Memory cleanup
+                                            }
+                                            window.notifModel.remove(i);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                property var actionArray: {
+                                    try {
+                                        let parsed = model.actionsJson ? JSON.parse(model.actionsJson) : [];
+                                        return parsed; // Fix applied: removed filter so default actions show up correctly
+                                    } catch (e) {
+                                        return [];
+                                    }
+                                }
+
                                 Rectangle {
                                     id: innerCard
                                     width: parent.width
@@ -567,6 +640,28 @@ Item {
                                         id: cardHover
                                         anchors.fill: parent
                                         hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if ((model.appName === "Screenshot" || model.appName === "Screen Recorder") && model.iconPath !== "") {
+                                                let folderPath = model.iconPath.substring(0, model.iconPath.lastIndexOf('/'))
+                                                Quickshell.execDetached(["xdg-open", folderPath])
+                                            } else {
+                                                // <-- CHANGED: Use realNotif to call invoke
+                                                if (delegateWrapper.realNotif && delegateWrapper.realNotif.actions) {
+                                                    for (var i = 0; i < delegateWrapper.realNotif.actions.length; i++) {
+                                                        if (delegateWrapper.realNotif.actions[i].identifier === "default") {
+                                                            delegateWrapper.realNotif.actions[i].invoke();
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            // <-- CHANGED: Use realNotif to call close
+                                            if (delegateWrapper.realNotif && typeof delegateWrapper.realNotif.close === "function") {
+                                                delegateWrapper.realNotif.close()
+                                            }
+                                            delegateWrapper.removeThisNotif();
+                                        }
                                     }
 
                                     // Left side accent stripe
@@ -598,6 +693,7 @@ Item {
                                                 color: window.text
                                                 Layout.fillWidth: true
                                                 wrapMode: Text.Wrap
+                                                textFormat: Text.StyledText
                                             }
 
                                             // Individual Dismiss Button
@@ -620,9 +716,7 @@ Item {
                                                 MouseArea {
                                                     id: itemClearMa
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        if(window.notifModel) window.notifModel.remove(index);
-                                                    }
+                                                    onClicked: delegateWrapper.removeThisNotif();
                                                 }
                                             }
                                         }
@@ -636,7 +730,69 @@ Item {
                                             Layout.fillWidth: true
                                             wrapMode: Text.Wrap
                                             visible: text !== ""
-                                            textFormat: Text.PlainText 
+                                            textFormat: Text.StyledText 
+                                            onLinkActivated: (link) => Quickshell.execDetached(["xdg-open", link])
+                                        }
+
+                                        // Action Buttons Dock 
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Layout.topMargin: delegateWrapper.actionArray.length > 0 ? window.s(6) : 0
+                                            spacing: window.s(8)
+                                            visible: delegateWrapper.actionArray.length > 0
+
+                                            Repeater {
+                                                model: delegateWrapper.actionArray
+                                                delegate: Rectangle {
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredHeight: window.s(28)
+                                                    radius: window.s(8)
+
+                                                    property bool isPrimary: index === 0
+
+                                                    color: {
+                                                        if (isPrimary) {
+                                                            return actionMouseArea.containsMouse ? window.blue : Qt.darker(window.blue, 1.2)
+                                                        } else {
+                                                            return actionMouseArea.containsMouse ? window.surface2 : window.surface1
+                                                        }
+                                                    }
+                                                    
+                                                    border.color: isPrimary ? window.blue : window.surface2
+                                                    border.width: 1
+                                                    
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: modelData.text || "Action"
+                                                        font.family: "JetBrains Mono"
+                                                        font.weight: Font.Bold
+                                                        font.pixelSize: window.s(11)
+                                                        color: isPrimary ? window.crust : window.text
+                                                    }
+
+                                                    MouseArea {
+                                                        id: actionMouseArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+
+                                                        onClicked: {
+                                                            // <-- CHANGED: Loop through actions on the real QObject
+                                                            if (delegateWrapper.realNotif && delegateWrapper.realNotif.actions) {
+                                                                for (var i = 0; i < delegateWrapper.realNotif.actions.length; i++) {
+                                                                    if (delegateWrapper.realNotif.actions[i].identifier === modelData.id) {
+                                                                        delegateWrapper.realNotif.actions[i].invoke();
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                            delegateWrapper.removeThisNotif();
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -802,7 +958,7 @@ Item {
                             onClicked: { 
                                 exitAnim.start(); // Trigger graceful UI exit
                                 Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/exit.sh"]); 
-				Quickshell.execDetached(["sh", "-c", "echo 'close' > " + paths.runDir + "/widget_state"]);
+                Quickshell.execDetached(["sh", "-c", "echo 'close' > " + paths.runDir + "/widget_state"]);
 
                             }
                         }

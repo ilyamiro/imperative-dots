@@ -105,8 +105,6 @@ PanelWindow {
 
     // =========================================================
     // --- DAEMON: PRELOADING SYSTEM
-    // Widgets are created as live objects and cached for instant
-    // reparenting into the StackView — no re-instantiation on open.
     // =========================================================
     Item {
         id: preloaderContainer
@@ -121,6 +119,7 @@ PanelWindow {
         if (!t || !t.comp) return;
         let obj = t.comp.createObject(preloaderContainer, {
             "notifModel": masterWindow.notifModel,
+            "liveNotifs": masterWindow.liveNotifs,
             "visible": false
         });
         if (obj) widgetCache[name] = obj;
@@ -153,15 +152,10 @@ PanelWindow {
     property string activeArg: ""
     property bool disableMorph: false
 
-    // Three distinct durations for three distinct feelings:
-    //   open   — generous enough to feel like an appearance, not a snap
-    //   switch — slightly tighter so widget-to-widget reads as responsive
-    //   exit   — fastest, dismissals should never feel slow
-    property int morphDuration: 230       // open from hidden
-    property int morphDurationSwitch: 210 // widget → widget
-    property int exitDuration: 160        // close to hidden
+    property int morphDuration: 230
+    property int morphDurationSwitch: 210
+    property int exitDuration: 160
 
-    // Animated bounding box
     property real animW: 1
     property real animH: 1
     property real animX: 0
@@ -178,7 +172,16 @@ PanelWindow {
     ListModel { id: globalNotificationHistory }
     ListModel { id: activePopupsModel }
 
+    property var liveNotifs: ({})
     property int _popupCounter: 0
+
+    // --- NEW: Startup Grace Period Flag & Timer ---
+    property bool isStartup: true
+    Timer {
+        interval: 500
+        running: true
+        onTriggered: masterWindow.isStartup = false
+    }
 
     function removePopup(uid) {
         for (let i = 0; i < activePopupsModel.count; i++) {
@@ -187,7 +190,7 @@ PanelWindow {
                 break;
             }
         }
-    }
+    } 
 
     NotificationServer {
         id: globalNotificationServer
@@ -196,19 +199,42 @@ PanelWindow {
         imageSupported: true
 
         onNotification: (n) => {
-            let notifData = {
-                "appName":  n.appName  !== "" ? n.appName  : "System",
-                "summary":  n.summary  !== "" ? n.summary  : "No Title",
-                "body":     n.body     !== "" ? n.body     : "",
-                "iconPath": n.appIcon  !== "" ? n.appIcon  : "",
-                "notif":    n
-            };
+            n.tracked = true;
 
-            globalNotificationHistory.insert(0, notifData);
+            let extractedActions = [];
+            if (n.actions) {
+                for (let i = 0; i < n.actions.length; i++) {
+                    extractedActions.push({
+                        "id": n.actions[i].identifier || "",
+                        "text": n.actions[i].text || n.actions[i].name || "Action"
+                    });
+                }
+            }
 
             masterWindow._popupCounter++;
-            let popupData = Object.assign({ "uid": masterWindow._popupCounter }, notifData);
-            activePopupsModel.append(popupData);
+            let currentUid = masterWindow._popupCounter;
+
+            // Always store the live object so the history center can interact with it
+            masterWindow.liveNotifs[currentUid] = n;
+
+            let notifData = {
+                "appName":     n.appName  !== "" ? n.appName  : "System",
+                "summary":     n.summary  !== "" ? n.summary  : "No Title",
+                "body":        n.body     !== "" ? n.body     : "",
+                "iconPath":    n.appIcon  !== "" ? n.appIcon  : "",
+                "actionsJson": JSON.stringify(extractedActions),
+                "uid":         currentUid,
+                "notif":       n
+            };
+
+            // Always silently add to the history list
+            globalNotificationHistory.insert(0, notifData);
+
+            // --- CHANGED: Only trigger the visual popup if we are past the startup phase ---
+            if (!masterWindow.isStartup) {
+                activePopupsModel.append(notifData);
+                osdPopups.storeNotif(currentUid, n);
+            }
         }
     }
 
@@ -218,9 +244,8 @@ PanelWindow {
         id: osdPopups
         popupModel: activePopupsModel
         uiScale: masterWindow.globalUiScale
+        onRemoveRequested: (uid) => masterWindow.removePopup(uid)
     }
-    // =========================================================
-
     onGlobalUiScaleChanged: { handleNativeScreenChange(); }
 
     Process {
@@ -307,11 +332,6 @@ PanelWindow {
 
     // =========================================================
     // --- ANIMATED BOUNDING BOX
-    //
-    // OutCubic on all four axes: smooth continuous deceleration,
-    // no mechanical punch (OutQuart), no drifting tail (Spring).
-    // Position and size share the same easing so the whole box
-    // moves as one coherent shape.
     // =========================================================
     Item {
         x: masterWindow.animX
@@ -337,9 +357,6 @@ PanelWindow {
             NumberAnimation { duration: masterWindow.morphDuration; easing.type: Easing.OutCubic }
         }
 
-        // Opacity runs slightly shorter than the box so the content
-        // finishes fading just before the box fully settles — gives a
-        // clean, composed feeling rather than everything ending at once.
         opacity: masterWindow.isVisible ? 1.0 : 0.0
         Behavior on opacity {
             NumberAnimation {
@@ -367,8 +384,6 @@ PanelWindow {
                     if (currentItem) currentItem.forceActiveFocus();
                 }
 
-                // Enter: OutQuint rushes the opacity to ~1.0 almost immediately,
-                // completely covering the exiting widget so the desktop doesn't bleed through.
                 replaceEnter: Transition {
                     ParallelAnimation {
                         NumberAnimation {
@@ -386,8 +401,6 @@ PanelWindow {
                     }
                 }
 
-                // Exit: InQuint holds the opacity near 1.0 for almost the entire
-                // duration, keeping a solid background behind the entering widget.
                 replaceExit: Transition {
                     ParallelAnimation {
                         NumberAnimation {
@@ -438,13 +451,10 @@ PanelWindow {
                 masterWindow.targetW = t.w;
                 masterWindow.targetH = t.h;
             } else {
-                // Widget → widget: slightly tighter, still smooth
                 masterWindow.morphDuration = masterWindow.morphDurationSwitch;
                 masterWindow.disableMorph = false;
             }
 
-            // Qt.callLater: one event-loop tick, frame-rate aware.
-            // Replaces the old 15ms prepTimer with zero arbitrary delay.
             Qt.callLater(() => executeSwitch(newWidget, arg, false));
         }
     }
@@ -463,6 +473,7 @@ PanelWindow {
 
         let props = {};
         props["notifModel"]   = masterWindow.notifModel;
+        props["liveNotifs"]   = masterWindow.liveNotifs;
         props["layoutWidth"]  = t.w;
         props["layoutHeight"] = t.h;
         if (newWidget === "wallpaper") props["widgetArg"] = arg;
@@ -470,6 +481,7 @@ PanelWindow {
         let cached = widgetCache[newWidget];
         if (cached) {
             if (cached.notifModel   !== undefined) cached.notifModel   = masterWindow.notifModel;
+            if (cached.liveNotifs   !== undefined) cached.liveNotifs   = masterWindow.liveNotifs;
             if (cached.layoutWidth  !== undefined) cached.layoutWidth  = t.w;
             if (cached.layoutHeight !== undefined) cached.layoutHeight = t.h;
             if (newWidget === "wallpaper" && cached.widgetArg !== undefined) cached.widgetArg = arg;
@@ -489,7 +501,6 @@ PanelWindow {
             }
         }
 
-        // Honour dynamic size overrides from the newly loaded widget
         let currentItem = widgetStack.currentItem;
         if (currentItem) {
             if (currentItem.targetMasterWidth !== undefined) {
@@ -509,7 +520,6 @@ PanelWindow {
 
     Timer {
         id: delayedClear
-        // 200ms — safely outlasts the 160ms opacity fade.
         interval: 200
         onTriggered: {
             masterWindow.currentActive = "hidden";

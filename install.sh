@@ -1379,6 +1379,11 @@ elif [ "$OLD_COMMIT" == "$NEW_COMMIT" ] && [ -n "$OLD_COMMIT" ]; then
     echo -e "  -> Repository is up to date (${C_YELLOW}${NEW_COMMIT::7}${RESET}). Only applying upstream changes (None found)."
 fi
 
+if [ -f "$TARGET_CONFIG_DIR/hypr/settings.json" ]; then
+    mkdir -p "$BACKUP_DIR/hypr"
+    cp "$TARGET_CONFIG_DIR/hypr/settings.json" "$BACKUP_DIR/hypr/settings.json"
+fi
+
 if [ "$DO_FULL_INSTALL" = true ]; then
     echo "  -> Performing Full Install / Overwrite..."
 
@@ -1474,12 +1479,6 @@ else
         echo "  -> No target config files were changed upstream. Local files kept intact."
     fi
     
-    # We must explicitly stage the current settings.json into the backup dir 
-    # so the SSoT JSON merge logic later in the script can find and read it
-    if [ -f "$TARGET_CONFIG_DIR/hypr/settings.json" ]; then
-        mkdir -p "$BACKUP_DIR/hypr"
-        cp "$TARGET_CONFIG_DIR/hypr/settings.json" "$BACKUP_DIR/hypr/settings.json"
-    fi
 fi
 
 # --- 4.5 Bake Hardware Variables into Template ---

@@ -56,7 +56,7 @@ Item {
     property int currentToolIndex: Math.max(0, toolKeys.indexOf(currentTool))
 
     // UI Toggle States
-    property bool showPenConfig: false
+    property bool showSizeConfig: false
     property bool showColorPicker: false
 
     // Infinite Color Picker State
@@ -65,9 +65,22 @@ Item {
     property real pickVal: 0.97
     property color currentColor: Qt.hsva(pickHue, pickSat, pickVal, 1.0)
     
-    // Pen Config State
+    // Tool Size Config State (Independent memory per tool)
     property real penSizeRatio: 0.3
-    property real actualPenSize: s(2) + (penSizeRatio * s(30)) // Ranges from 2 to 32
+    property real brushSizeRatio: 0.4
+    property real eraserSizeRatio: 0.6
+
+    property real currentSizeRatio: {
+        if (currentTool === "eraser") return eraserSizeRatio;
+        if (currentTool === "brush") return brushSizeRatio;
+        return penSizeRatio;
+    }
+
+    property real actualToolSize: {
+        if (currentTool === "eraser") return s(8) + (currentSizeRatio * s(60));
+        if (currentTool === "brush") return s(4) + (currentSizeRatio * s(40));
+        return s(2) + (currentSizeRatio * s(30));
+    }
 
     // FIXED: Strict color resolution to prevent undefined QString warnings
     property color baseTextColor: (typeof mochaColors !== "undefined" && mochaColors && mochaColors.text) ? mochaColors.text : "#cdd6f4"
@@ -255,7 +268,7 @@ Item {
                         
                         if (tool === "eraser") {
                             ctx.globalCompositeOperation = "destination-out";
-                            ctx.lineWidth = s(24);
+                            ctx.lineWidth = customSize || root.actualToolSize;
                             ctx.strokeStyle = "rgba(0,0,0,1)"; 
                             ctx.globalAlpha = 1.0;
                             ctx.shadowBlur = 0;
@@ -263,7 +276,7 @@ Item {
                         } else { 
                             ctx.globalCompositeOperation = "source-over";
                             ctx.strokeStyle = color;
-                            ctx.lineWidth = customSize || root.actualPenSize;
+                            ctx.lineWidth = customSize || root.actualToolSize;
                             ctx.shadowBlur = 0;
                             ctx.shadowColor = "transparent";
                             ctx.globalAlpha = 1.0;
@@ -356,7 +369,7 @@ Item {
                         }
 
                         onPressed: (mouse) => {
-                            root.showPenConfig = false;
+                            root.showSizeConfig = false;
                             root.showColorPicker = false;
 
                             if (root.currentTool === "fill") {
@@ -376,7 +389,7 @@ Item {
                                 type: "stroke", 
                                 tool: root.currentTool, 
                                 color: root.currentColor.toString(), 
-                                penSize: root.actualPenSize,
+                                penSize: root.actualToolSize,
                                 segments: [] 
                             };
                             var initialSegment = { x1: mouse.x, y1: mouse.y, x2: mouse.x + 0.1, y2: mouse.y };
@@ -386,7 +399,7 @@ Item {
                                 type: "stroke",
                                 tool: root.currentTool,
                                 color: root.currentColor.toString(),
-                                penSize: root.actualPenSize,
+                                penSize: root.actualToolSize,
                                 x1: initialSegment.x1, y1: initialSegment.y1, 
                                 x2: initialSegment.x2, y2: initialSegment.y2
                             });
@@ -411,7 +424,7 @@ Item {
                                     type: "stroke",
                                     tool: root.currentTool,
                                     color: root.currentColor.toString(),
-                                    penSize: root.actualPenSize,
+                                    penSize: root.actualToolSize,
                                     x1: segment.x1, y1: segment.y1, 
                                     x2: segment.x2, y2: segment.y2
                                 });
@@ -556,10 +569,10 @@ Item {
         }
 
         // =========================================================
-        // --- PEN CONFIGURATION POPUP
+        // --- TOOL SIZE CONFIGURATION POPUP
         // =========================================================
         Rectangle {
-            id: penConfigPopup
+            id: sizeConfigPopup
             z: 20
             width: s(260)
             height: s(64)
@@ -572,7 +585,7 @@ Item {
             anchors.bottomMargin: s(12)
             anchors.horizontalCenter: parent.horizontalCenter
             
-            visible: root.showPenConfig
+            visible: root.showSizeConfig
             opacity: visible ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutExpo } }
 
@@ -582,7 +595,7 @@ Item {
                 spacing: s(14)
 
                 Text {
-                    text: "\uF040" // fa-pen
+                    text: root.currentTool === "eraser" ? "\uF12D" : (root.currentTool === "brush" ? "\uF1FC" : "\uF040")
                     font.family: root.iconFont
                     color: root.baseTextColor
                     font.pixelSize: s(16)
@@ -596,7 +609,7 @@ Item {
                     color: (typeof mochaColors !== "undefined" && mochaColors && mochaColors.text) ? Qt.rgba(mochaColors.text.r, mochaColors.text.g, mochaColors.text.b, 0.1) : Qt.rgba(root.baseTextColor.r, root.baseTextColor.g, root.baseTextColor.b, 0.1)
                     
                     Rectangle {
-                        width: parent.width * root.penSizeRatio
+                        width: parent.width * root.currentSizeRatio
                         height: parent.height
                         radius: parent.radius
                         color: (typeof mochaColors !== "undefined" && mochaColors && mochaColors.mauve) ? mochaColors.mauve : "#cba6f7"
@@ -606,7 +619,7 @@ Item {
                         width: s(18); height: s(18)
                         radius: width/2
                         color: (typeof mochaColors !== "undefined" && mochaColors && mochaColors.mauve) ? mochaColors.mauve : "#cba6f7"
-                        x: (parent.width * root.penSizeRatio) - (width/2)
+                        x: (parent.width * root.currentSizeRatio) - (width/2)
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
@@ -614,25 +627,48 @@ Item {
                         anchors.fill: parent
                         anchors.margins: -s(16) // Generous hit box
                         cursorShape: Qt.PointingHandCursor
-                        onPositionChanged: (mouse) => {
-                            if (pressed) root.penSizeRatio = Math.max(0.0, Math.min(1.0, mouse.x / width));
+                        
+                        function updateSize(mouse) {
+                            let val = Math.max(0.0, Math.min(1.0, mouse.x / width));
+                            if (root.currentTool === "eraser") root.eraserSizeRatio = val;
+                            else if (root.currentTool === "brush") root.brushSizeRatio = val;
+                            else root.penSizeRatio = val;
                         }
-                        onPressed: (mouse) => {
-                            root.penSizeRatio = Math.max(0.0, Math.min(1.0, mouse.x / width));
-                        }
+
+                        onPositionChanged: (mouse) => { if (pressed) updateSize(mouse) }
+                        onPressed: (mouse) => updateSize(mouse)
                     }
                 }
 
                 // Dynamic Preview Circle
                 Item {
-                    width: s(28)
-                    height: s(28)
+                    width: s(32)
+                    height: s(32)
                     Rectangle {
                         anchors.centerIn: parent
-                        width: root.actualPenSize
-                        height: root.actualPenSize
+                        
+                        width: {
+                            let toolMax = 0;
+                            if (root.currentTool === "eraser") toolMax = s(8) + s(60);
+                            else if (root.currentTool === "brush") toolMax = s(4) + s(40);
+                            else toolMax = s(2) + s(30);
+
+                            let visualLimit = s(32);
+                            
+                            // If the tool's maximum size fits within our visual limit (like the pen), show it 1:1.
+                            if (toolMax <= visualLimit) {
+                                return root.actualToolSize;
+                            }
+                            
+                            // If it exceeds the visual limit (like brush or eraser), 
+                            // scale the preview proportionally so it smoothly grows to the visual limit.
+                            let minVisual = s(4);
+                            return minVisual + (root.currentSizeRatio * (visualLimit - minVisual));
+                        }
+
+                        height: width
                         radius: width / 2
-                        color: root.currentColor
+                        color: root.currentTool === "eraser" ? "transparent" : root.currentColor
                         border.width: 1
                         border.color: Qt.rgba(root.baseTextColor.r, root.baseTextColor.g, root.baseTextColor.b, 0.2)
                     }
@@ -1016,16 +1052,16 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (modelData.id === "pen") {
-                                            if (root.currentTool === "pen") {
-                                                root.showPenConfig = !root.showPenConfig;
+                                        if (modelData.id === "pen" || modelData.id === "brush" || modelData.id === "eraser") {
+                                            if (root.currentTool === modelData.id) {
+                                                root.showSizeConfig = !root.showSizeConfig;
                                             } else {
-                                                root.currentTool = "pen";
-                                                root.showPenConfig = true;
+                                                root.currentTool = modelData.id;
+                                                root.showSizeConfig = true;
                                             }
                                         } else {
                                             root.currentTool = modelData.id;
-                                            root.showPenConfig = false;
+                                            root.showSizeConfig = false;
                                         }
                                         root.showColorPicker = false;
                                     }
@@ -1074,7 +1110,7 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             root.showColorPicker = !root.showColorPicker;
-                            root.showPenConfig = false;
+                            root.showSizeConfig = false;
                             if (root.currentTool === "eraser" || root.currentTool === "mouse") {
                                 root.currentTool = "pen";
                             }
@@ -1123,7 +1159,7 @@ Item {
                             drawCanvas._clearPending = true;
                             drawCanvas.requestPaint();
                             root.showColorPicker = false;
-                            root.showPenConfig = false;
+                            root.showSizeConfig = false;
 
                             zoomContainer.scale = 1.0;
                             zoomContainer.x = (cameraRig.width - zoomContainer.width) / 2;

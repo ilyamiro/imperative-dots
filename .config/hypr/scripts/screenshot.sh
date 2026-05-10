@@ -185,7 +185,12 @@ if [ -f "$CACHE_DIR/rec_pid" ]; then
 
     # 4. SEND FINAL NOTIFICATION
     if [ -f "$FINAL_FILE" ]; then
-        notify-send -a "Screen Recorder" -i "$FINAL_FILE" "⏺ Recording Saved" "File: $(basename "$FINAL_FILE")\nFolder: $RECORD_DIR"
+        (
+            ACTION=$(notify-send -a "Screen Recorder" -i "$FINAL_FILE" -A "default=Open Folder" "⏺ Recording Saved" "File: $(basename "$FINAL_FILE")\nFolder: $RECORD_DIR")
+            if [ "$ACTION" = "default" ]; then
+                xdg-open "$RECORD_DIR"
+            fi
+        ) &
     else
         notify-send -a "Screen Recorder" "❌ Error" "Failed to save the video file."
     fi
@@ -290,7 +295,14 @@ if [ "$FULL_MODE" = true ] || [ -n "$GEOMETRY" ]; then
         eval $GRIM_CMD | tee "$FILENAME" | wl-copy
     fi
 
-    [ -s "$FILENAME" ] && notify-send -a "Screenshot" -i "$FILENAME" "Screenshot Saved" "File: Screenshot_$time.png\nFolder: $SAVE_DIR"
+    if [ -s "$FILENAME" ]; then
+        (
+            ACTION=$(notify-send -a "Screenshot" -i "$FILENAME" -A "default=Open Folder" "Screenshot Saved" "File: Screenshot_$time.png\nFolder: $SAVE_DIR")
+            if [ "$ACTION" = "default" ]; then
+                xdg-open "$SAVE_DIR"
+            fi
+        ) &
+    fi
     exit 0
 fi
 
