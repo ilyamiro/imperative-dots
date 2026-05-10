@@ -38,7 +38,6 @@
     {"type":"bind","mods":"$mainMod SHIFT_L","key":"T","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle focustime"},
     {"type":"bind","mods":"$mainMod","key":"V","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle volume"},
     {"type":"bind","mods":"$mainMod","key":"H","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle guide"},
-    {"type":"bind","mods":"$mainMod","key":"M","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle monitors"},
     {"type":"bindl","mods":"","key":"Caps_Lock","dispatcher":"exec","command":"sleep 0.1 && swayosd-client --caps-lock"},
     {"type":"bindl","mods":"","key":"XF86MonBrightnessDown","dispatcher":"exec","command":"swayosd-client --brightness lower"},
     {"type":"bindl","mods":"","key":"XF86MonBrightnessUp","dispatcher":"exec","command":"swayosd-client --brightness raise"},

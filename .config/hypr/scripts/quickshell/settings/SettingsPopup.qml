@@ -127,7 +127,7 @@ Item {
         if (tab === 0) return 6;
         if (tab === 1) return 3;
         if (tab === 2) return dynamicKeybindsModel.count - 1;
-        if (tab === 3) return dynamicStartupModel.count - 1;
+        if (tab === 4) return dynamicStartupModel.count - 1;
         return -1;
     }
 
@@ -159,7 +159,7 @@ Item {
                 let isEd = dynamicKeybindsModel.get(root.highlightedBox).isEditing;
                 dynamicKeybindsModel.setProperty(root.highlightedBox, "isEditing", !isEd);
             }
-        } else if (root.currentTab === 3) {
+        } else if (root.currentTab === 4) {
             if (root.highlightedBox >= 0 && root.highlightedBox < dynamicStartupModel.count) {
                 let isEd = dynamicStartupModel.get(root.highlightedBox).isEditing;
                 dynamicStartupModel.setProperty(root.highlightedBox, "isEditing", !isEd);
@@ -193,15 +193,15 @@ Item {
         } else if (root.currentTab === 2 && keybindLoader.item) {
             let approxY = box * root.s(56) + root.s(120);
             keybindLoader.item.scrollToBox(approxY);
-        } else if (root.currentTab === 3 && startupLoader.item) {
+        } else if (root.currentTab === 4 && startupLoader.item) {
             let approxY = box * root.s(56) + root.s(20);
             startupLoader.item.scrollToBox(approxY);
         }
     }
 
     property int currentTab: 0
-    property var tabNames: ["General", "Weather", "Keybinds", "Startup", "Monitors"]
-    property var tabIcons: ["󰒓", "󰖐", "󰌌", "󰐥", "󰍹"]
+    property var tabNames: ["General", "Weather", "Keybinds", "Monitors", "Startup"]
+    property var tabIcons: ["󰒓", "󰖐", "󰌌", "󰍹", "󰐥"]
     property var tabColors: ["teal", "blue", "peach", "green", "mauve"]
 
     property bool tab0Loaded: false
@@ -219,8 +219,8 @@ Item {
         else if (currentTab === 4) root.tab4Loaded = true;
     }
 
-    onTab4LoadedChanged: {
-        if (tab4Loaded) Config.displayPoller.running = true;
+    onTab3LoadedChanged: {
+        if (tab3Loaded) Config.displayPoller.running = true;
     }
 
     Keys.onEscapePressed: {
@@ -373,8 +373,8 @@ Item {
         if (root.currentTab === 0) Config.saveAppSettings();
         else if (root.currentTab === 1) Config.saveWeatherConfig();
         else if (root.currentTab === 2) root.saveAllKeybinds();
-        else if (root.currentTab === 3) root.saveAllStartup();
-        else if (root.currentTab === 4) Config.applyMonitors();
+        else if (root.currentTab === 3) Config.applyMonitors();
+        else if (root.currentTab === 4) root.saveAllStartup();
         event.accepted = true;
     }
 
@@ -2870,7 +2870,7 @@ Item {
                     // Save button
                     Rectangle {
                         id: headerSaveBtn
-                        visible: root.currentTab !== 2 && root.currentTab !== 3 && !root.isSearchMode
+                        visible: root.currentTab !== 2 && root.currentTab !== 4 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
 
@@ -2919,7 +2919,7 @@ Item {
                             onClicked: {
                                 if (root.currentTab === 0) Config.saveAppSettings();
                                 else if (root.currentTab === 1) Config.saveWeatherConfig();
-                                else if (root.currentTab === 4) Config.applyMonitors();
+                                else if (root.currentTab === 3) Config.applyMonitors();
                             }
                         }
                     }
@@ -2927,7 +2927,7 @@ Item {
                     // Add button
                     Rectangle {
                         id: headerAddBtn
-                        visible: (root.currentTab === 2 || root.currentTab === 3) && !root.isSearchMode
+                        visible: (root.currentTab === 2 || root.currentTab === 4) && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
 
@@ -2978,7 +2978,7 @@ Item {
                                 if (root.currentTab === 2) {
                                     dynamicKeybindsModel.append({ type: "bind", mods: "", key: "", dispatcher: "exec", command: "", isEditing: true });
                                     scrollTimer.start();
-                                } else if (root.currentTab === 3) {
+                                } else if (root.currentTab === 4) {
                                     dynamicStartupModel.append({ command: "", isEditing: true });
                                     startupScrollTimer.start();
                                 }
@@ -3517,9 +3517,9 @@ Item {
                     Loader {
                         id: startupLoader
                         anchors.fill: parent
-                        active: root.tab3Loaded && Config.dataReady
+                        active: root.tab4Loaded && Config.dataReady
                         sourceComponent: startupTabComponent
-                        visible: root.currentTab === 3 && !root.isSearchMode
+                        visible: root.currentTab === 4 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         function scrollToBottom() { if (item) item.scrollToBottom(); }
@@ -3530,9 +3530,9 @@ Item {
                     Loader {
                         id: monitorsLoader
                         anchors.fill: parent
-                        active: root.tab4Loaded
+                        active: root.tab3Loaded
                         sourceComponent: monitorsTabComponent
-                        visible: root.currentTab === 4 && !root.isSearchMode
+                        visible: root.currentTab === 3 && !root.isSearchMode
                         opacity: visible ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                     }
@@ -3897,154 +3897,67 @@ Item {
                             Repeater { model: 209; Rectangle { width: root.s(2); height: root.s(2); radius: root.s(1); color: Qt.alpha(root.text, 0.07) } }
                         }
 
-                        property real targetScale: {
-                            if (Config.monitorsModel.count < 2) return 1.0;
-                            let mnX = 999999, mnY = 999999, mxX = -999999, mxY = -999999;
-                            for (let i = 0; i < Config.monitorsModel.count; i++) {
-                                let m = Config.monitorsModel.get(i);
-                                let isP = m.transform === 1 || m.transform === 3;
-                                let w = ((isP ? m.resH : m.resW) / m.sysScale) * Config.monUiScale;
-                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * Config.monUiScale;
-                                mnX = Math.min(mnX, m.uiX); mnY = Math.min(mnY, m.uiY);
-                                mxX = Math.max(mxX, m.uiX + w); mxY = Math.max(mxY, m.uiY + h);
+                        Flickable {
+                            id: monGridFlick
+                            anchors.fill: parent
+                            contentHeight: Math.max(height, monGrid.y + monGrid.implicitHeight + root.s(10))
+                            flickableDirection: Flickable.VerticalFlick
+                            boundsBehavior: Flickable.StopAtBounds
+                            clip: false
+
+                            ScrollBar.vertical: ScrollBar {
+                                policy: ScrollBar.AsNeeded
+                                width: root.s(4)
                             }
-                            let reqW = (mxX - mnX) + root.s(30);
-                            let reqH = (mxY - mnY) + root.s(30);
-                            return Math.min(1.4 * scaler.baseScale, Math.min((multiMonContainer.width - root.s(20)) / reqW, (multiMonContainer.height - root.s(20)) / reqH));
-                        }
 
-                        property real offsetX: {
-                            if (Config.monitorsModel.count < 2) return 0;
-                            let mnX = 999999, mxX = -999999;
-                            for (let i = 0; i < Config.monitorsModel.count; i++) {
-                                let m = Config.monitorsModel.get(i);
-                                let isP = m.transform === 1 || m.transform === 3;
-                                let w = ((isP ? m.resH : m.resW) / m.sysScale) * Config.monUiScale;
-                                mnX = Math.min(mnX, m.uiX); mxX = Math.max(mxX, m.uiX + w);
-                            }
-                            return multiMonContainer.width / 2 - ((mnX + (mxX - mnX) / 2) * targetScale);
-                        }
+                            GridLayout {
+                                id: monGrid
+                                x: root.s(10)
+                                y: Math.max(root.s(10), (monGridFlick.height - implicitHeight) / 2)
+                                width: monGridFlick.width - root.s(20)
+                                columns: 2
+                                columnSpacing: root.s(8)
+                                rowSpacing: root.s(8)
 
-                        property real offsetY: {
-                            if (Config.monitorsModel.count < 2) return 0;
-                            let mnY = 999999, mxY = -999999;
-                            for (let i = 0; i < Config.monitorsModel.count; i++) {
-                                let m = Config.monitorsModel.get(i);
-                                let isP = m.transform === 1 || m.transform === 3;
-                                let h = ((isP ? m.resW : m.resH) / m.sysScale) * Config.monUiScale;
-                                mnY = Math.min(mnY, m.uiY); mxY = Math.max(mxY, m.uiY + h);
-                            }
-                            return multiMonContainer.height / 2 - ((mnY + (mxY - mnY) / 2) * targetScale);
-                        }
-
-                        Item {
-                            id: monTfNode
-                            x: multiMonContainer.offsetX
-                            y: multiMonContainer.offsetY
-                            scale: multiMonContainer.targetScale
-                            transformOrigin: Item.TopLeft
-                            Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-                            Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-
-                            Repeater {
-                                model: Config.monitorsModel
-                                Item {
-                                    property bool isActive: Config.monActiveEditIndex === index
-                                    property bool isPortrait: {
-                                        let _ = root.monChangeTrigger;
-                                        return model.transform === 1 || model.transform === 3;
-                                    }
-
-                                    Rectangle {
+                                Repeater {
+                                    model: Config.monitorsModel
+                                    delegate: Rectangle {
                                         id: monCard
-                                        x: model.uiX; y: model.uiY
-                                        width: (isPortrait ? model.resH : model.resW) / model.sysScale * Config.monUiScale
-                                        height: (isPortrait ? model.resW : model.resH) / model.sysScale * Config.monUiScale
-                                        radius: root.s(6)
-                                        color: isActive ? root.surface1 : root.crust
-                                        border.color: isActive ? root.monSelectedResAccent : root.surface2
-                                        border.width: isActive ? root.s(2) : root.s(1)
-                                        z: isActive ? 5 : 0
-                                        Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
-                                        Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
-                                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: root.s(90)
+                                        radius: root.s(8)
+                                        clip: true
+                                        color: Config.monActiveEditIndex === index ? root.surface1 : root.crust
+                                        border.color: Config.monActiveEditIndex === index ? root.monSelectedResAccent : root.surface2
+                                        border.width: Config.monActiveEditIndex === index ? root.s(2) : root.s(1)
                                         Behavior on color { ColorAnimation { duration: 300 } }
-                                        Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-                                        Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                                        Behavior on border.color { ColorAnimation { duration: 300 } }
 
-                                        Item {
-                                            anchors.centerIn: parent; width: root.s(100); height: root.s(70)
-                                            property real idealScale: 1.1 / monTfNode.scale
-                                            property real maxPhysicalScale: isPortrait
-                                                ? Math.min((parent.width * 0.9) / height, (parent.height * 0.9) / width)
-                                                : Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
-                                            scale: Math.min(idealScale, maxPhysicalScale)
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            spacing: root.s(2)
 
-                                            ColumnLayout {
-                                                anchors.centerIn: parent; spacing: root.s(2)
-                                                rotation: model.transform * 90
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                font.family: "Iosevka Nerd Font"
+                                                font.pixelSize: root.s(26)
+                                                color: Config.monActiveEditIndex === index ? root.monSelectedResAccent : root.text
+                                                text: "󰍹"
+                                                rotation: {
+                                                    let _ = root.monChangeTrigger;
+                                                    return model.transform * 90;
+                                                }
                                                 Behavior on rotation { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-                                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(26); color: isActive ? root.monSelectedResAccent : root.text; text: "󰍹"; Behavior on color { ColorAnimation { duration: 300 } } }
-                                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(10); color: root.text; text: model.name }
-                                                Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.pixelSize: root.s(9); color: root.subtext0; text: model.resW + "\xd7" + model.resH + "@" + model.rate }
+                                                Behavior on color { ColorAnimation { duration: 300 } }
                                             }
+                                            Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(10); color: root.text; text: model.name }
+                                            Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.pixelSize: root.s(9); color: root.subtext0; text: model.resW + "\xd7" + model.resH + "@" + model.rate }
                                         }
-                                    }
 
-                                    Item {
-                                        id: monGhost
-                                        x: model.uiX; y: model.uiY
-                                        width: (isPortrait ? model.resH : model.resW) / model.sysScale * Config.monUiScale
-                                        height: (isPortrait ? model.resW : model.resH) / model.sysScale * Config.monUiScale
-                                        z: isActive ? 10 : 1
                                         MouseArea {
                                             anchors.fill: parent
-                                            drag.target: monGhost
-                                            drag.axis: Drag.XAndYAxis
-                                            onPressed: {
-                                                Config.monActiveEditIndex = index;
-                                                monGhost.x = model.uiX; monGhost.y = model.uiY;
-                                            }
-                                            onPositionChanged: {
-                                                if (drag.active && Config.monitorsModel.count >= 2) {
-                                                    let mW = monCard.width; let mH = monCard.height;
-                                                    let pad = root.s(40);
-                                                    let bMinX = 999999, bMinY = 999999, bMaxX = -999999, bMaxY = -999999;
-                                                    for (let j = 0; j < Config.monitorsModel.count; j++) {
-                                                        if (j === index) continue;
-                                                        let sm = Config.monitorsModel.get(j);
-                                                        let sIsP = sm.transform === 1 || sm.transform === 3;
-                                                        let sW = ((sIsP ? sm.resH : sm.resW) / sm.sysScale) * Config.monUiScale;
-                                                        let sH = ((sIsP ? sm.resW : sm.resH) / sm.sysScale) * Config.monUiScale;
-                                                        bMinX = Math.min(bMinX, sm.uiX - mW - pad);
-                                                        bMinY = Math.min(bMinY, sm.uiY - mH - pad);
-                                                        bMaxX = Math.max(bMaxX, sm.uiX + sW + pad);
-                                                        bMaxY = Math.max(bMaxY, sm.uiY + sH + pad);
-                                                    }
-                                                    monGhost.x = Math.max(bMinX, Math.min(monGhost.x, bMaxX));
-                                                    monGhost.y = Math.max(bMinY, Math.min(monGhost.y, bMaxY));
-                                                    let bestX = monGhost.x, bestY = monGhost.y, bestDist = 999999;
-                                                    for (let j = 0; j < Config.monitorsModel.count; j++) {
-                                                        if (j === index) continue;
-                                                        let sm = Config.monitorsModel.get(j);
-                                                        let sIsP = sm.transform === 1 || sm.transform === 3;
-                                                        let sW = ((sIsP ? sm.resH : sm.resW) / sm.sysScale) * Config.monUiScale;
-                                                        let sH = ((sIsP ? sm.resW : sm.resH) / sm.sysScale) * Config.monUiScale;
-                                                        let snapped = Config.monGetPerimeterSnap(monGhost.x, monGhost.y, sm.uiX, sm.uiY, sW, sH, mW, mH, root.s(20));
-                                                        let dist = Math.hypot(monGhost.x - snapped.x, monGhost.y - snapped.y);
-                                                        if (dist < bestDist) { bestDist = dist; bestX = snapped.x; bestY = snapped.y; }
-                                                    }
-                                                    if (!Config.monIsOverlappingAny(bestX, bestY, mW, mH, index)) {
-                                                        Config.monitorsModel.setProperty(index, "uiX", bestX);
-                                                        Config.monitorsModel.setProperty(index, "uiY", bestY);
-                                                    }
-                                                }
-                                            }
-                                            onReleased: {
-                                                monGhost.x = Qt.binding(function() { return model.uiX; });
-                                                monGhost.y = Qt.binding(function() { return model.uiY; });
-                                            }
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: Config.monActiveEditIndex = index
                                         }
                                     }
                                 }
