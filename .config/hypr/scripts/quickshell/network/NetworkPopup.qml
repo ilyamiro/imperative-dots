@@ -513,14 +513,14 @@ Item {
                 }
 
                 if (window.activeMode === "eth") {
-                    nodes.push({ id: "ip", name: obj.ip || "No IP", icon: "󰩟", action: "IP Address", isInfoNode: true, isActionable: false, parentIndex: cIndex });
+                    nodes.push({ id: "ip", name: obj.ip || "No IP", icon: "󰩟", action: "IP Address", isInfoNode: true, isActionable: true, parentIndex: cIndex });
                     nodes.push({ id: "spd", name: obj.speed || "Unknown", icon: "󰓅", action: "Link Speed", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                     nodes.push({ id: "mac", name: obj.mac || "Unknown", icon: "󰒋", action: "MAC Address", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                 } else if (window.activeMode === "wifi") {
                     let sigValue = obj.signal !== undefined ? obj.signal + "%" : "Calculating...";
                     nodes.push({ id: "sig_" + i, name: sigValue, icon: obj.icon || "󰤨", action: "Signal Strength", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                     nodes.push({ id: "sec_" + i, name: obj.security || "Open", icon: "󰦝", action: "Security", isInfoNode: true, isActionable: false, parentIndex: cIndex });
-                    if (obj.ip) nodes.push({ id: "ip_" + i, name: obj.ip, icon: "󰩟", action: "IP Address", isInfoNode: true, isActionable: false, parentIndex: cIndex });
+                    if (obj.ip) nodes.push({ id: "ip_" + i, name: obj.ip, icon: "󰩟", action: "IP Address", isInfoNode: true, isActionable: true, parentIndex: cIndex });
                     if (obj.freq) nodes.push({ id: "freq_" + i, name: obj.freq, icon: "󰖧", action: "Band", isInfoNode: true, isActionable: false, parentIndex: cIndex });
                 } else {
                     nodes.push({ id: "bat_" + obj.mac, name: (obj.battery || "0") + "%", icon: "󰥉", action: "Battery", isInfoNode: true, isActionable: false, parentIndex: cIndex });
@@ -1659,7 +1659,7 @@ Item {
                                 
                                 property bool isPairedBT: window.activeMode === "bt" && action === "Connect"
                                 property bool isTargetWifi: window.activeMode === "wifi" && !window.isWifiConn && itemId === window.targetWifiSsid
-                                property bool isSpecialAction: itemId === "action_scan" || itemId === "action_settings"
+                                property bool isSpecialAction: itemId === "action_scan" || itemId === "action_settings" || itemId === "ip_0"
                                 property bool isHighlighted: isPairedBT || isTargetWifi || isSpecialAction
                                 
                                 property bool isCurrentlyConnected: {
@@ -1923,7 +1923,7 @@ Item {
                                             font.family: "JetBrains Mono"
                                             font.pixelSize: window.s(10)
                                             color: floatCard.isFailed ? window.maroon : (floatCard.isMyBusy ? window.activeColor : window.overlay0)
-                                            text: floatCard.isFailed ? "Connection Failed" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
+                                            text: floatCard.isFailed ? "Connection Failed" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? floatCard.itemId === "ip_0" ? floatCard.triggered ? "Copied!" : "Hold to copy...": "Hold..." : action))
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
                                     }
@@ -1971,7 +1971,7 @@ Item {
                                             }
                                             Text {
                                                 font.family: "JetBrains Mono"; font.pixelSize: window.s(10); color: window.crust
-                                                text: floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action)
+                                                text: floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? floatCard.itemId === "ip_0" ? floatCard.triggered ? "Copied!" : "Hold to copy..." : "Hold..." : action)
                                             }
                                         }
                                     }
@@ -2019,6 +2019,14 @@ Item {
                                             window.showInfoView = !window.showInfoView;
                                             floatCard.triggered = false;
                                             drainAnim.start();
+                                        } else if (isInfoNode && action === "IP Address") {
+                                            if (name && name !== "No IP" && name !== "Unknown") {
+                                                window.playSfx("switch.wav");
+                                                let safeIp = name.replace(/'/g, "'\\''");
+                                                Quickshell.execDetached(["bash", "-c", "printf '%s' '" + safeIp + "' | wl-copy"]);
+                                            }
+                                            floatCard.triggered = true;
+                                            drainAnim.start();
                                         } else if (isInfoNode && cmdStr) {
                                             Quickshell.execDetached(["sh", "-c", cmdStr]);
                                             if (window.activeMode === "bt") btPoller.running = true;
@@ -2049,6 +2057,11 @@ Item {
                                     to: 0.0
                                     duration: 1500 * floatCard.fillLevel 
                                     easing.type: Easing.OutQuad
+                                    onFinished: {
+                                        if (isInfoNode && action === "IP Address") {
+                                            floatCard.triggered = false;
+                                        }
+                                    }
                                 }
                             }
                         }
