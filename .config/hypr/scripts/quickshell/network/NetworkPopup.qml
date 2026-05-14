@@ -122,7 +122,7 @@ Item {
         }
     }
 
-    Timer { interval: 100; running: true; repeat: true; onTriggered: modeReader.running = true }
+    Timer { interval: 500; running: true; repeat: true; onTriggered: modeReader.running = true }
 
     Component.onCompleted: {
         window.powerAnimAllowed = false;
@@ -809,10 +809,7 @@ Item {
         }
     }
 
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 200000; loops: Animation.Infinite; running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     property real introState: 0.0
     Behavior on introState { NumberAnimation { duration: 1500; easing.type: Easing.OutCubic } }
@@ -826,6 +823,7 @@ Item {
                 width: window.s(6); height: window.s(6); radius: window.s(3); color: dotCol
                 SequentialAnimation on y {
                     loops: Animation.Infinite
+                    running: parent.visible
                     PauseAnimation { duration: index * 100 }
                     NumberAnimation { from: 0; to: window.s(-6); duration: 250; easing.type: Easing.OutSine }
                     NumberAnimation { from: window.s(-6); to: 0; duration: 250; easing.type: Easing.InSine }
@@ -1222,11 +1220,15 @@ Item {
                                 z: -1
                                 Behavior on color { ColorAnimation { duration: 200 } }
                                 Behavior on opacity { NumberAnimation { duration: 300 } }
-                                
-                                SequentialAnimation on scale {
-                                    loops: Animation.Infinite; running: window.currentConn || showPassword
-                                    NumberAnimation { to: 1.1; duration: 2000; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 1.0; duration: 2000; easing.type: Easing.InOutSine }
+
+                                property real glowScale: 1.0
+                                scale: glowScale
+                                Behavior on glowScale { NumberAnimation { duration: 800; easing.type: Easing.InOutSine } }
+                                Timer {
+                                    interval: 2000
+                                    running: window.currentConn || showPassword
+                                    repeat: true
+                                    onTriggered: parent.glowScale = (parent.glowScale > 1.05 ? 1.0 : 1.1)
                                 }
                             }
                             
@@ -1246,7 +1248,7 @@ Item {
                                 scale: pulseSc
                                 
                                 Timer {
-                                    interval: 45
+                                    interval: 120
                                     running: parent.opacity > 0.01
                                     repeat: true
                                     onTriggered: {

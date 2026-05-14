@@ -37,20 +37,16 @@ Item {
         
         // 5. Slow Color Temperature Drift (Fixed for Live Theme Reloading)
         property real baseBlend: 0.0
-        SequentialAnimation on baseBlend {
-            loops: Animation.Infinite; running: true
-            NumberAnimation { to: 1.0; duration: 15000; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 0.0; duration: 15000; easing.type: Easing.InOutSine }
-        }
+        Behavior on baseBlend { NumberAnimation { duration: 2000; easing.type: Easing.InOutSine } }
+        Timer { interval: 15000; running: true; repeat: true
+            onTriggered: windowContent.baseBlend = (windowContent.baseBlend > 0.5 ? 0.0 : 1.0) }
         // Dynamically tints between mauve and pink based on the live theme properties
         property color currentBasePurple: Qt.tint(root.mauve, Qt.rgba(root.pink.r, root.pink.g, root.pink.b, baseBlend))
 
         property real accentBlend: 0.0
-        SequentialAnimation on accentBlend {
-            loops: Animation.Infinite; running: true
-            NumberAnimation { to: 1.0; duration: 15000; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 0.0; duration: 15000; easing.type: Easing.InOutSine }
-        }
+        Behavior on accentBlend { NumberAnimation { duration: 2000; easing.type: Easing.InOutSine } }
+        Timer { interval: 15000; running: true; repeat: true
+            onTriggered: windowContent.accentBlend = (windowContent.accentBlend > 0.5 ? 0.0 : 1.0) }
         // Dynamically tints between blue and sapphire based on the live theme properties
         property color currentAccentLavender: Qt.tint(root.blue, Qt.rgba(root.sapphire.r, root.sapphire.g, root.sapphire.b, accentBlend))
 
@@ -60,8 +56,9 @@ Item {
 
         // 9. Breathing Phase Offsets (Continuous Time Engine)
         property real time: 0
-        NumberAnimation on time { 
-            from: 0; to: Math.PI * 2; duration: 15000; loops: Animation.Infinite; running: true 
+        Timer {
+            interval: 100; running: true; repeat: true
+            onTriggered: windowContent.time = (windowContent.time + 0.0419) % (Math.PI * 2)
         }
         
         // 3 separate breathing phases for organic offset
@@ -81,10 +78,7 @@ Item {
             NumberAnimation { target: windowContent; property: "scale"; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
         }
 
-        property real globalOrbitAngle: 0
-        NumberAnimation on globalOrbitAngle {
-            from: 0; to: Math.PI * 2; duration: 60000; loops: Animation.Infinite; running: true
-        }
+        property real globalOrbitAngle: 0.8
 
         // ---------------------------------------------------------------------
         // BACKGROUND ARTIFACTS
@@ -216,16 +210,13 @@ Item {
             property real driftX: 0
             property real driftY: 0
             
-            SequentialAnimation on driftX {
-                loops: Animation.Infinite
-                NumberAnimation { to: 2; duration: 7450; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -1.5; duration: 6920; easing.type: Easing.InOutSine }
-            }
-            SequentialAnimation on driftY {
-                loops: Animation.Infinite
-                NumberAnimation { to: 1.5; duration: 8210; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -2; duration: 7630; easing.type: Easing.InOutSine }
-            }
+            Behavior on driftX { NumberAnimation { duration: 1800; easing.type: Easing.InOutSine } }
+            Timer { interval: 7450; running: true; repeat: true
+                onTriggered: parent.driftX = (parent.driftX > 0.5 ? -1.5 : 2) }
+
+            Behavior on driftY { NumberAnimation { duration: 1800; easing.type: Easing.InOutSine } }
+            Timer { interval: 8210; running: true; repeat: true
+                onTriggered: parent.driftY = (parent.driftY > 0.5 ? -2 : 1.5) }
 
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: driftX
@@ -271,7 +262,7 @@ Item {
                         
                         property real oscRotation: 0
                         SequentialAnimation on oscRotation {
-                            loops: Animation.Infinite
+                            loops: Animation.Infinite; running: activeEnergyCore.opacity > 0.01
                             NumberAnimation { to: 15; duration: 6000; easing.type: Easing.InOutSine }
                             NumberAnimation { to: -15; duration: 6000; easing.type: Easing.InOutSine }
                         }
@@ -279,20 +270,20 @@ Item {
 
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
-                            GradientStop { 
-                                position: 0.0 
-                                color: windowContent.currentBasePurple 
+                            GradientStop {
+                                position: 0.0
+                                color: windowContent.currentBasePurple
                                 SequentialAnimation on position {
-                                    loops: Animation.Infinite
+                                    loops: Animation.Infinite; running: activeEnergyCore.opacity > 0.01
                                     NumberAnimation { to: 0.2; duration: 5000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 0.0; duration: 5000; easing.type: Easing.InOutSine }
                                 }
                             }
-                            GradientStop { 
-                                position: 1.0 
-                                color: windowContent.currentAccentLavender 
+                            GradientStop {
+                                position: 1.0
+                                color: windowContent.currentAccentLavender
                                 SequentialAnimation on position {
-                                    loops: Animation.Infinite
+                                    loops: Animation.Infinite; running: activeEnergyCore.opacity > 0.01
                                     NumberAnimation { to: 0.8; duration: 4500; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 1.0; duration: 4500; easing.type: Easing.InOutSine }
                                 }
@@ -326,7 +317,7 @@ Item {
                         
                         property real maskRotation: 0
                         SequentialAnimation on maskRotation {
-                            loops: Animation.Infinite
+                            loops: Animation.Infinite; running: activeEnergyCore.opacity > 0.01
                             NumberAnimation { to: -20; duration: 7000; easing.type: Easing.InOutSine }
                             NumberAnimation { to: 20; duration: 7000; easing.type: Easing.InOutSine }
                         }
@@ -380,9 +371,9 @@ Item {
                         
                         SequentialAnimation on sweepPos {
                             loops: Animation.Infinite
-                            running: true
+                            running: activeEnergyCore.opacity > 0.01
                             NumberAnimation { from: -0.5; to: 1.5; duration: 8000; easing.type: Easing.InOutSine }
-                            PauseAnimation { duration: 4000 } 
+                            PauseAnimation { duration: 4000 }
                         }
 
                         gradient: Gradient {

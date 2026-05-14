@@ -268,9 +268,9 @@ Variants {
 
             onMusicDataChanged: {
                 if (musicData && musicData.status !== "Stopped" && musicData.title !== "") {
-                    displayTitle = musicData.title;
-                    displayTime = musicData.timeStr;
-                    displayArtUrl = musicData.artUrl;
+                    if (displayTitle !== musicData.title) displayTitle = musicData.title;
+                    if (displayTime !== musicData.timeStr) displayTime = musicData.timeStr;
+                    if (displayArtUrl !== musicData.artUrl) displayArtUrl = musicData.artUrl;
                 }
             }
 
@@ -726,16 +726,18 @@ Variants {
                                 radius: parent.radius
                                 color: mocha.green
                                 z: -1
-                                
-                                SequentialAnimation on scale {
+
+                                property bool rippleHigh: false
+                                scale: rippleHigh ? 1.28 : 1.0
+                                opacity: rippleHigh ? 0.0 : 0.18
+                                Behavior on scale { NumberAnimation { duration: 1800; easing.type: Easing.OutCubic } }
+                                Behavior on opacity { NumberAnimation { duration: 1800; easing.type: Easing.OutCubic } }
+                                Timer {
+                                    interval: 2500
                                     running: barWindow.isUpdateVisible && !updateButton.isHovered
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 1.0; to: 1.3; duration: 2000; easing.type: Easing.OutCubic }
-                                }
-                                SequentialAnimation on opacity {
-                                    running: barWindow.isUpdateVisible && !updateButton.isHovered
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 0.15; to: 0.0; duration: 2000; easing.type: Easing.OutCubic }
+                                    repeat: true
+                                    triggeredOnStart: true
+                                    onTriggered: parent.rippleHigh = !parent.rippleHigh
                                 }
                             }
                             
@@ -1538,22 +1540,21 @@ Variants {
                         Text {
                             id: recIcon
                             anchors.centerIn: parent
-                            text: "" 
+                            text: ""
                             font.family: "Iosevka Nerd Font"
                             font.pixelSize: barWindow.s(20)
                             color: mocha.red
-                            
-                            SequentialAnimation on opacity {
+
+                            property bool recPulseHigh: false
+                            opacity: recPulseHigh ? 0.3 : 1.0
+                            scale: recPulseHigh ? 1.15 : 1.0
+                            Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.InOutSine } }
+                            Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.InOutSine } }
+                            Timer {
+                                interval: 900
                                 running: barWindow.isRecording && !recButton.isHovered
-                                loops: Animation.Infinite
-                                NumberAnimation { to: 0.3; duration: 600; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
-                            }
-                            SequentialAnimation on scale {
-                                running: barWindow.isRecording && !recButton.isHovered
-                                loops: Animation.Infinite
-                                NumberAnimation { to: 1.15; duration: 600; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+                                repeat: true
+                                onTriggered: parent.recPulseHigh = !parent.recPulseHigh
                             }
                         }
                         

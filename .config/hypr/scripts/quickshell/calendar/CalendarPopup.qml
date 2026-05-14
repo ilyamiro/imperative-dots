@@ -194,10 +194,7 @@ Item {
         NumberAnimation { target: window; property: "introSchedule"; to: 0; duration: 200; easing.type: Easing.InQuart }
     }
 
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     // -------------------------------------------------------------------------
     // STATE & TIME (WITH SECOND PULSE)
@@ -564,11 +561,9 @@ Item {
                 Behavior on color { ColorAnimation { duration: 1500 } }
                 
                 property real drift: 0
-                SequentialAnimation on drift {
-                    loops: Animation.Infinite
-                    NumberAnimation { to: Math.round(-20 * window.sf); duration: 6000; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 0; duration: 6000; easing.type: Easing.InOutSine }
-                }
+                Behavior on drift { NumberAnimation { duration: 2000; easing.type: Easing.InOutSine } }
+                Timer { interval: 6000; running: true; repeat: true
+                    onTriggered: parent.drift = (parent.drift < -1 ? 0 : Math.round(-20 * window.sf)) }
                 
                 transform: [
                     Translate { y: parent.drift },
@@ -590,41 +585,30 @@ Item {
                 scale: 0.85 + (0.15 * introClock)
 
                 property real levitation: 0
-                SequentialAnimation on levitation {
-                    loops: Animation.Infinite
-                    NumberAnimation { to: Math.round(-15 * window.sf); duration: 4000; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 0; duration: 4000; easing.type: Easing.InOutSine }
-                }
+                Behavior on levitation { NumberAnimation { duration: 1800; easing.type: Easing.InOutSine } }
+                Timer { interval: 4000; running: true; repeat: true
+                    onTriggered: parent.levitation = (parent.levitation < -1 ? 0 : Math.round(-15 * window.sf)) }
 
                 property real orbitBreath: 1.0
-                SequentialAnimation on orbitBreath {
-                    loops: Animation.Infinite
-                    running: true
-                    NumberAnimation { to: 1.035; duration: 3500; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 1.0; duration: 3500; easing.type: Easing.InOutSine }
-                }
+                Behavior on orbitBreath { NumberAnimation { duration: 1500; easing.type: Easing.InOutSine } }
+                Timer { interval: 3500; running: true; repeat: true
+                    onTriggered: parent.orbitBreath = (parent.orbitBreath > 1.02 ? 1.0 : 1.035) }
 
                 // 3D Perspective Wobble (Pitch, Yaw, Roll)
                 property real pitchBreath: 0
-                SequentialAnimation on pitchBreath {
-                    loops: Animation.Infinite; running: true
-                    NumberAnimation { to: 3.5; duration: 4200; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: -3.5; duration: 4200; easing.type: Easing.InOutSine }
-                }
+                Behavior on pitchBreath { NumberAnimation { duration: 1000; easing.type: Easing.InOutSine } }
+                Timer { interval: 4200; running: true; repeat: true
+                    onTriggered: parent.pitchBreath = (parent.pitchBreath > 0.5 ? -3.5 : 3.5) }
 
                 property real yawBreath: 0
-                SequentialAnimation on yawBreath {
-                    loops: Animation.Infinite; running: true
-                    NumberAnimation { to: 2.5; duration: 5100; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: -2.5; duration: 5100; easing.type: Easing.InOutSine }
-                }
+                Behavior on yawBreath { NumberAnimation { duration: 1000; easing.type: Easing.InOutSine } }
+                Timer { interval: 5100; running: true; repeat: true
+                    onTriggered: parent.yawBreath = (parent.yawBreath > 0.5 ? -2.5 : 2.5) }
 
                 property real rollBreath: 0
-                SequentialAnimation on rollBreath {
-                    loops: Animation.Infinite; running: true
-                    NumberAnimation { to: 1.5; duration: 5800; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: -1.5; duration: 5800; easing.type: Easing.InOutSine }
-                }
+                Behavior on rollBreath { NumberAnimation { duration: 1000; easing.type: Easing.InOutSine } }
+                Timer { interval: 5800; running: true; repeat: true
+                    onTriggered: parent.rollBreath = (parent.rollBreath > 0.5 ? -1.5 : 1.5) }
                 
                 transform: [
                     Translate { y: Math.round(25 * window.sf) * (1.0 - introClock) },
@@ -964,11 +948,9 @@ Item {
                             onClicked: window.setWeatherView(window.targetWeatherView - 1) 
                             
                             property real pulseOffset: 0
-                            SequentialAnimation on pulseOffset {
-                                loops: Animation.Infinite; running: true
-                                NumberAnimation { to: Math.round(-3 * window.sf); duration: 1000; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 0; duration: 1000; easing.type: Easing.InOutSine }
-                            }
+                            Behavior on pulseOffset { NumberAnimation { duration: 600; easing.type: Easing.InOutSine } }
+                            Timer { interval: 1200; running: true; repeat: true
+                                onTriggered: parent.pulseOffset = (parent.pulseOffset < -1 ? 0 : Math.round(-3 * window.sf)) }
                             
                             Text { 
                                 anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: Math.round(18 * window.sf)
@@ -995,11 +977,9 @@ Item {
                             onClicked: window.setWeatherView(window.targetWeatherView + 1)
                             
                             property real pulseOffset: 0
-                            SequentialAnimation on pulseOffset {
-                                loops: Animation.Infinite; running: true
-                                NumberAnimation { to: Math.round(3 * window.sf); duration: 1000; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 0; duration: 1000; easing.type: Easing.InOutSine }
-                            }
+                            Behavior on pulseOffset { NumberAnimation { duration: 600; easing.type: Easing.InOutSine } }
+                            Timer { interval: 1200; running: true; repeat: true
+                                onTriggered: parent.pulseOffset = (parent.pulseOffset > 1 ? 0 : Math.round(3 * window.sf)) }
                             
                             Text { 
                                 anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; font.pixelSize: Math.round(18 * window.sf)

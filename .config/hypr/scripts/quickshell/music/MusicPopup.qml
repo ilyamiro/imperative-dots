@@ -73,20 +73,12 @@ Item {
 
     // Decoupled Global Animation States
     property real catppuccinFlowOffset: 0
-    NumberAnimation on catppuccinFlowOffset {
-        from: 0; to: 1.0
-        duration: 8000 // Slowed down significantly for a graceful, constant flow
-        loops: Animation.Infinite
-        running: true
+    Timer {
+        interval: 100; running: true; repeat: true
+        onTriggered: root.catppuccinFlowOffset = (root.catppuccinFlowOffset + 0.0125) % 1.0
     }
 
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2
-        duration: 90000
-        loops: Animation.Infinite
-        running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     // --- CANVAS LIGHTNING ANIMATION STATE ---
     property real eqLightningProgress: 0.0
@@ -271,7 +263,7 @@ Item {
     }
 
     Timer {
-        interval: 500
+        interval: 1000
         running: true
         repeat: true
         triggeredOnStart: true
@@ -421,10 +413,11 @@ Item {
                     height: width
                     anchors.centerIn: parent
                     
-                    NumberAnimation on rotation {
-                        from: 0; to: 360; duration: 5000
-                        loops: Animation.Infinite
-                        running: true
+                    property real gradRotation: 0
+                    rotation: gradRotation
+                    Timer {
+                        interval: 100; running: true; repeat: true
+                        onTriggered: parent.gradRotation = (parent.gradRotation + 7.2) % 360
                     }
 
                     gradient: Gradient {
@@ -612,11 +605,13 @@ Item {
                                 }
                             }
                             
-                            NumberAnimation on rotation {
-                                from: 0; to: 360; duration: 8000
-                                loops: Animation.Infinite
-                                running: true
-                                paused: root.musicData.status !== "Playing"
+                            property real coverRotation: 0
+                            rotation: coverRotation
+                            Timer {
+                                interval: 33
+                                running: root.musicData.status === "Playing"
+                                repeat: true
+                                onTriggered: parent.coverRotation = (parent.coverRotation + 1.485) % 360
                             }
                         }
                     }

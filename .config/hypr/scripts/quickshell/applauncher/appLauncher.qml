@@ -174,11 +174,7 @@ Item {
         event.accepted = true;
     }
 
-    // --- BACKGROUND ORBIT ANIMATION ---
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     // --- MAIN INTRO ANIMATION ---
     property real introPhase: 0
@@ -405,10 +401,10 @@ Item {
                     
                     Rectangle {
                         id: activeHighlight
-                        x: 0
-                        width: appList.width
-                        radius: window.s(8)
-                        color: window.mauve
+                        x: window.s(2)
+                        width: appList.width - window.s(4)
+                        radius: window.s(10)
+                        color: Qt.rgba(window.mauve.r, window.mauve.g, window.mauve.b, 0.85)
 
                         property int prevIdx: 0
                         property int curIdx: appList.currentIndex
@@ -491,8 +487,8 @@ Item {
                                 
                                 property real activeScale: index === appList.currentIndex ? 1.15 : 1
                                 scale: activeScale
-                                Behavior on activeScale { 
-                                    NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 1.5 } 
+                                Behavior on activeScale {
+                                    NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
                                 }
                                 Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutExpo } }
 
@@ -535,8 +531,8 @@ Item {
                                 property real textShift: index === appList.currentIndex ? window.s(6) : 0
                                 transform: Translate { x: textShift }
                                 
-                                Behavior on textShift { 
-                                    NumberAnimation { duration: 500; easing.type: Easing.OutExpo } 
+                                Behavior on textShift {
+                                    NumberAnimation { duration: 220; easing.type: Easing.OutExpo }
                                 }
                                 Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutExpo } }
                             }

@@ -167,8 +167,8 @@ Item {
 
     // Unified hue for Performance Profile
     readonly property color profileStart: {
-        if (powerProfile === "performance") return window.red;
-        if (powerProfile === "power-saver") return window.green;
+        if (powerProfile === "throughput-performance") return window.red;
+        if (powerProfile === "powersave") return window.green;
         return window.blue;
     }
     readonly property color profileEnd: Qt.lighter(profileStart, 1.15)
@@ -202,60 +202,58 @@ Item {
     }
 
     Process {
-        id: sysPoller
-        // Stripped down to only the properties not provided by SysData.qml
-        command: ["bash", "-c", 
-            "df -h / | awk 'NR==2 {print $5}' | tr -d '%' || echo '0'; " +
-            "powerprofilesctl get 2>/dev/null || echo 'balanced'; " +
-            "awk '{print int($1/3600)\"h \"int(($1%3600)/60)\"m\"}' /proc/uptime 2>/dev/null || echo '0h 0m'; " +
-            "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print int($2*100), ($3==\"[MUTED]\"?\"off\":\"on\")}' || echo '0 on'; " +
-            "brightnessctl -m 2>/dev/null | awk -F, '{print substr($4, 1, length($4)-1)}' || echo '0'"
-        ]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let lines = this.text.trim().split("\n");
-                if (lines.length >= 5) {
-                    window.diskUsage = parseInt(lines[0]) || 0;
-                    widgetCache.diskUsage = window.diskUsage;
-                    
-                    window.powerProfile = lines[1];
-                    widgetCache.powerProfile = window.powerProfile;
-                    
-                    let upParts = lines[2].split("h ");
-                    if (upParts.length === 2) {
-                        window.upHours = parseInt(upParts[0]) || 0;
-                        widgetCache.upHours = window.upHours;
-                        window.upMins = parseInt(upParts[1].replace("m", "")) || 0;
-                        widgetCache.upMins = window.upMins;
-                    }
+    id: sysPoller
+    // Stripped down to only the properties not provided by SysData.qml
+    command: ["bash", "-c",
+        "df -h / | awk 'NR==2 {print $5}' | tr -d '%' || echo '0'; " +
+        "tuned-adm active 2>/dev/null | awk '{print $NF}' || echo 'balanced'; " +
+        "awk '{print int($1/3600)\"h \"int(($1%3600)/60)\"m\"}' /proc/uptime 2>/dev/null || echo '0h 0m'; " +
+        "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{print int($2*100), ($3==\"[MUTED]\"?\"off\":\"on\")}' || echo '0 on'; " +
+        "brightnessctl -m 2>/dev/null | awk -F, '{print substr($4, 1, length($4)-1)}' || echo '0'"
+    ]
+    running: true
+    stdout: StdioCollector {
+        onStreamFinished: {
+            let lines = this.text.trim().split("\n");
+            if (lines.length >= 5) {
+                window.diskUsage = parseInt(lines[0]) || 0;
+                widgetCache.diskUsage = window.diskUsage;
 
-                    if (!window.isDraggingVol) {
-                        let volParts = (lines[3] || "0 on").trim().split(" ");
-                        window.sysVolume = parseInt(volParts[0]) || 0;
-                        widgetCache.sysVolume = window.sysVolume;
-                        window.sysMuted = (volParts[1] === "off");
-                        widgetCache.sysMuted = window.sysMuted;
-                    }
-                    
-                    if (!window.isDraggingBri) {
-                        window.sysBrightness = parseInt(lines[4]) || 0;
-                        widgetCache.sysBrightness = window.sysBrightness;
-                    }
+                window.powerProfile = lines[1];
+                widgetCache.powerProfile = window.powerProfile;
+
+                let upParts = lines[2].split("h ");
+                if (upParts.length === 2) {
+                    window.upHours = parseInt(upParts[0]) || 0;
+                    widgetCache.upHours = window.upHours;
+                    window.upMins = parseInt(upParts[1].replace("m", "")) || 0;
+                    widgetCache.upMins = window.upMins;
+                }
+
+                if (!window.isDraggingVol) {
+                    let volParts = (lines[3] || "0 on").trim().split(" ");
+                    window.sysVolume = parseInt(volParts[0]) || 0;
+                    widgetCache.sysVolume = window.sysVolume;
+                    window.sysMuted = (volParts[1] === "off");
+                    widgetCache.sysMuted = window.sysMuted;
+                }
+
+                if (!window.isDraggingBri) {
+                    window.sysBrightness = parseInt(lines[4]) || 0;
+                    widgetCache.sysBrightness = window.sysBrightness;
                 }
             }
         }
     }
+}
+
 
     Timer {
-        interval: 1500; running: true; repeat: true; triggeredOnStart: true;
+        interval: 10000; running: true; repeat: true; triggeredOnStart: true;
         onTriggered: sysPoller.running = true
     }
 
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     // --- ENHANCED STARTUP ANIMATION STATES ---
     property real introMain: 0
@@ -876,10 +874,10 @@ Item {
                             
                             opacity: uptimePulse
                             property real uptimePulse: 1.0
-                            SequentialAnimation on uptimePulse {
-                                loops: Animation.Infinite; running: true
-                                NumberAnimation { to: 0.2; duration: 800; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                            Behavior on uptimePulse { NumberAnimation { duration: 500; easing.type: Easing.InOutSine } }
+                            Timer {
+                                interval: 3000; running: true; repeat: true
+                                onTriggered: parent.uptimePulse = (parent.uptimePulse > 0.5 ? 0.2 : 1.0)
                             }
                         }
 
@@ -1546,7 +1544,7 @@ Item {
                                 y: window.s(1)
                                 radius: window.s(10)
                                 x: {
-                                    if (window.powerProfile === "performance") return window.s(1);
+                                    if (window.powerProfile === "throughput-performance") return window.s(1);
                                     if (window.powerProfile === "balanced") return width + window.s(1);
                                     return (width * 2) + window.s(1);
                                 }
@@ -1566,9 +1564,9 @@ Item {
                                 
                                 Repeater {
                                     model: ListModel {
-                                        ListElement { name: "performance"; icon: "󰓅"; label: "Perform" } 
+                                        ListElement { name: "throughput-performance"; icon: "󰓅"; label: "Perform" } 
                                         ListElement { name: "balanced"; icon: "󰗑"; label: "Balance" }   
-                                        ListElement { name: "power-saver"; icon: "󰌪"; label: "Saver" } 
+                                        ListElement { name: "powersave"; icon: "󰌪"; label: "Saver" } 
                                     }
                                     
                                     delegate: Item {
@@ -1595,7 +1593,7 @@ Item {
                                         MouseArea {
                                             id: profileMa
                                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                            onClicked: { Quickshell.execDetached(["powerprofilesctl", "set", name]); sysPoller.running = true; }
+                                            onClicked: { window.powerProfile = name; widgetCache.powerProfile = name; Quickshell.execDetached(["tuned-adm", "profile", name]); sysPoller.running = true; }
                                         }
                                     }
                                 }

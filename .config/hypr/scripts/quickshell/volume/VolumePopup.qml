@@ -74,10 +74,7 @@ Item {
         return window.green;
     }
     
-    property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
-    }
+    property real globalOrbitAngle: 0.8
 
     // Top Orb Active State Links
     property string activeId: ""
@@ -325,10 +322,12 @@ Item {
                                 z: -1
                                 Behavior on color { ColorAnimation { duration: 300 } }
 
-                                SequentialAnimation on scale {
-                                    loops: Animation.Infinite; running: true
-                                    NumberAnimation { to: masterOrbMa.containsMouse ? 1.15 : 1.1; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 1.0; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
+                                property real glowScale: 1.0
+                                scale: glowScale
+                                Behavior on glowScale { NumberAnimation { duration: 800; easing.type: Easing.InOutSine } }
+                                Timer {
+                                    interval: 2000; running: true; repeat: true
+                                    onTriggered: parent.glowScale = (parent.glowScale > 1.05 ? 1.0 : (masterOrbMa.containsMouse ? 1.15 : 1.1))
                                 }
                             }
 

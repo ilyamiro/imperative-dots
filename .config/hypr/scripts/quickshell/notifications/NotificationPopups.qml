@@ -72,7 +72,7 @@ PanelWindow {
         }
     }
     Timer {
-        interval: 1000; running: true; repeat: true; triggeredOnStart: true
+        interval: 5000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: dndPoller.running = true
     }
 
@@ -89,10 +89,7 @@ PanelWindow {
         property var blobPalette1: [_theme.mauve, _theme.blue, _theme.peach, _theme.green, _theme.pink]
         property var blobPalette2: [_theme.sapphire, _theme.teal, _theme.maroon, _theme.yellow, _theme.red]
 
-        property real globalOrbitAngle: 0
-        NumberAnimation on globalOrbitAngle {
-            from: 0; to: Math.PI * 2; duration: 25000; loops: Animation.Infinite; running: true
-        }
+        property real globalOrbitAngle: 0.8
 
         ListView {
             id: popupList
