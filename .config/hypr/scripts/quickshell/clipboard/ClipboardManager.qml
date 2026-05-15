@@ -107,7 +107,7 @@ Item {
                                 }
                             }
 
-                            if (isDifferent || window.allClips.length === 0) {
+                            if (isDifferent || window.allClips.length === 0 || searchInput.text !== "") {
                                 window.allClips = newItems;
                                 window.filterClips(searchInput.text);
                             }
@@ -133,7 +133,7 @@ Item {
         if (isLoading || !hasMore) return;
         isLoading = true;
         currentOffset += fetchLimit;
-        clipFetcher.command = ["python3", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/clipboard/clip_fetcher.py", window.currentOffset, window.fetchLimit, paths.getCacheDir("clipboard")];
+        clipFetcher.command = ["python3", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/clipboard/clip_fetcher.py", window.currentOffset, window.fetchLimit, paths.getCacheDir("clipboard"), searchInput.text];
         clipFetcher.running = true;
     }
 
@@ -141,7 +141,7 @@ Item {
         let q = searchInput.text.toLowerCase();
         for (let i = 0; i < newItems.length; i++) {
             allClips.push(newItems[i]);
-            if (q === "" || newItems[i].type === "image" || newItems[i].content.toLowerCase().includes(q)) {
+            if ((q === "" && newItems[i].type === "image") || (newItems[i].type === "text" && newItems[i].content.toLowerCase().includes(q))) {
                 clipModel.append(newItems[i]);
             }
         }
@@ -164,7 +164,7 @@ Item {
         clipModel.clear();
 
         for (let i = 0; i < allClips.length; i++) {
-            if (allClips[i].type === "image" || allClips[i].content.toLowerCase().includes(q)) {
+            if ((q === "" && allClips[i].type === "image") || (allClips[i].type === "text" && allClips[i].content.toLowerCase().includes(q))) {
                 clipModel.append(allClips[i]);
             }
         }
@@ -177,6 +177,20 @@ Item {
     function copyToClipboard(id) {
         Quickshell.execDetached(["bash", "-c", "cliphist decode " + id + " | wl-copy"]);
         Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
+    }
+
+    Timer {
+        id: searchDebounce
+        interval: 300
+        running: false
+        repeat: false
+        onTriggered: {
+            window.currentOffset = 0;
+            window.hasMore = true;
+            window.isLoading = true;
+            clipFetcher.command = ["python3", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/clipboard/clip_fetcher.py", 0, window.fetchLimit, paths.getCacheDir("clipboard"), searchInput.text];
+            clipFetcher.running = true;
+        }
     }
 
     Timer {
@@ -351,6 +365,7 @@ Item {
                         if (window.previewMode) { window.previewMode = false; }
                         window.pendingIndex = -1;
                         filterClips(text);
+                        searchDebounce.restart();
                     }
 
                     Keys.onTabPressed: {
@@ -436,6 +451,39 @@ Item {
                         }
                         event.accepted = true;
                     }
+                }
+
+                Button {
+                    id: clearButton
+                    flat: true
+                    Layout.preferredWidth: window.s(32)
+                    Layout.preferredHeight: window.s(32)
+                    
+                    contentItem: Text {
+                        text: "󰆴"
+                        font.family: "Iosevka Nerd Font"
+                        font.pixelSize: window.s(18)
+                        color: clearButton.hovered ? window.mauve : window.subtext0
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+                    
+                    background: Rectangle {
+                        color: clearButton.hovered ? Qt.rgba(window.surface1.r, window.surface1.g, window.surface1.b, 0.3) : "transparent"
+                        radius: window.s(6)
+                    }
+                    
+                    onClicked: {
+                        Quickshell.execDetached(["bash", "-c", "cliphist wipe"]);
+                        window.allClips = [];
+                        clipModel.clear();
+                        Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
+                    }
+                    
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Wipe all history"
+                    ToolTip.delay: 500
                 }
             }
         }

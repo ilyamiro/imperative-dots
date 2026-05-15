@@ -4,11 +4,12 @@ import json
 import os
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 def cleanup_cache(all_lines, cache_dir):
     valid_ids = set()
-    # Keep top 100 recent IDs to prevent infinite cache bloat
-    for line in all_lines[:100]:
+    # Keep top 200 recent IDs to prevent infinite cache bloat
+    for line in all_lines[:200]:
         if '\t' in line:
             valid_ids.add(line.split('\t', 1)[0])
             
@@ -24,26 +25,44 @@ def cleanup_cache(all_lines, cache_dir):
     except Exception:
         pass
 
+def decode_image(iid, img_path):
+    if not os.path.exists(img_path):
+        try:
+            with open(img_path, "wb") as f:
+                subprocess.run(["cliphist", "decode", iid], stdout=f, timeout=2)
+        except Exception:
+            pass
+
 def get_cliphist():
-    # Implement pagination arguments
+    # Arguments: offset, limit, cache_dir, [query]
     offset = int(sys.argv[1]) if len(sys.argv) > 1 else 0
-    # Slightly smaller limit to make the initial UI pop open faster
-    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 12 
-    
-    # Use dynamically provided cache dir from QML or fallback securely
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 24
     cache_dir = sys.argv[3] if len(sys.argv) > 3 else os.environ.get("QS_CACHE_CLIPBOARD", os.path.expanduser("~/.cache/quickshell/clipboard"))
+    query = sys.argv[4] if len(sys.argv) > 4 else ""
+    
     os.makedirs(cache_dir, exist_ok=True)
     
     try:
-        # Fetch the entire list quickly
-        result = subprocess.run(["cliphist", "list"], capture_output=True, text=True)
-        all_lines = result.stdout.strip().split('\n')
+        # Fetch the entire list
+        result = subprocess.run(["cliphist", "list"], capture_output=True, text=True, errors='replace')
+        if result.returncode != 0:
+            print("[]")
+            return
+            
+        all_lines = [l for l in result.stdout.strip().split('\n') if l]
         
-        # Slice only the requested chunk
-        lines = all_lines[offset:offset+limit]
+        # Filtering
+        if query:
+            # When searching, we only care about text matches and ignore image placeholders
+            filtered_lines = [l for l in all_lines if query.lower() in l.lower() and "[[ binary data" not in l]
+        else:
+            filtered_lines = all_lines
         
-        # Move cleanup to a background thread so it doesn't block the UI from receiving data
-        if offset == 0:
+        # Pagination
+        lines = filtered_lines[offset:offset+limit]
+        
+        # Background cleanup
+        if offset == 0 and not query:
             threading.Thread(target=cleanup_cache, args=(all_lines, cache_dir), daemon=True).start()
 
     except Exception as e:
@@ -51,8 +70,9 @@ def get_cliphist():
         return
 
     items = []
+    images_to_decode = []
+    
     for line in lines:
-        if not line: continue
         parts = line.split('\t', 1)
         if len(parts) != 2: continue
         
@@ -60,15 +80,10 @@ def get_cliphist():
         item_type = "text"
         display_content = content.strip()
 
-        # Detect images in cliphist output
         if "[[ binary data" in content:
             item_type = "image"
             img_path = os.path.join(cache_dir, f"{iid}.png")
-            
-            # CACHING: Only decode the specific item if it doesn't already exist
-            if not os.path.exists(img_path):
-                with open(img_path, "wb") as f:
-                    subprocess.run(["cliphist", "decode", iid], stdout=f)
+            images_to_decode.append((iid, img_path))
             display_content = img_path
 
         items.append({
@@ -76,6 +91,11 @@ def get_cliphist():
             "content": display_content,
             "type": item_type
         })
+
+    # Decode images in parallel to avoid blocking
+    if images_to_decode:
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(lambda p: decode_image(*p), images_to_decode)
 
     print(json.dumps(items))
 
