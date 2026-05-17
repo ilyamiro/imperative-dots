@@ -904,6 +904,30 @@ Variants {
                             }
                         }
                     }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        z: 2
+
+                        onWheel: (wheel) => {
+                            let count = workspacesModel.count;
+                            let wheelDelta = wheel.angleDelta.y;
+                            if (count <= 0 || wheelDelta === 0) return;
+
+                            let currentIndex = workspacesModel.activeIndex;
+                            if (currentIndex < 0 || currentIndex >= count) currentIndex = 0;
+
+                            let step = wheelDelta > 0 ? -1 : 1;
+                            let targetIndex = (currentIndex + step + count) % count;
+                            let targetWorkspaceId = workspacesModel.get(targetIndex).wsId;
+                            if (targetWorkspaceId === "") return;
+
+                            workspacesModel.activeIndex = targetIndex;
+                            Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh " + targetWorkspaceId]);
+                            wheel.accepted = true;
+                        }
+                    }
                 }
 
                 Rectangle {
