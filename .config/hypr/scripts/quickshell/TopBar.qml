@@ -1453,7 +1453,59 @@ Variants {
                                         color: barWindow.isSoundActive ? mocha.base : mocha.text; 
                                     }
                                 }
-                                MouseArea { id: volMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle volume"]) }
+                                MouseArea {
+                                    id: volMouse
+                                    hoverEnabled: true
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    Timer {
+                                        id: volCmdThrottle
+                                        interval: 50
+                                        property int targetPct: -1
+                                        onTriggered: {
+                                            if (targetPct >= 0) {
+                                                Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"]);
+                                                Quickshell.execDetached(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", targetPct + "%"]);
+                                                targetPct = -1;
+                                            }
+                                        }
+                                    }
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.LeftButton) {
+                                            Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle volume"]);
+                                        } else if (mouse.button === Qt.RightButton) {
+                                            let muteTarget = barWindow.isMuted ? "0" : "1";
+                                            let nextMuted = muteTarget === "1";
+                                            let current = parseInt(barWindow.volPercent) || 0;
+
+                                            barWindow.isMuted = nextMuted;
+                                            if (nextMuted || current <= 0) barWindow.volIcon = "󰝟";
+                                            else if (current >= 70) barWindow.volIcon = "󰕾";
+                                            else if (current >= 30) barWindow.volIcon = "󰖀";
+                                            else barWindow.volIcon = "󰕿";
+
+                                            Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", muteTarget]);
+                                        }
+                                    }
+                                    onWheel: (wheel) => {
+                                        let current = parseInt(barWindow.volPercent) || 0;
+                                        let wheelDelta = wheel.angleDelta.y;
+                                        if (wheelDelta === 0) return;
+
+                                        let delta = wheelDelta > 0 ? 5 : -5;
+                                        let target = Math.max(0, Math.min(100, current + delta));
+
+                                        barWindow.volPercent = target.toString() + "%";
+                                        barWindow.isMuted = false;
+                                        if (target >= 70) barWindow.volIcon = "󰕾";
+                                        else if (target >= 30) barWindow.volIcon = "󰖀";
+                                        else if (target > 0) barWindow.volIcon = "󰕿";
+                                        else barWindow.volIcon = "󰝟";
+
+                                        volCmdThrottle.targetPct = target;
+                                        if (!volCmdThrottle.running) volCmdThrottle.start();
+                                    }
+                                }
                             }
 
                             Rectangle {
