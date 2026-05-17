@@ -248,6 +248,19 @@ Variants {
             property string volPercent: "0%"
             property string volIcon: "󰕾"
             property bool isMuted: false
+
+            function volumeIconFor(percent, muted) {
+                if (muted || percent <= 0) return "󰝟";
+                if (percent >= 70) return "󰕾";
+                if (percent >= 30) return "󰖀";
+                return "󰕿";
+            }
+
+            function setVolumeDisplay(percent, muted) {
+                barWindow.volPercent = percent.toString() + "%";
+                barWindow.isMuted = muted;
+                barWindow.volIcon = barWindow.volumeIconFor(percent, muted);
+            }
             
             property string batPercent: "100%"
             property string batIcon: "󰁹"
@@ -1502,12 +1515,7 @@ Variants {
                                             let nextMuted = muteTarget === "1";
                                             let current = parseInt(barWindow.volPercent) || 0;
 
-                                            barWindow.isMuted = nextMuted;
-                                            if (nextMuted || current <= 0) barWindow.volIcon = "󰝟";
-                                            else if (current >= 70) barWindow.volIcon = "󰕾";
-                                            else if (current >= 30) barWindow.volIcon = "󰖀";
-                                            else barWindow.volIcon = "󰕿";
-
+                                            barWindow.setVolumeDisplay(current, nextMuted);
                                             Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", muteTarget]);
                                         }
                                     }
@@ -1519,13 +1527,7 @@ Variants {
                                         let delta = wheelDelta > 0 ? 5 : -5;
                                         let target = Math.max(0, Math.min(100, current + delta));
 
-                                        barWindow.volPercent = target.toString() + "%";
-                                        barWindow.isMuted = false;
-                                        if (target >= 70) barWindow.volIcon = "󰕾";
-                                        else if (target >= 30) barWindow.volIcon = "󰖀";
-                                        else if (target > 0) barWindow.volIcon = "󰕿";
-                                        else barWindow.volIcon = "󰝟";
-
+                                        barWindow.setVolumeDisplay(target, false);
                                         volCmdThrottle.targetPct = target;
                                         if (!volCmdThrottle.running) volCmdThrottle.start();
                                     }
