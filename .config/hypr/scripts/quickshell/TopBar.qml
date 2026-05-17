@@ -248,6 +248,19 @@ Variants {
             property string volPercent: "0%"
             property string volIcon: "󰕾"
             property bool isMuted: false
+
+            function volumeIconFor(percent, muted) {
+                if (muted || percent <= 0) return "󰝟";
+                if (percent >= 70) return "󰕾";
+                if (percent >= 30) return "󰖀";
+                return "󰕿";
+            }
+
+            function setVolumeDisplay(percent, muted) {
+                barWindow.volPercent = percent.toString() + "%";
+                barWindow.isMuted = muted;
+                barWindow.volIcon = barWindow.volumeIconFor(percent, muted);
+            }
             
             property string batPercent: "100%"
             property string batIcon: "󰁹"
@@ -904,6 +917,30 @@ Variants {
                             }
                         }
                     }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        z: 2
+
+                        onWheel: (wheel) => {
+                            let count = workspacesModel.count;
+                            let wheelDelta = wheel.angleDelta.y;
+                            if (count <= 0 || wheelDelta === 0) return;
+
+                            let currentIndex = workspacesModel.activeIndex;
+                            if (currentIndex < 0 || currentIndex >= count) currentIndex = 0;
+
+                            let step = wheelDelta > 0 ? -1 : 1;
+                            let targetIndex = (currentIndex + step + count) % count;
+                            let targetWorkspaceId = workspacesModel.get(targetIndex).wsId;
+                            if (targetWorkspaceId === "") return;
+
+                            workspacesModel.activeIndex = targetIndex;
+                            Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh " + targetWorkspaceId]);
+                            wheel.accepted = true;
+                        }
+                    }
                 }
 
                 Rectangle {
@@ -1453,7 +1490,48 @@ Variants {
                                         color: barWindow.isSoundActive ? mocha.base : mocha.text; 
                                     }
                                 }
-                                MouseArea { id: volMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle volume"]) }
+                                MouseArea {
+                                    id: volMouse
+                                    hoverEnabled: true
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    Timer {
+                                        id: volCmdThrottle
+                                        interval: 50
+                                        property int targetPct: -1
+                                        onTriggered: {
+                                            if (targetPct >= 0) {
+                                                Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"]);
+                                                Quickshell.execDetached(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", targetPct + "%"]);
+                                                targetPct = -1;
+                                            }
+                                        }
+                                    }
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.LeftButton) {
+                                            Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle volume"]);
+                                        } else if (mouse.button === Qt.RightButton) {
+                                            let muteTarget = barWindow.isMuted ? "0" : "1";
+                                            let nextMuted = muteTarget === "1";
+                                            let current = parseInt(barWindow.volPercent) || 0;
+
+                                            barWindow.setVolumeDisplay(current, nextMuted);
+                                            Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", muteTarget]);
+                                        }
+                                    }
+                                    onWheel: (wheel) => {
+                                        let current = parseInt(barWindow.volPercent) || 0;
+                                        let wheelDelta = wheel.angleDelta.y;
+                                        if (wheelDelta === 0) return;
+
+                                        let delta = wheelDelta > 0 ? 5 : -5;
+                                        let target = Math.max(0, Math.min(100, current + delta));
+
+                                        barWindow.setVolumeDisplay(target, false);
+                                        volCmdThrottle.targetPct = target;
+                                        if (!volCmdThrottle.running) volCmdThrottle.start();
+                                    }
+                                }
                             }
 
                             Rectangle {
