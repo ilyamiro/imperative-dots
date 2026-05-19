@@ -15,7 +15,7 @@ Item {
     Scaler {
         id: scaler
         // Uses the physical screen width so the popup scales synchronously
-        currentWidth: Screen.width
+        currentWidth: masterWindow.width
     }
     
     // Helper function scoped to the root Item for easy access
@@ -218,15 +218,61 @@ Item {
 
     // --- UTILITIES & OPTIMISTIC UPDATES ---
     function execCmd(cmdStr) {
-        var safeCmd = cmdStr.replace(/`/g, "\\`");
-        var p = Qt.createQmlObject(`
-            import Quickshell.Io
-            Process {
-                command: ["bash", "-c", \`${safeCmd}\`]
-                running: true
-                onExited: (exitCode) => destroy()
-            }
-        `, root);
+        Quickshell.execDetached(["bash", "-c", cmdStr]);
+    }
+
+    function focusPlayer() {
+        if (!root.musicData || !root.musicData.playerName) return;
+        
+        let player = root.musicData.playerName.toLowerCase();
+        let title = root.musicData.title || "";
+        // Escape single quotes for the shell command
+        let escapedTitle = title.replace(/'/g, "'\\''");
+        
+        // Close the popup first to ensure focus can transition cleanly
+        if (typeof masterWindow !== "undefined") {
+            masterWindow.switchWidget("hidden", "");
+        }
+
+        let shellCmd = `
+            PLAYER="${player}"
+            TITLE='${escapedTitle}'
+            
+            # Fetch all clients once
+            CLIENTS=$(hyprctl clients -j)
+            
+            # 1. Try to match Player AND Title (Mutual contains check for instance handling)
+            CLIENT_INFO=$(echo "$CLIENTS" | jq -c --arg p "$PLAYER" --arg t "$TITLE" '
+                .[] | select(
+                    (
+                        (.class | ascii_downcase | (contains($p) or ($p | contains(.)))) or 
+                        (.initialClass | ascii_downcase | (contains($p) or ($p | contains(.))))
+                    ) 
+                    and (.title | ascii_downcase | contains($t | ascii_downcase))
+                )' | head -n 1)
+            
+            # 2. Browser & Common Player Fallback: Search by title in likely candidates
+            if [ -z "$CLIENT_INFO" ]; then
+                CLIENT_INFO=$(echo "$CLIENTS" | jq -c --arg t "$TITLE" '
+                    .[] | select(
+                        (.class | ascii_downcase | (contains("firefox") or contains("chrome") or contains("chromium") or contains("brave") or contains("vlc") or contains("mpv") or contains("audacious"))) 
+                        and (.title | ascii_downcase | contains($t | ascii_downcase))
+                    )' | head -n 1)
+            fi
+
+            # 3. Last Resort: Match by Player name only
+            if [ -z "$CLIENT_INFO" ]; then
+                CLIENT_INFO=$(echo "$CLIENTS" | jq -c --arg p "$PLAYER" '
+                    .[] | select((.class | ascii_downcase | contains($p)) or ($p | contains(.class | ascii_downcase)))
+                ' | head -n 1)
+            fi
+
+            if [ -n "$CLIENT_INFO" ]; then
+                ADDR=$(echo "$CLIENT_INFO" | jq -r ".address")
+                hyprctl dispatch focuswindow address:"$ADDR"
+            fi
+        `;
+        execCmd(shellCmd);
     }
 
     function applyPresetOptimistically(presetName) {
@@ -284,7 +330,7 @@ Item {
     Process {
         id: musicProc
         running: true
-        command: ["bash", "-c", "$HOME/.config/hypr/scripts/quickshell/music/music_info.sh"]
+        command: ["bash", "-c", "exec $HOME/.config/hypr/scripts/quickshell/music/music_info.sh"]
         stdout: StdioCollector {
             onStreamFinished: {
                 if (this.text) {
@@ -306,7 +352,7 @@ Item {
     Process {
         id: eqProc
         running: true
-        command: ["bash", "-c", "$HOME/.config/hypr/scripts/quickshell/music/equalizer.sh get"]
+        command: ["bash", "-c", "exec $HOME/.config/hypr/scripts/quickshell/music/equalizer.sh get"]
         stdout: StdioCollector {
             onStreamFinished: {
                 if (this.text) {
@@ -727,15 +773,24 @@ Item {
                                         Text { text: root.musicData.deviceName || "Speaker"; color: root.overlay2; font.family: "JetBrains Mono"; font.pixelSize: root.s(12); font.bold: true }
                                     }
                                 }
-                                Text {
-                                    text: "VIA " + (root.musicData.source || "Offline")
-                                    color: root.overlay2 // Better matugen match
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: root.s(12)
-                                    font.bold: true
-                                    font.italic: true
-                                }
-                            }
+                                MouseArea {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: root.s(20)
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onClicked: root.focusPlayer()
+
+                                    Text {
+                                        anchors.fill: parent
+                                        text: "VIA " + (root.musicData.source || "Offline")
+                                        color: parent.containsMouse ? root.mauve : root.overlay2
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: root.s(12)
+                                        font.bold: true
+                                        font.italic: true
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
+                                }                            }
                         }
 
                         // PROGRESS AREA CHUNK
