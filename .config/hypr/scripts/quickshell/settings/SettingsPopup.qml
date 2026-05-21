@@ -888,6 +888,8 @@ Item {
         { tab: 0, boxIndex: 4, label: "Layout shortcut",   desc: "Toggle combination",     icon: "󰯍", color: "teal" },
         { tab: 0, boxIndex: 5, label: "Wallpaper directory",desc: "Absolute source path",  icon: "󰋩", color: "mauve" },
         { tab: 0, boxIndex: 6, label: "Workspaces",        desc: "Static count in topbar", icon: "󰽿", color: "red" },
+        { tab: 0, boxIndex: 7, label: "Lock timeout",      desc: "Minutes until screen locks",  icon: "󰌾", color: "peach" },
+        { tab: 0, boxIndex: 8, label: "Sleep timeout",     desc: "Minutes until system sleeps", icon: "󰒲", color: "blue" },
         { tab: 1, boxIndex: 1, label: "API Key",           desc: "OpenWeather API key",    icon: "󰌆", color: "blue" },
         { tab: 1, boxIndex: 2, label: "City ID",           desc: "OpenWeather city ID",    icon: "󰖐", color: "blue" },
         { tab: 1, boxIndex: 3, label: "Temperature Unit",  desc: "Celsius / Fahrenheit / K", icon: "󰔄", color: "blue" }
@@ -1820,7 +1822,7 @@ Item {
                                         }
                                         MouseArea { id: wsMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.workspaceCount = Math.max(2, Config.workspaceCount - 1) }
                                     }
-                                    Text { 
+                                    Text {
                                         text: Config.workspaceCount.toString()
                                         font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(14)
                                         color: box6.isActive ? root.base : root.red
@@ -1845,8 +1847,164 @@ Item {
                             }
                         }
                     }
+
+                    // ── Box 7: Lock timeout ──────────────────────────────────
+                    Rectangle {
+                        id: box7
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: col7lock.implicitHeight + root.s(32)
+                        radius: root.s(12)
+
+                        property bool isActive: root.highlightedBox === 7
+                        color: isActive ? root.peach : root.surface0
+                        border.color: isActive ? root.peach : root.surface1
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.highlightedBox = 7; z: -1 }
+
+                        ColumnLayout {
+                            id: col7lock
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(16)
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignTop; Layout.topMargin: root.s(2)
+                                    Text {
+                                        anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "󰌾"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: box7.isActive ? root.base : root.peach
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
+                                    Text {
+                                        text: "Lock timeout"; font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(14)
+                                        color: box7.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: "Minutes until screen locks"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
+                                        radius: root.s(7)
+                                        color: box7.isActive ? Qt.alpha(root.base, 0.15) : root.surface0
+                                        border.color: lockTimeoutInput.activeFocus
+                                            ? (box7.isActive ? root.base : root.peach)
+                                            : (box7.isActive ? Qt.alpha(root.base, 0.3) : root.surface2)
+                                        border.width: 1
+                                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        TextInput {
+                                            id: lockTimeoutInput
+                                            anchors.fill: parent; anchors.margins: root.s(9)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: Config.lockTimeout.toString()
+                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
+                                            color: box7.isActive ? root.base : root.text; selectByMouse: true
+                                            validator: IntValidator { bottom: 1 }
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                            onEditingFinished: {
+                                                let v = parseInt(text);
+                                                if (!isNaN(v) && v >= 1) Config.lockTimeout = v;
+                                                else text = Config.lockTimeout.toString();
+                                            }
+                                            Connections {
+                                                target: Config
+                                                function onLockTimeoutChanged() {
+                                                    if (!lockTimeoutInput.activeFocus) lockTimeoutInput.text = Config.lockTimeout.toString();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Box 8: Sleep timeout ─────────────────────────────────
+                    Rectangle {
+                        id: box8
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: col8sleep.implicitHeight + root.s(32)
+                        radius: root.s(12)
+
+                        property bool isActive: root.highlightedBox === 8
+                        color: isActive ? root.blue : root.surface0
+                        border.color: isActive ? root.blue : root.surface1
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.highlightedBox = 8; z: -1 }
+
+                        ColumnLayout {
+                            id: col8sleep
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(16)
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignTop; Layout.topMargin: root.s(2)
+                                    Text {
+                                        anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "󰒲"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: box8.isActive ? root.base : root.blue
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: root.s(3)
+                                    Text {
+                                        text: "Sleep timeout"; font.family: "Inter"; font.weight: Font.Bold; font.pixelSize: root.s(14)
+                                        color: box8.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: "Minutes until system sleeps"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: box8.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true; Layout.preferredHeight: root.s(34); Layout.topMargin: root.s(8)
+                                        radius: root.s(7)
+                                        color: box8.isActive ? Qt.alpha(root.base, 0.15) : root.surface0
+                                        border.color: sleepTimeoutInput.activeFocus
+                                            ? (box8.isActive ? root.base : root.blue)
+                                            : (box8.isActive ? Qt.alpha(root.base, 0.3) : root.surface2)
+                                        border.width: 1
+                                        Behavior on border.color { ColorAnimation { duration: 200 } }
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        TextInput {
+                                            id: sleepTimeoutInput
+                                            anchors.fill: parent; anchors.margins: root.s(9)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: Config.sleepTimeout.toString()
+                                            font.family: "JetBrains Mono"; font.pixelSize: root.s(11)
+                                            color: box8.isActive ? root.base : root.text; selectByMouse: true
+                                            validator: IntValidator { bottom: 1 }
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                            onEditingFinished: {
+                                                let v = parseInt(text);
+                                                if (!isNaN(v) && v >= 1) Config.sleepTimeout = v;
+                                                else text = Config.sleepTimeout.toString();
+                                            }
+                                            Connections {
+                                                target: Config
+                                                function onSleepTimeoutChanged() {
+                                                    if (!sleepTimeoutInput.activeFocus) sleepTimeoutInput.text = Config.sleepTimeout.toString();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }        
+            }
         }
     }
 

@@ -89,6 +89,8 @@ Item {
     property string wallpaperDir: Quickshell.env("WALLPAPER_DIR") || (homeDir + "/Pictures/Wallpapers")
     property string language: ""
     property string kbOptions: "grp:alt_shift_toggle"
+    property int lockTimeout: 10
+    property int sleepTimeout: 20
 
     property string weatherUnit: "metric"
     property string weatherApiKey: ""
@@ -111,7 +113,9 @@ Item {
             "wallpaperDir": config.wallpaperDir,
             "language": config.language,
             "kbOptions": config.kbOptions,
-            "workspaceCount": config.workspaceCount
+            "workspaceCount": config.workspaceCount,
+            "lockTimeout": config.lockTimeout,
+            "sleepTimeout": config.sleepTimeout
         };
 
         config.updateJsonBulk(configObj);
@@ -376,8 +380,10 @@ Item {
                         if (config.rawSettings.kbOptions !== undefined) config.kbOptions = config.rawSettings.kbOptions;
                         if (config.rawSettings.workspaceCount !== undefined) {
                             config.workspaceCount = config.rawSettings.workspaceCount;
-                            config.initialWorkspaceCount = config.rawSettings.workspaceCount; 
+                            config.initialWorkspaceCount = config.rawSettings.workspaceCount;
                         }
+                        if (config.rawSettings.lockTimeout !== undefined) config.lockTimeout = config.rawSettings.lockTimeout;
+                        if (config.rawSettings.sleepTimeout !== undefined) config.sleepTimeout = config.rawSettings.sleepTimeout;
                         
                         // Map Keybinds
                         if (config.rawSettings.keybinds !== undefined && Array.isArray(config.rawSettings.keybinds)) {

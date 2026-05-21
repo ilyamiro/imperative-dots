@@ -3,6 +3,8 @@
   "openGuideAtStartup": true,
   "topbarHelpIcon": true,
   "workspaceCount": 8,
+  "lockTimeout": 10,
+  "sleepTimeout": 20,
   "wallpaperDir": "",
   "language": "us",
   "kbOptions": "grp:alt_shift_toggle",

@@ -13,6 +13,7 @@ AUTOSTART_CONF="$CONF_DIR/autostart.conf"
 ENV_CONF="$CONF_DIR/env.conf"
 KEYBINDS_CONF="$CONF_DIR/keybindings.conf"
 MONITORS_CONF="$CONF_DIR/monitors.conf"
+HYPRIDLE_CONF="$HOME/.config/hypr/hypridle.conf"
 ZSH_RC="$HOME/.zshrc"
 
 # Ensure the required files and directories exist
@@ -29,6 +30,7 @@ compile_settings() {
     # This means a pure uiScale/wallpaperDir/weatherApiKey write never triggers a reload.
     OLD_NONMON_HASH=$(md5sum "$SETTINGS_CONF" "$KEYBINDS_CONF" "$AUTOSTART_CONF" "$ENV_CONF" 2>/dev/null | md5sum)
     OLD_MON_HASH=$(md5sum "$MONITORS_CONF" 2>/dev/null | md5sum)
+    OLD_HYPRIDLE_HASH=$(md5sum "$HYPRIDLE_CONF" 2>/dev/null | md5sum)
 
     # Read state from JSON (Using 'has' to safely parse booleans)
     LANG=$(jq -r '.language // "us"' "$SETTINGS_FILE")
@@ -100,9 +102,20 @@ compile_settings() {
         echo "monitor = , preferred, auto, 1" >> "$MONITORS_CONF"
     fi
 
+    # 6. Regenerate hypridle.conf
+    echo "Regenerating hypridle.conf..."
+    LOCK_TIMEOUT_MIN=$(jq -r '.lockTimeout // 10' "$SETTINGS_FILE")
+    SLEEP_TIMEOUT_MIN=$(jq -r '.sleepTimeout // 20' "$SETTINGS_FILE")
+    LOCK_TIMEOUT=$(awk "BEGIN {print int($LOCK_TIMEOUT_MIN * 60)}")
+    SLEEP_TIMEOUT=$(awk "BEGIN {print int($SLEEP_TIMEOUT_MIN * 60)}")
+    sed -e "s|{{LOCK_TIMEOUT}}|$LOCK_TIMEOUT|g" \
+        -e "s|{{SLEEP_TIMEOUT}}|$SLEEP_TIMEOUT|g" \
+        "$TMPL_DIR/hypridle.conf.template" > "$HYPRIDLE_CONF"
+
     # Hash after changes
     NEW_NONMON_HASH=$(md5sum "$SETTINGS_CONF" "$KEYBINDS_CONF" "$AUTOSTART_CONF" "$ENV_CONF" 2>/dev/null | md5sum)
     NEW_MON_HASH=$(md5sum "$MONITORS_CONF" 2>/dev/null | md5sum)
+    NEW_HYPRIDLE_HASH=$(md5sum "$HYPRIDLE_CONF" 2>/dev/null | md5sum)
 
     if [ "$OLD_MON_HASH" != "$NEW_MON_HASH" ]; then
         # Monitor layout actually changed — full reload needed
@@ -115,6 +128,11 @@ compile_settings() {
     else
         # Nothing that affects Hyprland changed (e.g. uiScale, weatherApiKey) — skip reload entirely
         echo "No Hyprland config changes detected, skipping reload."
+    fi
+
+    if [ "$OLD_HYPRIDLE_HASH" != "$NEW_HYPRIDLE_HASH" ]; then
+        echo "Hypridle config changed, restarting hypridle..."
+        killall hypridle 2>/dev/null; sleep 0.2; hypridle &
     fi
 }
 
