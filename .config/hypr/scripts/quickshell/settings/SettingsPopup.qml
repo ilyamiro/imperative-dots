@@ -125,7 +125,7 @@ Item {
 
     function maxHighlightForTab(tab) {
         if (tab === 0) return 6;
-        if (tab === 1) return 3;
+        if (tab === 1) return 4;
         if (tab === 2) return dynamicKeybindsModel.count - 1;
         if (tab === 4) return dynamicStartupModel.count - 1;
         return -1;
@@ -153,6 +153,8 @@ Item {
             } else if (root.highlightedBox === 2) {
                 if (weatherLoader.item) weatherLoader.item.focusCityId();
             } else if (root.highlightedBox === 3) {
+            } else if (root.highlightedBox === 4) {
+                Config.weatherAutoUpdate = !Config.weatherAutoUpdate;
             }
         } else if (root.currentTab === 2) {
             if (root.highlightedBox >= 0 && root.highlightedBox < dynamicKeybindsModel.count) {
@@ -189,6 +191,7 @@ Item {
             else if (box === 1) approxY = root.s(140);
             else if (box === 2) approxY = root.s(240);
             else if (box === 3) approxY = root.s(340);
+            else if (box === 4) approxY = root.s(440);
             weatherLoader.item.scrollToBox(approxY);
         } else if (root.currentTab === 2 && keybindLoader.item) {
             let approxY = box * root.s(56) + root.s(120);
@@ -309,6 +312,10 @@ Item {
                 Config.workspaceCount = Math.max(2, Config.workspaceCount - 1);
                 event.accepted = true;
                 return;
+            } else if (root.currentTab === 1 && root.highlightedBox === 4) {
+                Config.weatherUpdateInterval = Math.max(5, Config.weatherUpdateInterval - 5);
+                event.accepted = true;
+                return;
             }
         }
         if (event.key === Qt.Key_Right) {
@@ -318,6 +325,10 @@ Item {
                 return;
             } else if (root.currentTab === 0 && root.highlightedBox === 6) {
                 Config.workspaceCount = Math.min(10, Config.workspaceCount + 1);
+                event.accepted = true;
+                return;
+            } else if (root.currentTab === 1 && root.highlightedBox === 4) {
+                Config.weatherUpdateInterval = Math.min(120, Config.weatherUpdateInterval + 5);
                 event.accepted = true;
                 return;
             }
@@ -626,6 +637,7 @@ Item {
                     if (targetBox === 1) approxY = root.s(140);
                     else if (targetBox === 2) approxY = root.s(240);
                     else if (targetBox === 3) approxY = root.s(340);
+                    else if (targetBox === 4) approxY = root.s(440);
                     weatherLoader.item.scrollTo(approxY);
                 } else if (targetTab === 2 && keybindLoader.item) {
                     approxY = targetBox * (root.s(56)) + root.s(120);
@@ -2259,6 +2271,140 @@ Item {
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                         }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Config.weatherUnit = modelData.val }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Box 4: Auto Update & Interval ───────────────────────
+                    Rectangle {
+                        id: wBox4
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: autoUpdateRow.implicitHeight + root.s(28)
+                        radius: root.s(12)
+
+                        property bool isActive: root.highlightedBox === 4
+                        color: isActive ? root.blue : root.surface0
+                        border.color: isActive ? root.blue : root.surface1
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.highlightedBox = 4; z: -1 }
+
+                        ColumnLayout {
+                            id: autoUpdateRow
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: root.s(16)
+                            spacing: root.s(10)
+                            
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignVCenter
+                                    Text {
+                                        anchors.centerIn: parent; text: "󰚰"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: wBox4.isActive ? root.base : root.blue
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: root.s(3)
+                                    Text {
+                                        text: "Auto Update"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        color: wBox4.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: "Update weather periodically"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: wBox4.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                                    Layout.preferredWidth: root.s(40)
+                                    Layout.preferredHeight: root.s(22)
+                                    radius: root.s(11)
+                                    scale: autoUpdateToggleMa.containsMouse ? 1.05 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+                                    color: Config.weatherAutoUpdate
+                                        ? (wBox4.isActive ? root.base : root.peach)
+                                        : Qt.alpha(root.surface2, wBox4.isActive ? 0.4 : 1.0)
+                                    Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    Rectangle {
+                                        width: root.s(16); height: root.s(16); radius: root.s(8)
+                                        color: Config.weatherAutoUpdate
+                                            ? (wBox4.isActive ? root.peach : root.base)
+                                            : (wBox4.isActive ? root.peach : root.surface0)
+                                        y: root.s(3); x: Config.weatherAutoUpdate ? root.s(21) : root.s(3)
+                                        Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    MouseArea { id: autoUpdateToggleMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.weatherAutoUpdate = !Config.weatherAutoUpdate; cursorShape: Qt.PointingHandCursor }
+                                }
+                            }
+                            
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: root.s(14)
+                                visible: Config.weatherAutoUpdate
+                                
+                                Item {
+                                    Layout.preferredWidth: root.s(22); Layout.alignment: Qt.AlignVCenter
+                                    Text {
+                                        anchors.centerIn: parent; text: "󰔚"; font.family: "Iosevka Nerd Font"; font.pixelSize: root.s(18)
+                                        color: wBox4.isActive ? root.base : root.blue
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: root.s(3)
+                                    Text {
+                                        text: "Update Interval"; font.family: "Inter"; font.weight: Font.Medium; font.pixelSize: root.s(14)
+                                        color: wBox4.isActive ? root.base : root.text; Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Text {
+                                        text: "Interval in minutes"; font.family: "Inter"; font.pixelSize: root.s(11)
+                                        color: wBox4.isActive ? Qt.alpha(root.base, 0.75) : Qt.alpha(root.subtext0, 0.7); Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                }
+                                RowLayout {
+                                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight; spacing: root.s(10)
+                                    Rectangle {
+                                        width: root.s(28); height: root.s(28); radius: root.s(6)
+                                        color: intervalMinusMa.pressed ? Qt.alpha(root.base, 0.3) : (intervalMinusMa.containsMouse ? Qt.alpha(root.base, 0.2) : Qt.alpha(root.base, 0.15))
+                                        scale: intervalMinusMa.pressed ? 0.90 : (intervalMinusMa.containsMouse ? 1.08 : 1.0)
+                                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutQuart } }
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                        Text {
+                                            anchors.centerIn: parent; text: "-"
+                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(15)
+                                            color: wBox4.isActive ? root.base : root.blue
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        }
+                                        MouseArea { id: intervalMinusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.weatherUpdateInterval = Math.max(5, Config.weatherUpdateInterval - 5) }
+                                    }
+                                    Text { 
+                                        text: Config.weatherUpdateInterval.toString()
+                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: root.s(14)
+                                        color: wBox4.isActive ? root.base : root.blue
+                                        Layout.minimumWidth: root.s(36); horizontalAlignment: Text.AlignHCenter
+                                        Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                    }
+                                    Rectangle {
+                                        width: root.s(28); height: root.s(28); radius: root.s(6)
+                                        color: intervalPlusMa.pressed ? Qt.alpha(root.base, 0.3) : (intervalPlusMa.containsMouse ? Qt.alpha(root.base, 0.2) : Qt.alpha(root.base, 0.15))
+                                        scale: intervalPlusMa.pressed ? 0.90 : (intervalPlusMa.containsMouse ? 1.08 : 1.0)
+                                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutQuart } }
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                        Text {
+                                            anchors.centerIn: parent; text: "+"
+                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: root.s(15)
+                                            color: wBox4.isActive ? root.base : root.blue
+                                            Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutExpo } }
+                                        }
+                                        MouseArea { id: intervalPlusMa; anchors.fill: parent; hoverEnabled: true; onClicked: Config.weatherUpdateInterval = Math.min(120, Config.weatherUpdateInterval + 5) }
                                     }
                                 }
                             }

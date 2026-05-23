@@ -1,16 +1,10 @@
 #!/usr/bin/env bash
 
-# -----------------------------------------------------------------------------
-# CACHING & MIGRATION
-# -----------------------------------------------------------------------------
-source "$(dirname "${BASH_SOURCE[0]}")/../../caching.sh"
-qs_ensure_cache "weather"
-
-# Force standard C locale for number formatting and date parsing (fixes printf and date command issues on varying OS locales)
-export LC_ALL=C
+# Force standard C locale for number formatting (fixes printf decimal/comma issues on varying OS locales)
+export LC_NUMERIC=C
 
 # Paths
-cache_dir="$QS_CACHE_WEATHER"
+cache_dir="$HOME/.cache/quickshell/weather"
 json_file="${cache_dir}/weather.json"
 view_file="${cache_dir}/view_id"
 daily_cache_file="${cache_dir}/daily_weather_cache.json"
@@ -27,6 +21,8 @@ fi
 KEY="$OPENWEATHER_KEY"
 ID="$OPENWEATHER_CITY_ID"
 UNIT="${OPENWEATHER_UNIT:-metric}" # Default to metric if not set
+AUTO_UPDATE="${OPENWEATHER_AUTO_UPDATE:-true}"
+INTERVAL_MINS="${OPENWEATHER_UPDATE_INTERVAL:-15}"
 
 # Determine temperature symbol based on unit
 case "$UNIT" in
@@ -39,11 +35,11 @@ mkdir -p "${cache_dir}"
 
 get_icon() {
     case $1 in
-        "50d"|"50n") icon="󰖑"; quote="Mist" ;;
+        "50d"|"50n") icon=""; quote="Mist" ;;
         "01d") icon=""; quote="Sunny" ;;
         "01n") icon=""; quote="Clear" ;;
         "02d"|"02n"|"03d"|"03n"|"04d"|"04n") icon=""; quote="Cloudy" ;;
-        "09d"|"09n"|"10d"|"10n") icon="󰖗"; quote="Rainy" ;;
+        "09d"|"09n"|"10d"|"10n") icon=""; quote="Rainy" ;;
         "11d"|"11n") icon=""; quote="Storm" ;;
         "13d"|"13n") icon=""; quote="Snow" ;;
         *) icon=""; quote="Unknown" ;;
@@ -115,12 +111,7 @@ get_data() {
     api_cod=$(echo "$raw_api" | jq -r '.cod' 2>/dev/null)
     
     if [ -z "$raw_api" ] || [ -z "$raw_weather" ] || [[ "$api_cod" != "200" ]]; then
-        # If curl failed (network glitch, rate limit, API downtime), don't destroy
-        # the existing working cache. Just abort the update.
-        # If there is NO cache at all, then fall back to dummy data.
-        if [ ! -f "$json_file" ]; then
-            write_dummy_data
-        fi
+        write_dummy_data
         return
     fi
 
@@ -249,7 +240,7 @@ if [[ "$1" == "--getdata" ]]; then
     get_data
 
 elif [[ "$1" == "--json" ]]; then
-    CACHE_LIMIT=900         # 15 minutes for valid working data
+    CACHE_LIMIT=$((INTERVAL_MINS * 60))
     PENDING_RETRY_LIMIT=3600 # 1 hour for invalid/activating keys
 
     if [ -f "$json_file" ]; then
@@ -258,16 +249,20 @@ elif [[ "$1" == "--json" ]]; then
         diff=$((current_time - file_time))
         
         if grep -q '"desc": "No API Key"' "$json_file"; then
-            # Key is pending/invalid. Check once an hour.
-            if [ $diff -gt $PENDING_RETRY_LIMIT ]; then
-                touch "$json_file" # Bump file timestamp slightly to avoid spamming processes
-                get_data &
+            # Key is pending/invalid. Check once an hour if auto update is enabled.
+            if [[ "$AUTO_UPDATE" == "true" ]]; then
+                if [ $diff -gt $PENDING_RETRY_LIMIT ]; then
+                    touch "$json_file" # Bump file timestamp slightly to avoid spamming processes
+                    get_data &
+                fi
             fi
         else
-            # Normal working API key. Check every 15 mins.
-            if [ $diff -gt $CACHE_LIMIT ]; then
-                touch "$json_file"
-                get_data &
+            # Normal working API key. Check every CACHE_LIMIT seconds if auto update is enabled.
+            if [[ "$AUTO_UPDATE" == "true" ]]; then
+                if [ $diff -gt $CACHE_LIMIT ]; then
+                    touch "$json_file"
+                    get_data &
+                fi
             fi
         fi
         cat "$json_file"
