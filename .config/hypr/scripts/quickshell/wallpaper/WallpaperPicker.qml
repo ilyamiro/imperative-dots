@@ -11,8 +11,12 @@ import "../"
 Item {
     id: window
     width: Screen.width
+    focus: true
 
-    Caching { id: paths }
+    Keys.onEscapePressed: {
+        Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"]);
+        event.accepted = true;
+    }
 
     Scaler {
         id: scaler
@@ -46,10 +50,6 @@ Item {
     
     property bool isApplying: false
     property bool isMonitorSelectorOpen: false
-
-    // Separate flag so add-animations fire on new arrivals
-    // even before the first focus snap has happened
-    property bool allowAddAnimation: false
     
     Timer {
         id: applyUnlockTimer
@@ -157,14 +157,14 @@ Item {
         const randomTransition = window.transitions[Math.floor(Math.random() * window.transitions.length)];
         const escOutputs = escapeBash(outputs);
         
-        const logFile = paths.logDir + "/swww_debug.log";
+        const logFile = "/tmp/qs_awww_debug.log";
         
         if (window.currentFilter === "Search" && window.hasSearched) {
             let alreadyExists = window.isDownloaded(safeFileName);
             let destFile = window.srcDir + "/" + safeFileName;
             let finalThumb = decodeURIComponent(window.thumbDir.replace("file://", "")) + "/" + safeFileName;
             let tempThumb = decodeURIComponent(window.searchDir.replace("file://", "")) + "/" + safeFileName;
-            let mapFile = paths.getCacheDir("wallpaper_picker") + "/search_map.txt";
+            let mapFile = Quickshell.env("HOME") + "/.cache/wallpaper_picker/search_map.txt";
 
             if (alreadyExists) {
                 const applyScript = `
@@ -173,19 +173,19 @@ Item {
                     export RELOAD_SCRIPT="${escapeBash(reloadScript)}"
                     export TARGET_MONITORS="${escOutputs}"
                     
-                    cp "$DEST_FILE" ${paths.getCacheDir("wallpaper_picker")}/current_wallpaper.png || true
+                    cp "$DEST_FILE" /tmp/lock_bg.png || true
                     pkill mpvpaper || true
                     
                     echo "" >> ${logFile}
                     echo "[$(date +'%H:%M:%S.%3N')] APPLYING CACHED SEARCH: $DEST_FILE TO $TARGET_MONITORS" >> ${logFile}
                     
                     if [ "$TARGET_MONITORS" = "all" ]; then
-                        swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                        awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                     else
-                        swww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                        awww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                     fi
                     
-                    ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
+                    ( matugen image "$FINAL_THUMB" --source-color-index 0 || true; bash "$RELOAD_SCRIPT" || true ) &
                 `;
                 Quickshell.execDetached(["bash", "-c", applyScript]);
             } else {
@@ -215,19 +215,19 @@ Item {
                         cp "$TEMP_THUMB" "$FINAL_THUMB"
                         magick "$DEST_FILE" -resize x420 -quality 70 "$FINAL_THUMB" || true
                         
-                        cp "$DEST_FILE" ${paths.getCacheDir("wallpaper_picker")}/current_wallpaper.png || true
+                        cp "$DEST_FILE" /tmp/lock_bg.png || true
                         pkill mpvpaper || true
                         
                         echo "" >> ${logFile}
                         echo "[$(date +'%H:%M:%S.%3N')] APPLYING NEW DOWNLOAD: $DEST_FILE TO $TARGET_MONITORS" >> ${logFile}
                         
                         if [ "$TARGET_MONITORS" = "all" ]; then
-                            swww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                            awww img "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                         else
-                            swww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                            awww img -o "$TARGET_MONITORS" "$DEST_FILE" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                         fi
                         
-                        ( matugen image "$FINAL_THUMB" || true; bash "$RELOAD_SCRIPT" || true ) &
+                        ( matugen image "$FINAL_THUMB" --source-color-index 0 || true; bash "$RELOAD_SCRIPT" || true ) &
                     fi
                 `;
                 Quickshell.execDetached(["bash", "-c", downloadScript]);
@@ -236,7 +236,7 @@ Item {
         }
 
         const originalFile = window.srcDir + "/" + cleanName;
-        const thumbFile = paths.getCacheDir("wallpaper_picker") + "/thumbs/" + safeFileName;
+        const thumbFile = Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs/" + safeFileName;
         
         const escOriginal = escapeBash(originalFile);
         const escThumb = escapeBash(thumbFile);
@@ -264,19 +264,19 @@ Item {
                 echo "[$(date +'%H:%M:%S.%3N')] APPLYING LOCAL IMAGE: ${escOriginal} TO ${escOutputs}" >> ${logFile}
                 
                 if [ "${escOutputs}" = "all" ]; then
-                    swww img "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                    awww img "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                 else
-                    swww img -o "${escOutputs}" "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
+                    awww img -o "${escOutputs}" "${escOriginal}" --transition-type ${randomTransition} --transition-pos 0.5,0.5 --transition-fps 144 --transition-duration 1 >> ${logFile} 2>&1 &
                 fi
             `;
         }
 
         const fullScript = `
-            cp "${isVideo ? escThumb : escOriginal}" ${paths.getCacheDir("wallpaper_picker")}/current_wallpaper.png || true
+            cp "${isVideo ? escThumb : escOriginal}" /tmp/lock_bg.png || true
             pkill mpvpaper || true
             
             ${wallpaperCmd}
-            ( matugen image "${escThumb}" || true; bash "${escReload}" || true ) &
+            ( matugen image "${escThumb}" --source-color-index 0 || true; bash "${escReload}" || true ) &
         `;
         Quickshell.execDetached(["bash", "-c", fullScript]);
     }
@@ -290,13 +290,12 @@ Item {
     }
 
     onIsSearchPausedChanged: {
-        Quickshell.execDetached(["bash", "-c", "echo '" + (isSearchPaused ? "pause" : "run") + "' > " + paths.getRunDir("wallpaper_picker") + "/ddg_search_control"]);
+        Quickshell.execDetached(["bash", "-c", "echo '" + (isSearchPaused ? "pause" : "run") + "' > /tmp/ddg_search_control"]);
     }
 
     onVisibleChanged: {
         if (!visible) {
             window.initialFocusSet = false;
-            window.allowAddAnimation = false;
             window.searchIndexRestored = false;
             window.isApplying = false;
             window.isMonitorSelectorOpen = false;
@@ -389,19 +388,9 @@ Item {
             
             window.isModelChanging = false;
             window.initialFocusSet = true;
-
-            // Allow add-animations for future incremental arrivals
-            // Use a short delay so the initial snap itself isn't animated
-            allowAddAnimationTimer.restart();
         } else if (isSearchRestore) {
             window.searchIndexRestored = true;
         }
-    }
-
-    Timer {
-        id: allowAddAnimationTimer
-        interval: 600
-        onTriggered: window.allowAddAnimation = true
     }
 
     function tryFocus() {
@@ -499,12 +488,12 @@ Item {
         let scriptPath = decodeURIComponent(Qt.resolvedUrl("ddg_search.sh").toString().replace(/^file:\/\//, ""));
         
         const cmd = `
-            exec > ${paths.logDir}/ddg_run.log 2>&1
+            exec > /tmp/qs_ddg_run.log 2>&1
             echo "=== QML Shell Handoff Successful ==="
             export PATH=$PATH:/run/current-system/sw/bin
             
             echo "Gracefully stopping old processes..."
-            echo 'stop' > ${paths.getRunDir("wallpaper_picker")}/ddg_search_control
+            echo 'stop' > /tmp/ddg_search_control
             
             for p in $(pgrep -f ddg_search.sh); do
                 if [ "$p" != "$$" ] && [ "$p" != "$BASHPID" ]; then
@@ -519,7 +508,7 @@ Item {
             rm -f "${rawSearchDir}/../search_map.txt" || true
             
             echo "Setting control state back to run..."
-            echo 'run' > ${paths.getRunDir("wallpaper_picker")}/ddg_search_control
+            echo 'run' > /tmp/ddg_search_control
             
             echo "Executing new search pipeline..."
             bash "${scriptPath}" "${window.searchQuery}" &
@@ -532,8 +521,8 @@ Item {
     }
 
     readonly property string homeDir: "file://" + Quickshell.env("HOME")
-    readonly property string thumbDir: "file://" + paths.getCacheDir("wallpaper_picker") + "/thumbs"
-    readonly property string searchDir: "file://" + paths.getCacheDir("wallpaper_picker") + "/search_thumbs"
+    readonly property string thumbDir: homeDir + "/.cache/wallpaper_picker/thumbs"
+    readonly property string searchDir: homeDir + "/.cache/wallpaper_picker/search_thumbs"
     readonly property string srcDir: {
         const dir = Quickshell.env("WALLPAPER_DIR")
         return (dir && dir !== "") 
@@ -627,7 +616,7 @@ Item {
 
     FolderListModel {
         id: markerModel
-        folder: "file://" + paths.getCacheDir("wallpaper_picker") + "/colors_markers"
+        folder: "file://" + Quickshell.env("HOME") + "/.cache/wallpaper_picker/colors_markers"
         showDirs: false
         nameFilters: ["*_HEX_*"]
         
@@ -670,9 +659,9 @@ Item {
 
     function triggerColorExtraction() {
         const extractScript = `
-            COLOR_DIR="${paths.getCacheDir('wallpaper_picker')}/colors_markers"
-            THUMBS="${paths.getCacheDir('wallpaper_picker')}/thumbs"
-            CSV="${paths.getCacheDir('wallpaper_picker')}/colors.csv"
+            COLOR_DIR="$HOME/.cache/wallpaper_picker/colors_markers"
+            THUMBS="$HOME/.cache/wallpaper_picker/thumbs"
+            CSV="$HOME/.cache/wallpaper_picker/colors.csv"
             
             mkdir -p "$COLOR_DIR"
             
@@ -884,7 +873,7 @@ Item {
         } 
     }
     
-    Shortcut { sequence: "Escape"; enabled: !window.isApplying; onActivated: { if (window.currentFilter === "Search") { window.currentFilter = "All"; } } }
+    Shortcut { sequence: "Escape"; enabled: !window.isApplying && window.currentFilter === "Search"; onActivated: { window.currentFilter = "All"; } }
     Shortcut { sequence: "Tab"; enabled: !window.isApplying; onActivated: window.cycleFilter(1) }
     Shortcut { sequence: "Backtab"; enabled: !window.isApplying; onActivated: window.cycleFilter(-1) }
 
@@ -904,51 +893,32 @@ Item {
         onStatusChanged: { if (status === FolderListModel.Ready) window.syncLocalModel() }
     }
 
-    // Tracks the highest index we have already synced into localProxyModel
-    // so we never re-scan items we already ingested.
-    property int _localSyncedCount: 0
-
     function syncLocalModel() {
-        let folderCount = localFolderModel.count;
-
-        // If the folder shrank (files deleted), we need a full rebuild.
-        // We do it silently without animation by blocking allowAddAnimation briefly.
-        if (folderCount < window._localSyncedCount) {
-            let wasAllowing = window.allowAddAnimation;
-            window.allowAddAnimation = false;
+        let startIdx = localProxyModel.count;
+        let endIdx = localFolderModel.count;
+        
+        if (endIdx < startIdx) {
             window.isModelChanging = true;
-
             localProxyModel.clear();
-            window._localSyncedCount = 0;
-
+            startIdx = 0;
             window.isModelChanging = false;
-            // Re-run to fill from scratch, then restore anim state
-            window.syncLocalModel();
-            if (wasAllowing) allowAddAnimationTimer.restart();
-            return;
         }
 
-        // Incremental append — only new items
-        if (folderCount > window._localSyncedCount) {
-            let batch = [];
-            for (let i = window._localSyncedCount; i < folderCount; i++) {
-                let fn = localFolderModel.get(i, "fileName");
-                let fu = localFolderModel.get(i, "fileUrl");
-                if (fn !== undefined) {
-                    batch.push({ "fileName": fn, "fileUrl": String(fu) });
-                }
+        let batch = [];
+        for (let i = startIdx; i < endIdx; i++) {
+            let fn = localFolderModel.get(i, "fileName");
+            let fu = localFolderModel.get(i, "fileUrl");
+            if (fn !== undefined) {
+                batch.push({ "fileName": fn, "fileUrl": String(fu) });
             }
-
-            if (batch.length > 0) {
-                localProxyModel.append(batch);
-            }
-
-            window._localSyncedCount = folderCount;
+        }
+        
+        if (batch.length > 0) {
+            localProxyModel.append(batch);
         }
 
         if (window.currentFilter !== "Search") window.updateVisibleCount();
-
-        // First-time focus snap
+        
         if (!window.initialFocusSet && window.currentFilter !== "Search" && localProxyModel.count > 0) {
             window.tryFocus();
         }
@@ -992,7 +962,6 @@ Item {
             }
         }
     }
-
     FolderListModel {
         id: searchFolderModel
         folder: window.searchDir
@@ -1052,16 +1021,15 @@ Item {
             }
         }
         
-        // New items slide+fade in — enabled once focus has been snapped
         add: Transition {
-            enabled: window.allowAddAnimation
+            enabled: window.initialFocusSet
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.OutCubic }
                 NumberAnimation { property: "scale"; from: 0.5; to: 1; duration: 400; easing.type: Easing.OutBack }
             }
         }
         addDisplaced: Transition {
-            enabled: window.allowAddAnimation
+            enabled: window.initialFocusSet
             NumberAnimation { property: "x"; duration: 400; easing.type: Easing.OutCubic }
         }
 
@@ -1818,9 +1786,9 @@ Item {
             searchState.searched = window.hasSearched;
             searchState.lastName = window.lastSearchName;
             
-            Quickshell.execDetached(["bash", "-c", "echo 'pause' > " + paths.getRunDir("wallpaper_picker") + "/ddg_search_control"]);
+            Quickshell.execDetached(["bash", "-c", "echo 'pause' > /tmp/ddg_search_control"]);
         } else {
-            Quickshell.execDetached(["bash", "-c", "echo 'stop' > " + paths.getRunDir("wallpaper_picker") + "/ddg_search_control; for p in $(pgrep -f ddg_search.sh); do if [ \"$p\" != \"$$\" ] && [ \"$p\" != \"$BASHPID\" ]; then kill -9 $p 2>/dev/null || true; fi; done; pkill -f '[g]et_ddg_links.py'"]);
+            Quickshell.execDetached(["bash", "-c", "echo 'stop' > /tmp/ddg_search_control; for p in $(pgrep -f ddg_search.sh); do if [ \"$p\" != \"$$\" ] && [ \"$p\" != \"$BASHPID\" ]; then kill -9 $p 2>/dev/null || true; fi; done; pkill -f '[g]et_ddg_links.py'"]);
         }
     }
 }
