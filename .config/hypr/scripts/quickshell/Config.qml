@@ -93,6 +93,8 @@ Item {
     property string weatherUnit: "metric"
     property string weatherApiKey: ""
     property string weatherCityId: ""
+    property bool weatherAutoUpdate: true
+    property int weatherUpdateInterval: 15
 
     property var keybindsData: []
     signal keybindsLoaded()
@@ -127,7 +129,9 @@ Item {
         let envs = {
             "OPENWEATHER_KEY": config.weatherApiKey,
             "OPENWEATHER_CITY_ID": config.weatherCityId,
-            "OPENWEATHER_UNIT": config.weatherUnit
+            "OPENWEATHER_UNIT": config.weatherUnit,
+            "OPENWEATHER_AUTO_UPDATE": config.weatherAutoUpdate.toString(),
+            "OPENWEATHER_UPDATE_INTERVAL": config.weatherUpdateInterval.toString()
         };
         
         config.updateEnvBulk(config.weatherEnvPath, envs);
@@ -227,7 +231,7 @@ Item {
             if (m.transform !== 0) monitorStr += ",transform," + m.transform;
             let jsonArr = [{ name: m.name, resW: m.resW, resH: m.resH, rate: parseInt(m.rate), x: 0, y: 0, scale: m.sysScale, transform: m.transform }];
             config.setSetting("monitors", jsonArr);
-            config.sh("hyprctl keyword monitor " + monitorStr + " ; swww kill ; sleep 0.2 ; swww-daemon &");
+            config.sh("hyprctl keyword monitor " + monitorStr + " ; awww kill ; sleep 0.2 ; awww-daemon &");
             Quickshell.execDetached(["notify-send", "Display Update", "Applied: " + m.resW + "x" + m.resH + " @ " + m.rate + "Hz"]);
         } else {
             let rects = [];
@@ -277,7 +281,7 @@ Item {
                 jsonArr.push({ name: r.name, resW: r.resW, resH: r.resH, rate: parseInt(r.rate), x: r.x, y: r.y, scale: r.sysScale, transform: r.transform });
             }
             config.setSetting("monitors", jsonArr);
-            config.sh("hyprctl --batch '" + batchCmds.join(" ; ") + "' ; swww kill ; sleep 0.2 ; swww-daemon &");
+            config.sh("hyprctl --batch '" + batchCmds.join(" ; ") + "' ; awww kill ; sleep 0.2 ; awww-daemon &");
             Quickshell.execDetached(["notify-send", "Display Update", "Applied layout for: " + summaryString.trim()]);
         }
     }
@@ -351,6 +355,8 @@ Item {
                         if (key === "OPENWEATHER_KEY") config.weatherApiKey = val;
                         else if (key === "OPENWEATHER_CITY_ID") config.weatherCityId = val;
                         else if (key === "OPENWEATHER_UNIT") config.weatherUnit = val;
+                        else if (key === "OPENWEATHER_AUTO_UPDATE") config.weatherAutoUpdate = (val === "true");
+                        else if (key === "OPENWEATHER_UPDATE_INTERVAL") config.weatherUpdateInterval = parseInt(val) || 15;
                     }
                 }
             }
