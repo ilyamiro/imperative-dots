@@ -46,6 +46,7 @@ function getLayout(name, mx, my, mw, mh, userScale) {
 
         // --- Extralarge / Custom Centered ---
         "guide":     { w: s(1200, scale), h: s(750, scale), rx: Math.floor((mw/2)-(s(1200, scale)/2)), ry: Math.floor((mh/2)-(s(750, scale)/2)), comp: "guide/GuidePopup.qml" },
+        "keybinds":  { w: s(1150, scale), h: s(720, scale), rx: Math.floor((mw/2)-(s(1150, scale)/2)), ry: Math.floor((mh/2)-(s(720, scale)/2)), comp: "keybinds/KeybindsPopup.qml" },
         "calendar":  { w: s(1450, scale), h: s(750, scale), rx: Math.floor((mw/2)-(s(1450, scale)/2)), ry: s(60, scale), comp: "calendar/CalendarPopup.qml" },
 	"updater": { w: s(950, scale), h: s(850, scale), rx: Math.floor((mw/2)-(s(950, scale)/2)), ry: Math.floor((mh/2)-(s(850, scale)/2)), comp: "updater/UpdaterPopup.qml" },
         "wallpaper": { w: mw, h: s(650, scale), rx: 0, ry: Math.floor((mh/2)-(s(650, scale)/2)), comp: "wallpaper/WallpaperPicker.qml" },
