@@ -582,6 +582,18 @@ Variants {
                 anchors.fill: parent
 
                 Rectangle {
+                    id: barBackground
+                    y: (parent.height - barWindow.barHeight) / 2
+                    height: barWindow.barHeight
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 1.0)
+                    radius: barWindow.s(14)
+                    border.width: 1
+                    border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.08)
+                }
+
+                Rectangle {
                     id: leftContent
                     y: (parent.height - barWindow.barHeight) / 2
                     height: barWindow.barHeight
