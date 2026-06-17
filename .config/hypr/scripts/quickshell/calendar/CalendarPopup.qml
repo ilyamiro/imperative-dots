@@ -679,7 +679,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Math.round(2 * window.sf)
                         Text {
-                            text: Qt.formatTime(window.currentTime, "HH:mm")
+                            text: Qt.formatTime(window.currentTime, "h:mm AP")
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: Math.round(84 * window.sf)

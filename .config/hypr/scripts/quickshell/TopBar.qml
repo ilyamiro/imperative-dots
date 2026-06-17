@@ -562,7 +562,7 @@ Variants {
                 interval: 1000; running: true; repeat: true; triggeredOnStart: true
                 onTriggered: {
                     let d = new Date();
-                    barWindow.timeStr = Qt.formatDateTime(d, "HH:mm:ss");
+                    barWindow.timeStr = Qt.formatDateTime(d, "hh:mm:ss AP");
                     barWindow.fullDateStr = Qt.formatDateTime(d, "dddd, MMMM dd");
                     if (barWindow.typeInIndex >= barWindow.fullDateStr.length) {
                         barWindow.typeInIndex = barWindow.fullDateStr.length;
@@ -795,7 +795,7 @@ Variants {
                     width: workspacesModel.count > 0 ? wsLayout.implicitWidth + barWindow.s(20) : 0
                     
                     property real defaultX: leftContent.x + leftContent.width + barWindow.s(4)
-                    property real settingsX: mediaBox.settingsX - width - (width > 0 ? barWindow.s(4) : 0)
+                    property real settingsX: barWindow.s(450) + barWindow.s(1) - barWindow.s(4)
                                         
                     x: defaultX + (settingsX - defaultX) * barWindow.settingsSlideProgress
 
