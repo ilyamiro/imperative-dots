@@ -36,7 +36,7 @@ ShellRoot {
     // Session Settings (Changed from Settings to QtObject to fix the Qt 6.11 initialization error)
     QtObject {
         id: lockSettings
-        property bool hidePassword: false
+        property bool hidePassword: true
         property int revealDuration: 300
     }
 
@@ -58,7 +58,7 @@ ShellRoot {
     // System Authentication hook
     PamContext {
         id: pam
-        
+
         // Defer start until after component initialization to prevent memory segfaults
         Component.onCompleted: pamActionTimer.start()
 
@@ -103,7 +103,7 @@ ShellRoot {
                 anchors.fill: parent
 
                 // --- Responsive Scaling Logic ---
-                // We use a property binding instead of a function to ensure 
+                // We use a property binding instead of a function to ensure
                 // continuous updates even if surface width starts at 0.
                 Scaler {
                     id: scaler
@@ -125,10 +125,10 @@ ShellRoot {
                 // UI States
                 property real introState: 0.0
                 property bool powerMenuOpen: false
-                property bool inputActive: false 
+                property bool inputActive: false
                 property bool isPlayingIntro: true
                 property bool isDesktop: false
-                
+
                 Component.onCompleted: {
                     introSequence.start();
                 }
@@ -148,7 +148,7 @@ ShellRoot {
                 }
 
                 // ---------------------------------------------------------
-                // BACKGROUND DATA POLLING 
+                // BACKGROUND DATA POLLING
                 // ---------------------------------------------------------
 
                 Process {
@@ -165,8 +165,8 @@ ShellRoot {
                 Process {
                     id: userPoller
                     command: [
-                        "bash", 
-                        "-c", 
+                        "bash",
+                        "-c",
                         "USER_VAR=$(whoami); ICON_PATH=\"\"; if [ -f ~/.face.icon ]; then ICON_PATH=$(readlink -f ~/.face.icon); elif [ -f ~/.face ]; then ICON_PATH=$(readlink -f ~/.face); fi; echo -n \"$USER_VAR|$ICON_PATH\""
                     ]
                     stdout: StdioCollector {
@@ -181,7 +181,7 @@ ShellRoot {
                     }
                     Component.onCompleted: running = true
                 }
-                
+
                 Process {
                     id: kbPoller
                     command: ["bash", "-c", "hyprctl devices -j | jq -r '.keyboards[] | select(.main == true) | .active_keymap' | head -n1 | cut -c1-2 | tr '[:lower:]' '[:upper:]'"]
@@ -231,7 +231,7 @@ ShellRoot {
                 // ---------------------------------------------------------
                 // 1. LIVING BACKGROUND
                 // ---------------------------------------------------------
-                
+
                 Rectangle {
                     anchors.fill: parent
                     color: root.base
@@ -243,8 +243,8 @@ ShellRoot {
                     source: screenRoot.staticWallpaperPath
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
-                    visible: false 
-                    cache: false 
+                    visible: false
+                    cache: false
                 }
 
                 MultiEffect {
@@ -254,12 +254,12 @@ ShellRoot {
                     blurMax: 64 * screenRoot.sc
                     blur: 1.0
                 }
-                
+
                 Rectangle {
                     id: dimmer
                     anchors.fill: parent
                     color: "black"
-                    opacity: 0.25 
+                    opacity: 0.25
                 }
 
                 Item {
@@ -275,7 +275,7 @@ ShellRoot {
                         Behavior on color { ColorAnimation { duration: 1000 } }
                         Behavior on opacity { NumberAnimation { duration: 600 } }
                     }
-                    
+
                     Rectangle {
                         width: parent.width * 0.9; height: width; radius: width / 2
                         x: (parent.width / 2 - width / 2) + Math.sin(screenRoot.globalOrbitAngle * 1.5) * (-200 * screenRoot.sc)
@@ -291,7 +291,7 @@ ShellRoot {
                         anchors.fill: parent
                         opacity: screenRoot.introState
                         scale: 1.1 - (0.1 * screenRoot.introState)
-                        
+
                         Repeater {
                             model: 4
                             Rectangle {
@@ -335,7 +335,7 @@ ShellRoot {
                         anchors.centerIn: parent
                         anchors.verticalCenterOffset: screenRoot.inputActive ? (-120 * screenRoot.sc) : (-40 * screenRoot.sc)
                         spacing: -10 * screenRoot.sc
-                        
+
                         opacity: screenRoot.inputActive ? 0.0 : 1.0
                         scale: screenRoot.inputActive ? 0.9 : 1.0
                         visible: opacity > 0.01
@@ -347,7 +347,7 @@ ShellRoot {
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 0
-                            
+
                             Text {
                                 id: clockHours
                                 font.family: "JetBrains Mono"
@@ -373,6 +373,16 @@ ShellRoot {
                                 color: root.text
                                 Behavior on color { ColorAnimation { duration: 300 } }
                             }
+                            Text {
+                                id: clockAmPm
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: 40 * screenRoot.sc
+                                font.weight: Font.Bold
+                                color: root.subtext0
+                                Layout.alignment: Qt.AlignBottom
+                                Layout.bottomMargin: 20 * screenRoot.sc
+                                Behavior on color { ColorAnimation { duration: 300 } }
+                            }
                         }
 
                         Text {
@@ -388,8 +398,10 @@ ShellRoot {
                             interval: 1000; running: true; repeat: true; triggeredOnStart: true
                             onTriggered: {
                                 let d = new Date();
-                                clockHours.text = Qt.formatDateTime(d, "hh");
+                                let h = d.getHours();
+                                clockHours.text = (h % 12 || 12).toString().padStart(2, "0");
                                 clockMinutes.text = Qt.formatDateTime(d, "mm");
+                                clockAmPm.text = h >= 12 ? "PM" : "AM";
                                 dateText.text = Qt.formatDateTime(d, "dddd, MMMM dd");
                             }
                         }
@@ -400,8 +412,8 @@ ShellRoot {
                         id: authModule
                         anchors.centerIn: parent
                         anchors.verticalCenterOffset: screenRoot.inputActive ? (-40 * screenRoot.sc) : (40 * screenRoot.sc)
-                        spacing: 32 * screenRoot.sc 
-                        
+                        spacing: 32 * screenRoot.sc
+
                         opacity: screenRoot.inputActive ? 1.0 : 0.0
                         scale: screenRoot.inputActive ? 1.0 : 0.9
                         visible: opacity > 0.01
@@ -421,8 +433,8 @@ ShellRoot {
                                 anchors.fill: parent
                                 radius: height / 2 // Dynamic perfect radius
                                 color: "black"
-                                visible: false 
-                                layer.enabled: true 
+                                visible: false
+                                layer.enabled: true
                             }
 
                             Rectangle {
@@ -430,7 +442,7 @@ ShellRoot {
                                 radius: height / 2
                                 color: Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.5)
                                 visible: avatarImg.status !== Image.Ready
-                                
+
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰄽"
@@ -445,7 +457,7 @@ ShellRoot {
                                 anchors.fill: parent
                                 source: screenRoot.faceIconPath !== "" ? screenRoot.faceIconPath : ""
                                 fillMode: Image.PreserveAspectCrop
-                                visible: false 
+                                visible: false
                                 cache: false
                                 asynchronous: true
                             }
@@ -490,7 +502,7 @@ ShellRoot {
                                     width: 36 * screenRoot.sc
                                     height: width // Force square
                                     radius: height / 2 // Perfect circle
-                                    
+
                                     color: lockUI.failed
                                         ? Qt.rgba(root.red.r,   root.red.g,   root.red.b,   0.2)
                                         : (lockUI.authenticating
@@ -534,8 +546,8 @@ ShellRoot {
                                 width: 280 * screenRoot.sc
                                 height: 60 * screenRoot.sc
                                 radius: height / 2 // Perfect pill shape natively!
-                                clip: true 
-                                
+                                clip: true
+
                                 color: lockUI.failed ? Qt.rgba(root.red.r, root.red.g, root.red.b, 0.1) : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.5)
                                 border.width: Math.max(1, 2 * screenRoot.sc)
                                 border.color: {
@@ -547,12 +559,12 @@ ShellRoot {
 
                                 Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on border.color { ColorAnimation { duration: 250; easing.type: Easing.OutExpo } }
-                                
+
                                 scale: lockUI.failed ? 1.05 : (lockUI.authenticating ? 0.98 : 1.0)
                                 Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
 
                                 transform: Translate { id: shakeTranslate; x: 0 }
-                                
+
                                 SequentialAnimation {
                                     id: shakeAnim
                                     NumberAnimation { target: shakeTranslate; property: "x"; from: 0; to: -8 * screenRoot.sc; duration: 120; easing.type: Easing.InOutSine }
@@ -570,14 +582,14 @@ ShellRoot {
                                 TextInput {
                                     id: inputField
                                     anchors.fill: parent
-                                    opacity: 0 
+                                    opacity: 0
                                     echoMode: TextInput.Password
                                     enabled: !screenRoot.isPlayingIntro
-                                    
+
                                     property string oldText: ""
-                                    
+
                                     Component.onCompleted: forceActiveFocus()
-                                    
+
                                     onActiveFocusChanged: {
                                         if (!activeFocus && !screenRoot.powerMenuOpen && !screenRoot.isPlayingIntro) {
                                             forceActiveFocus();
@@ -590,33 +602,33 @@ ShellRoot {
                                             text = "";
                                             passModel.clear();
                                             event.accepted = true;
-                                        } 
+                                        }
                                         else if (!screenRoot.inputActive) {
                                             screenRoot.inputActive = true;
                                         }
                                     }
-                                    
+
                                     onAccepted: {
                                         if (text.length > 0 && pam.responseRequired && !lockUI.authenticating) {
                                             lockUI.authenticating = true;
                                             lockUI.statusText = "Authenticating...";
                                             lockUI.failed = false;
                                             pam.respond(text);
-                                            text = ""; 
+                                            text = "";
                                             oldText = "";
                                             passModel.clear();
                                         }
                                     }
-                                    
+
                                     onTextChanged: {
                                         if (lockUI.authenticating) return;
 
                                         if (text.length > 0 && !screenRoot.inputActive) {
                                             screenRoot.inputActive = true;
                                         }
-                                        
+
                                         idleTimer.restart();
-                                        
+
                                         if (text !== oldText) {
                                             if (text.length > oldText.length) {
                                                 for (let i = oldText.length; i < text.length; i++) {
@@ -638,7 +650,7 @@ ShellRoot {
 
                                         if (text.length > 0) {
                                             lockUI.failed = false;
-                                            lockUI.statusText = "Enter PIN";
+                                            lockUI.statusText = "Enter Password";
                                         } else {
                                             if (!lockUI.failed) lockUI.statusText = "Locked";
                                         }
@@ -660,23 +672,23 @@ ShellRoot {
                                         anchors.verticalCenter: parent.verticalCenter
                                         x: width > parent.width ? parent.width - width : (parent.width - width) / 2
                                         spacing: 4 * screenRoot.sc
-                                        
+
                                         Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
 
                                         Repeater {
                                             model: passModel
                                             // Render text directly as the delegate to avoid circular layout loops
                                             delegate: Text {
-                                                text: model.isDot ? "•" : model.charStr
+                                                text: "●"
                                                 font.family: "JetBrains Mono"
                                                 font.pixelSize: model.isDot ? (32 * screenRoot.sc) : (24 * screenRoot.sc)
                                                 font.weight: Font.Bold
                                                 color: lockUI.failed ? root.red : (lockUI.authenticating ? root.peach : root.text)
                                                 verticalAlignment: Text.AlignVCenter
                                                 height: pinPill.height
-                                                
+
                                                 NumberAnimation on opacity { from: 0; to: 1; duration: 150 }
-                                                
+
                                                 Timer {
                                                     interval: lockSettings.revealDuration
                                                     running: !model.isDot && !lockSettings.hidePassword
@@ -713,17 +725,17 @@ ShellRoot {
                         Layout.preferredHeight: 48 * screenRoot.sc
                         Layout.preferredWidth: kbLayoutRow.implicitWidth + (36 * screenRoot.sc)
                         radius: height / 2 // Dynamic pill shape
-                        
+
                         color: isHovered ? Qt.rgba(root.surface1.r, root.surface1.g, root.surface1.b, 0.6) : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.4)
                         border.color: isHovered ? root.mauve : Qt.rgba(root.text.r, root.text.g, root.text.b, 0.08)
                         border.width: Math.max(1, 1 * screenRoot.sc)
-                        
+
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                        RowLayout { 
+                        RowLayout {
                             id: kbLayoutRow; anchors.centerIn: parent; spacing: 8 * screenRoot.sc
                             Text { text: "󰌌"; font.family: "Iosevka Nerd Font"; font.pixelSize: 18 * screenRoot.sc; color: parent.parent.isHovered ? root.mauve : root.overlay2; Behavior on color { ColorAnimation { duration: 200 } } }
                             Text { text: screenRoot.kbLayout; font.family: "JetBrains Mono"; font.pixelSize: 14 * screenRoot.sc; font.weight: Font.Black; color: root.text }
@@ -738,7 +750,7 @@ ShellRoot {
                         Layout.preferredHeight: 48 * screenRoot.sc
                         Layout.preferredWidth: batLayoutRow.implicitWidth + (36 * screenRoot.sc)
                         radius: height / 2
-                        
+
                         color: isHovered ? Qt.rgba(root.surface1.r, root.surface1.g, root.surface1.b, 0.6) : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.4)
                         border.color: isHovered ? batLayoutRow.dynamicBatColor : Qt.rgba(root.text.r, root.text.g, root.text.b, 0.08)
                         border.width: Math.max(1, 1 * screenRoot.sc)
@@ -748,9 +760,9 @@ ShellRoot {
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                        RowLayout { 
+                        RowLayout {
                             id: batLayoutRow; anchors.centerIn: parent; spacing: 8 * screenRoot.sc
-                            
+
                             property color dynamicBatColor: {
                                 if (screenRoot.batStatus === "Charging") return root.green;
                                 let pct = parseInt(screenRoot.batPct);
@@ -759,14 +771,14 @@ ShellRoot {
                                 return root.red;
                             }
 
-                            Text { 
+                            Text {
                                 text: screenRoot.batStatus === "Charging" ? "󰂄" : (parseInt(screenRoot.batPct) < 20 ? "󰂃" : "󰁹")
                                 font.family: "Iosevka Nerd Font"
                                 font.pixelSize: 20 * screenRoot.sc
                                 color: batLayoutRow.dynamicBatColor
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
-                            Text { 
+                            Text {
                                 text: screenRoot.batPct + "%"
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 14 * screenRoot.sc
@@ -784,7 +796,7 @@ ShellRoot {
                         Layout.preferredHeight: 48 * screenRoot.sc
                         Layout.preferredWidth: weatherLayoutRow.implicitWidth + (36 * screenRoot.sc)
                         radius: height / 2
-                        
+
                         color: isHovered ? Qt.rgba(root.surface1.r, root.surface1.g, root.surface1.b, 0.6) : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.4)
                         border.color: isHovered ? root.blue : Qt.rgba(root.text.r, root.text.g, root.text.b, 0.08)
                         border.width: Math.max(1, 1 * screenRoot.sc)
@@ -794,16 +806,16 @@ ShellRoot {
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                        RowLayout { 
+                        RowLayout {
                             id: weatherLayoutRow; anchors.centerIn: parent; spacing: 8 * screenRoot.sc
-                            Text { 
+                            Text {
                                 text: screenRoot.weatherIcon
                                 font.family: "Iosevka Nerd Font"
                                 font.pixelSize: 20 * screenRoot.sc
                                 color: parent.parent.isHovered ? root.blue : root.text
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
-                            Text { 
+                            Text {
                                 text: screenRoot.weatherTemp
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 14 * screenRoot.sc
@@ -830,7 +842,7 @@ ShellRoot {
                     radius: 18 * screenRoot.sc
                     clip: true
                     opacity: screenRoot.powerMenuOpen ? 1 : 0
-                    
+
                     color: Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.95)
                     border.color: Qt.rgba(root.mauve.r, root.mauve.g, root.mauve.b, 0.25)
                     border.width: Math.max(1, 1 * screenRoot.sc)
@@ -847,14 +859,14 @@ ShellRoot {
                         spacing: 6 * screenRoot.sc
 
                         // --- SETTINGS SECTION ---
-                        Text { 
+                        Text {
                             text: "SETTINGS"
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: 12 * screenRoot.sc
                             font.letterSpacing: 1.5
                             color: root.mauve
-                            Layout.leftMargin: 18 * screenRoot.sc; Layout.topMargin: 4 * screenRoot.sc; Layout.bottomMargin: 4 * screenRoot.sc 
+                            Layout.leftMargin: 18 * screenRoot.sc; Layout.topMargin: 4 * screenRoot.sc; Layout.bottomMargin: 4 * screenRoot.sc
                         }
 
                         // Hide Password Toggle
@@ -868,12 +880,12 @@ ShellRoot {
                                 color: root.text
                                 Layout.fillWidth: true
                             }
-                            
+
                             Rectangle {
                                 width: 40 * screenRoot.sc; height: 22 * screenRoot.sc; radius: height / 2
                                 color: lockSettings.hidePassword ? root.mauve : root.surface2
                                 Behavior on color { ColorAnimation { duration: 250 } }
-                                
+
                                 Rectangle {
                                     width: height; height: 18 * screenRoot.sc; radius: height / 2
                                     x: lockSettings.hidePassword ? parent.width - width - (2 * screenRoot.sc) : (2 * screenRoot.sc)
@@ -881,8 +893,8 @@ ShellRoot {
                                     color: root.base
                                     Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
                                 }
-                                MouseArea { 
-                                    anchors.fill: parent; 
+                                MouseArea {
+                                    anchors.fill: parent;
                                     onClicked: {
                                         lockSettings.hidePassword = !lockSettings.hidePassword;
                                         if (lockSettings.hidePassword) {
@@ -898,7 +910,7 @@ ShellRoot {
                             Layout.fillWidth: true; Layout.leftMargin: 18 * screenRoot.sc; Layout.rightMargin: 18 * screenRoot.sc; Layout.topMargin: 8 * screenRoot.sc; Layout.bottomMargin: 8 * screenRoot.sc; spacing: 8 * screenRoot.sc
                             opacity: lockSettings.hidePassword ? 0.3 : 1.0
                             Behavior on opacity { NumberAnimation { duration: 200 } }
-                            
+
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
@@ -909,7 +921,7 @@ ShellRoot {
                                     color: root.blue
                                     Layout.fillWidth: true
                                 }
-                                Text { 
+                                Text {
                                     text: lockSettings.revealDuration >= 1000 ? (lockSettings.revealDuration / 1000).toFixed(1) + " s" : lockSettings.revealDuration + " ms"
                                     font.family: "JetBrains Mono"
                                     font.pixelSize: 13 * screenRoot.sc
@@ -917,10 +929,10 @@ ShellRoot {
                                     color: root.peach
                                 }
                             }
-                            
+
                             Item {
                                 Layout.fillWidth: true; Layout.preferredHeight: 28 * screenRoot.sc
-                                
+
                                 Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width; height: 8 * screenRoot.sc; radius: height / 2; color: root.surface2
@@ -929,7 +941,7 @@ ShellRoot {
                                         height: parent.height; radius: height / 2; color: root.mauve
                                     }
                                 }
-                                
+
                                 Rectangle {
                                     id: sliderThumb
                                     width: 20 * screenRoot.sc
@@ -939,11 +951,11 @@ ShellRoot {
                                     border.color: root.crust; border.width: Math.max(1, 2 * screenRoot.sc)
                                     anchors.verticalCenter: parent.verticalCenter
                                     x: Math.max(0, Math.min(((lockSettings.revealDuration - 100) / 2900) * parent.width - (width / 2), parent.width - width))
-                                    
+
                                     scale: sliderMouse.pressed ? 1.3 : (sliderMouse.containsMouse ? 1.15 : 1.0)
                                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                                 }
-                                
+
                                 MultiEffect {
                                     source: sliderThumb
                                     anchors.fill: sliderThumb
@@ -960,7 +972,7 @@ ShellRoot {
                                     hoverEnabled: true
                                     enabled: !lockSettings.hidePassword
                                     preventStealing: true
-                                    
+
                                     function updateVal(mouseX) {
                                         let pct = Math.max(0, Math.min(1, mouseX / width));
                                         let ms = Math.round(100 + (pct * 2900));
@@ -1003,14 +1015,14 @@ ShellRoot {
                             scale: ma1.pressed ? 0.95 : (ma1.containsMouse ? 1.02 : 1.0)
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                            
+
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 16 * screenRoot.sc; anchors.rightMargin: 16 * screenRoot.sc; spacing: 0
                                 Text { text: "󰜉"; font.family: "Iosevka Nerd Font"; font.pixelSize: 18 * screenRoot.sc; color: ma1.containsMouse ? root.blue : Qt.rgba(root.blue.r, root.blue.g, root.blue.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                                 Item { Layout.fillWidth: true }
                                 Text { text: "Reboot"; font.family: "JetBrains Mono"; font.pixelSize: 15 * screenRoot.sc; font.weight: Font.Medium; color: ma1.containsMouse ? root.blue : Qt.rgba(root.blue.r, root.blue.g, root.blue.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                             }
-                            MouseArea { 
+                            MouseArea {
                                 id: ma1; anchors.fill: parent; hoverEnabled: true;
                                 onClicked: {
                                     screenRoot.powerMenuOpen = false;
@@ -1025,14 +1037,14 @@ ShellRoot {
                             scale: ma2.pressed ? 0.95 : (ma2.containsMouse ? 1.02 : 1.0)
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                            
+
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 16 * screenRoot.sc; anchors.rightMargin: 16 * screenRoot.sc; spacing: 0
                                 Text { text: "󰒲"; font.family: "Iosevka Nerd Font"; font.pixelSize: 18 * screenRoot.sc; color: ma2.containsMouse ? root.mauve : Qt.rgba(root.mauve.r, root.mauve.g, root.mauve.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                                 Item { Layout.fillWidth: true }
                                 Text { text: "Suspend"; font.family: "JetBrains Mono"; font.pixelSize: 15 * screenRoot.sc; font.weight: Font.Medium; color: ma2.containsMouse ? root.mauve : Qt.rgba(root.mauve.r, root.mauve.g, root.mauve.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                             }
-                            MouseArea { 
+                            MouseArea {
                                 id: ma2; anchors.fill: parent; hoverEnabled: true;
                                 onClicked: {
                                     screenRoot.powerMenuOpen = false;
@@ -1047,14 +1059,14 @@ ShellRoot {
                             scale: ma3.pressed ? 0.95 : (ma3.containsMouse ? 1.02 : 1.0)
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                            
+
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 16 * screenRoot.sc; anchors.rightMargin: 16 * screenRoot.sc; spacing: 0
                                 Text { text: "󰐥"; font.family: "Iosevka Nerd Font"; font.pixelSize: 18 * screenRoot.sc; color: ma3.containsMouse ? root.red : Qt.rgba(root.red.r, root.red.g, root.red.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                                 Item { Layout.fillWidth: true }
                                 Text { text: "Power Off"; font.family: "JetBrains Mono"; font.pixelSize: 15 * screenRoot.sc; font.weight: Font.Medium; color: ma3.containsMouse ? root.red : Qt.rgba(root.red.r, root.red.g, root.red.b, 0.6); Behavior on color { ColorAnimation { duration: 200 } } }
                             }
-                            MouseArea { 
+                            MouseArea {
                                 id: ma3; anchors.fill: parent; hoverEnabled: true;
                                 onClicked: {
                                     screenRoot.powerMenuOpen = false;
@@ -1074,16 +1086,16 @@ ShellRoot {
                     width: 52 * screenRoot.sc
                     height: width
                     radius: height / 2
-                    
-                    color: screenRoot.powerMenuOpen 
-                            ? root.surface2 
+
+                    color: screenRoot.powerMenuOpen
+                            ? root.surface2
                             : (powerBtnMa.containsMouse ? Qt.rgba(root.surface1.r, root.surface1.g, root.surface1.b, 0.8) : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.4))
                     border.color: screenRoot.powerMenuOpen ? root.text : Qt.rgba(root.text.r, root.text.g, root.text.b, 0.15)
                     border.width: Math.max(1, 1 * screenRoot.sc)
 
                     opacity: screenRoot.introState
                     transform: Translate { y: (20 * screenRoot.sc) * (1.0 - screenRoot.introState) }
-                    
+
                     scale: powerBtnMa.pressed ? 0.9 : (powerBtnMa.containsMouse ? 1.08 : 1.0)
 
                     Behavior on color { ColorAnimation { duration: 200 } }
@@ -1124,7 +1136,7 @@ ShellRoot {
                         id: ring3
                         width: 360 * screenRoot.sc
                         height: width
-                        radius: height / 2 
+                        radius: height / 2
                         anchors.centerIn: parent
                         color: "transparent"
                         border.color: root.mauve
@@ -1136,7 +1148,7 @@ ShellRoot {
                         id: ring2
                         width: 300 * screenRoot.sc
                         height: width
-                        radius: height / 2 
+                        radius: height / 2
                         anchors.centerIn: parent
                         color: "transparent"
                         border.color: root.text
@@ -1148,7 +1160,7 @@ ShellRoot {
                         id: ring1
                         width: 240 * screenRoot.sc
                         height: width
-                        radius: height / 2 
+                        radius: height / 2
                         anchors.centerIn: parent
                         color: "transparent"
                         border.color: root.text
@@ -1164,7 +1176,7 @@ ShellRoot {
                         anchors.centerIn: parent
                         scale: 0.0
                         opacity: 0.0
-                        
+
                         Rectangle {
                             anchors.fill: parent
                             radius: height / 2
@@ -1178,7 +1190,7 @@ ShellRoot {
                             anchors.centerIn: parent
                             text: "󰌿"
                             font.family: "Iosevka Nerd Font"
-                            font.pixelSize: 64 * screenRoot.sc 
+                            font.pixelSize: 64 * screenRoot.sc
                             color: root.text
                             opacity: 1.0
                             scale: 1.0
@@ -1190,7 +1202,7 @@ ShellRoot {
                             anchors.centerIn: parent
                             text: "󰌾"
                             font.family: "Iosevka Nerd Font"
-                            font.pixelSize: 64 * screenRoot.sc 
+                            font.pixelSize: 64 * screenRoot.sc
                             color: root.text
                             opacity: 0.0
                             scale: 1.6
@@ -1200,29 +1212,29 @@ ShellRoot {
 
                     SequentialAnimation {
                         id: introSequence
-                        
+
                         ParallelAnimation {
                             NumberAnimation { target: introLockOrb; property: "scale"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
                             NumberAnimation { target: introLockOrb; property: "opacity"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
-                            
+
                             NumberAnimation { target: ring1; property: "scale"; from: 0.8; to: 1.25; duration: 250; easing.type: Easing.OutCubic }
                             NumberAnimation { target: ring1; property: "opacity"; from: 0.6; to: 0.0; duration: 250; easing.type: Easing.OutCubic }
-                            
+
                             NumberAnimation { target: ring2; property: "scale"; from: 0.8; to: 1.4; duration: 300; easing.type: Easing.OutCubic }
                             NumberAnimation { target: ring2; property: "opacity"; from: 0.4; to: 0.0; duration: 300; easing.type: Easing.OutCubic }
 
                             NumberAnimation { target: ring3; property: "scale"; from: 0.5; to: 1.5; duration: 350; easing.type: Easing.OutCubic }
                             NumberAnimation { target: ring3; property: "opacity"; from: 0.3; to: 0.0; duration: 350; easing.type: Easing.OutCubic }
-                            
+
                             SequentialAnimation {
-                                PauseAnimation { duration: 300 } 
+                                PauseAnimation { duration: 300 }
                                 ParallelAnimation {
                                     NumberAnimation { target: introIconUnlocked; property: "scale"; from: 1.0; to: 0.5; duration: 100; easing.type: Easing.InCubic }
                                     NumberAnimation { target: introIconUnlocked; property: "opacity"; from: 1.0; to: 0.0; duration: 50 }
-                                    
+
                                     NumberAnimation { target: introIconLocked; property: "scale"; from: 1.6; to: 1.0; duration: 200; easing.type: Easing.OutBack }
                                     NumberAnimation { target: introIconLocked; property: "opacity"; from: 0.0; to: 1.0; duration: 100 }
-                                    
+
                                     SequentialAnimation {
                                         NumberAnimation { target: introLockOrb; property: "anchors.verticalCenterOffset"; from: 0; to: 3 * screenRoot.sc; duration: 40; easing.type: Easing.OutQuad }
                                         NumberAnimation { target: introLockOrb; property: "anchors.verticalCenterOffset"; from: 3 * screenRoot.sc; to: 0; duration: 120; easing.type: Easing.OutBack }
@@ -1230,7 +1242,7 @@ ShellRoot {
                                 }
                             }
                         }
-                        
+
                         PauseAnimation { duration: 50 }
 
                         SequentialAnimation {
@@ -1238,7 +1250,7 @@ ShellRoot {
                                 NumberAnimation { target: introLockOrb; property: "scale"; to: 1.8; duration: 100; easing.type: Easing.InCubic }
                                 NumberAnimation { target: introOverlay; property: "opacity"; to: 0.0; duration: 100; easing.type: Easing.InCubic }
                             }
-                            
+
                             NumberAnimation { target: screenRoot; property: "introState"; from: 0.0; to: 1.0; duration: 100; easing.type: Easing.OutCubic }
                         }
 

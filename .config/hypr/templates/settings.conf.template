@@ -10,11 +10,11 @@ general {
     resize_on_border = true
     extend_border_grab_area = 30
     col.active_border=$active_border
-    col.inactive_border=$inactive_border 
+    col.inactive_border=$inactive_border
 }
 
 decoration {
-    rounding = 4
+    rounding = 6
     active_opacity = 1.0
     inactive_opacity = 1.0
     blur {
@@ -31,6 +31,10 @@ decoration {
 input {
     kb_layout = {{KB_LAYOUT}}
     kb_options = {{KB_OPTIONS}}
+    repeat_rate = 60
+    repeat_delay = 200
+    accel_profile = flat
+    sensitivity = 1.0
 
     touchpad {
         natural_scroll = true
@@ -54,15 +58,27 @@ ecosystem {
 }
 
 animations {
-    enabled = yes
-    bezier = myBezier, 0.05, 0.9, 0.1, 1.05
-    animation = windows, 1, 5, myBezier, popin 80%
-    animation = windowsOut, 1, 5, myBezier, popin 80%
-    animation = layers, 1, 5, myBezier, fade
-    animation = layersIn, 1, 5, myBezier, fade
-    animation = layersOut, 1, 5, myBezier, fade
-    animation = fade, 1, 5, myBezier
-    animation = workspaces, 1, 5, myBezier, slide
-    animation = specialWorkspaceIn, 1, 5, myBezier, fade
-    animation = specialWorkspaceOut, 1, 5, myBezier, fade
+    enabled = true
+
+    # Animation curves
+    bezier = specialWorkSwitch, 0.05, 0.7, 0.1, 1
+    bezier = emphasizedAccel, 0.3, 0, 0.8, 0.15
+    bezier = emphasizedDecel, 0.05, 0.7, 0.1, 1
+    bezier = standard, 0.2, 0, 0, 1
+
+    # Animation configs
+    animation = layersIn, 1, 5, emphasizedDecel, slide
+    animation = layersOut, 1, 4, emphasizedAccel, slide
+    animation = fadeLayers, 1, 5, standard
+
+    animation = windowsIn, 1, 5, emphasizedDecel
+    animation = windowsOut, 1, 3, emphasizedAccel
+    animation = windowsMove, 1, 6, standard
+    animation = workspaces, 1, 5, standard
+
+    animation = specialWorkspace, 1, 4, specialWorkSwitch, slidefadevert 15%
+
+    animation = fade, 1, 6, standard
+    animation = fadeDim, 1, 6, standard
+    animation = border, 1, 6, standard
 }
