@@ -165,7 +165,7 @@ ARCH_PKGS=(
     "grim" "playerctl" "satty" "yq" "xdg-desktop-portal-gtk" "slurp" "mpvpaper"
     "wmctrl" "power-profiles-daemon" "easyeffects" "swayosd-git" "nautilus" "lsp-plugins" "hyprpolkitagent"
     "qt5-wayland" "qt5-quickcontrols" "qt5-quickcontrols2" "qt5-graphicaleffects" "qt6-wayland"
-    "qt5ct" "qt6ct" "gpu-screen-recorder" "adw-gtk-theme" "xdg-desktop-portal-wlr"
+    "qt5ct" "qt6ct" "gpu-screen-recorder" "adw-gtk-theme" "xdg-desktop-portal-wlr" "capitaine-cursors"
 )
 
 PKGS=("${ARCH_PKGS[@]}")
@@ -1634,12 +1634,16 @@ cat <<EOF > "$HOME/.config/gtk-3.0/settings.ini"
 [Settings]
 gtk-application-prefer-dark-theme=1
 gtk-theme-name=adw-gtk3-dark
+gtk-cursor-theme-name=capitaine-cursors
 EOF
 
 cat <<EOF > "$HOME/.config/gtk-4.0/settings.ini"
 [Settings]
 gtk-application-prefer-dark-theme=1
+gtk-cursor-theme-name=capitaine-cursors
 EOF
+
+gsettings set org.gnome.desktop.interface cursor-theme 'capitaine-cursors' 2>/dev/null || true
 
 mkdir -p "$HOME/.config/qt5ct/colors" "$HOME/.config/qt5ct/qss"
 mkdir -p "$HOME/.config/qt6ct/colors" "$HOME/.config/qt6ct/qss"

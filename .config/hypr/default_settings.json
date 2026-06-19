@@ -1,94 +1,596 @@
+
 {
-  "uiScale": 1.0,
-  "openGuideAtStartup": true,
-  "topbarHelpIcon": true,
+  "uiScale": 1,
+  "openGuideAtStartup": false,
+  "topbarHelpIcon": false,
   "workspaceCount": 8,
-  "wallpaperDir": "",
-  "language": "us",
+  "wallpaperDir": "/home/dell/Pictures/Wallpapers",
+  "language": "us,ir",
   "kbOptions": "grp:alt_shift_toggle",
   "monitors": [],
   "keybinds": [
-    {"type":"bind","mods":"ALT","key":"F4","dispatcher":"exec","command":"hyprctl dispatch killactive"},
-    {"type":"bind","mods":"$mainMod SHIFT_L","key":"F","dispatcher":"exec","command":"hyprctl dispatch togglefloating"},
-    {"type":"binde","mods":"$mainMod SHIFT_L","key":"left","dispatcher":"resizeactive","command":"-50 0"},
-    {"type":"binde","mods":"$mainMod SHIFT_L","key":"right","dispatcher":"resizeactive","command":"50 0"},
-    {"type":"binde","mods":"$mainMod SHIFT_L","key":"up","dispatcher":"resizeactive","command":"0 -50"},
-    {"type":"binde","mods":"$mainMod SHIFT_L","key":"down","dispatcher":"resizeactive","command":"0 50"},
-    {"type":"bind","mods":"$mainMod CTRL","key":"left","dispatcher":"movewindow","command":"l"},
-    {"type":"bind","mods":"$mainMod CTRL","key":"right","dispatcher":"movewindow","command":"r"},
-    {"type":"bind","mods":"$mainMod CTRL","key":"up","dispatcher":"movewindow","command":"u"},
-    {"type":"bind","mods":"$mainMod CTRL","key":"down","dispatcher":"movewindow","command":"d"},
-    {"type":"bind","mods":"$mainMod","key":"left","dispatcher":"movefocus","command":"l"},
-    {"type":"bind","mods":"$mainMod","key":"right","dispatcher":"movefocus","command":"r"},
-    {"type":"bind","mods":"$mainMod","key":"up","dispatcher":"movefocus","command":"u"},
-    {"type":"bind","mods":"$mainMod","key":"down","dispatcher":"movefocus","command":"d"},
-    {"type":"bind","mods":"$mainMod","key":"RETURN","dispatcher":"exec","command":"kitty"},
-    {"type":"bind","mods":"$mainMod","key":"F","dispatcher":"exec","command":"firefox"},
-    {"type":"bind","mods":"$mainMod","key":"E","dispatcher":"exec","command":"nautilus"},
-    {"type":"bind","mods":"$mainMod","key":"R","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/reload.sh"},
-    {"type":"bind","mods":"$mainMod","key":"C","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh toggle clipboard"},
-    {"type":"bind","mods":"$mainMod","key":"P","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh toggle movies"},
-    {"type":"bind","mods":"$mainMod","key":"D","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle applauncher"},
-    {"type":"bind","mods":"$mainMod SHIFT_L","key":"S","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle settings"},
-    {"type":"bind","mods":"$mainMod","key":"Q","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle music"},
-    {"type":"bind","mods":"$mainMod","key":"B","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle battery"},
-    {"type":"bind","mods":"$mainMod","key":"W","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle wallpaper"},
-    {"type":"bind","mods":"$mainMod","key":"S","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle calendar"},
-    {"type":"bind","mods":"$mainMod","key":"N","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle network"},
-    {"type":"bind","mods":"$mainMod SHIFT_L","key":"T","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle focustime"},
-    {"type":"bind","mods":"$mainMod","key":"V","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle volume"},
-    {"type":"bind","mods":"$mainMod","key":"H","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/qs_manager.sh toggle guide"},
-    {"type":"bindl","mods":"","key":"Caps_Lock","dispatcher":"exec","command":"sleep 0.1 && swayosd-client --caps-lock"},
-    {"type":"bindl","mods":"","key":"XF86MonBrightnessDown","dispatcher":"exec","command":"swayosd-client --brightness lower"},
-    {"type":"bindl","mods":"","key":"XF86MonBrightnessUp","dispatcher":"exec","command":"swayosd-client --brightness raise"},
-    {"type":"bindl","mods":"","key":"Print","dispatcher":"exec","command":"~/.config/hypr/scripts/screenshot.sh"},
-    {"type":"bindl","mods":"SHIFT_L","key":"Print","dispatcher":"exec","command":"~/.config/hypr/scripts/screenshot.sh --edit"},
-    {"type":"bindl","mods":"$mainMod","key":"Print","dispatcher":"exec","command":"~/.config/hypr/scripts/screenshot.sh --full"},
-    {"type":"bindl","mods":"$mainMod SHIFT_L","key":"Print","dispatcher":"exec","command":"~/.config/hypr/scripts/screenshot.sh --full --edit"},
-    {"type":"bindl","mods":"","key":"XF86PowerOff","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/lock.sh"},
-    {"type":"bindel","mods":"$mainMod","key":"L","dispatcher":"exec","command":"bash ~/.config/hypr/scripts/lock.sh"},
-    {"type":"bindl","mods":"$mainMod","key":"SPACE","dispatcher":"exec","command":"playerctl play-pause"},
-    {"type":"bindl","mods":"","key":"XF86AudioPause","dispatcher":"exec","command":"playerctl play-pause"},
-    {"type":"bindl","mods":"","key":"XF86AudioPlay","dispatcher":"exec","command":"playerctl play-pause"},
-    {"type":"bindl","mods":"","key":"xf86AudioMicMute","dispatcher":"exec","command":"swayosd-client --input-volume mute-toggle"},
-    {"type":"bindl","mods":"","key":"xf86audiomute","dispatcher":"exec","command":"swayosd-client --output-volume mute-toggle"},
-    {"type":"bindel","mods":"","key":"xf86audiolowervolume","dispatcher":"exec","command":"swayosd-client --output-volume lower"},
-    {"type":"bindel","mods":"","key":"xf86audioraisevolume","dispatcher":"exec","command":"swayosd-client --output-volume raise"},
-    {"type":"bind","mods":"$mainMod","key":"1","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 1"},
-    {"type":"bind","mods":"$mainMod","key":"2","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 2"},
-    {"type":"bind","mods":"$mainMod","key":"3","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 3"},
-    {"type":"bind","mods":"$mainMod","key":"4","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 4"},
-    {"type":"bind","mods":"$mainMod","key":"5","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 5"},
-    {"type":"bind","mods":"$mainMod","key":"6","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 6"},
-    {"type":"bind","mods":"$mainMod","key":"7","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 7"},
-    {"type":"bind","mods":"$mainMod","key":"8","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 8"},
-    {"type":"bind","mods":"$mainMod","key":"9","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 9"},
-    {"type":"bind","mods":"$mainMod","key":"0","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 10"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"1","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 1 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"2","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 2 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"3","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 3 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"4","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 4 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"5","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 5 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"6","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 6 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"7","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 7 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"8","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 8 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"9","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 9 move"},
-    {"type":"bind","mods":"$mainMod SHIFT","key":"0","dispatcher":"exec","command":"~/.config/hypr/scripts/qs_manager.sh 10 move"},
-    {"type":"bind","mods":"$mainMod","key":"TAB","dispatcher":"exec","command":"~/.config/hypr/scripts/focus_next_monitor.sh"}
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "Q",
+      "dispatcher": "exec",
+      "command": "hyprctl dispatch killactive",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "SHIFT_L $mainMod",
+      "key": "T",
+      "dispatcher": "exec",
+      "command": "hyprctl dispatch togglefloating",
+      "isEditing": false
+    },
+    {
+      "type": "binde",
+      "mods": "$mainMod SHIFT_L",
+      "key": "left",
+      "dispatcher": "resizeactive",
+      "command": "-50 0",
+      "isEditing": false
+    },
+    {
+      "type": "binde",
+      "mods": "$mainMod SHIFT_L",
+      "key": "right",
+      "dispatcher": "resizeactive",
+      "command": "50 0",
+      "isEditing": false
+    },
+    {
+      "type": "binde",
+      "mods": "$mainMod SHIFT_L",
+      "key": "up",
+      "dispatcher": "resizeactive",
+      "command": "0 -50",
+      "isEditing": false
+    },
+    {
+      "type": "binde",
+      "mods": "$mainMod SHIFT_L",
+      "key": "down",
+      "dispatcher": "resizeactive",
+      "command": "0 50",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod CTRL",
+      "key": "left",
+      "dispatcher": "movewindow",
+      "command": "l",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod CTRL",
+      "key": "right",
+      "dispatcher": "movewindow",
+      "command": "r",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod CTRL",
+      "key": "up",
+      "dispatcher": "movewindow",
+      "command": "u",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod CTRL",
+      "key": "down",
+      "dispatcher": "movewindow",
+      "command": "d",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "left",
+      "dispatcher": "movefocus",
+      "command": "l",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "right",
+      "dispatcher": "movefocus",
+      "command": "r",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "up",
+      "dispatcher": "movefocus",
+      "command": "u",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "down",
+      "dispatcher": "movefocus",
+      "command": "d",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "RETURN",
+      "dispatcher": "exec",
+      "command": "kitty",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "B",
+      "dispatcher": "exec",
+      "command": "firefox",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "E",
+      "dispatcher": "exec",
+      "command": "nautilus --new-window",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "R",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/reload.sh",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "V",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh toggle clipboard",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "P",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh toggle movies",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "SPACE",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle applauncher",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "ALT",
+      "key": "S",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle settings",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "SHIFT_L $mainMod",
+      "key": "Q",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle music",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "X",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle battery",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "Y",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle wallpaper",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "S",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle calendar",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "N",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle network",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "T",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle focustime",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT_L",
+      "key": "V",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle volume",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "ALT",
+      "key": "H",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/qs_manager.sh toggle guide",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "Caps_Lock",
+      "dispatcher": "exec",
+      "command": "sleep 0.1 && swayosd-client --caps-lock",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "XF86MonBrightnessDown",
+      "dispatcher": "exec",
+      "command": "swayosd-client --brightness lower",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "XF86MonBrightnessUp",
+      "dispatcher": "exec",
+      "command": "swayosd-client --brightness raise",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "$mainMod SHIFT_L",
+      "key": "S",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/screenshot.sh",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "SHIFT_L",
+      "key": "Print",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/screenshot.sh --edit",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "$mainMod",
+      "key": "Print",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/screenshot.sh --full",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "$mainMod SHIFT_L",
+      "key": "Print",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/screenshot.sh --full --edit",
+      "isEditing": false
+    },
+    {
+      "type": "bindel",
+      "mods": "ALT $mainMod",
+      "key": "L",
+      "dispatcher": "exec",
+      "command": "bash ~/.config/hypr/scripts/lock.sh",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "CTRL $mainMod",
+      "key": "SPACE",
+      "dispatcher": "exec",
+      "command": "playerctl play-pause",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "XF86AudioPause",
+      "dispatcher": "exec",
+      "command": "playerctl play-pause",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "XF86AudioPlay",
+      "dispatcher": "exec",
+      "command": "playerctl play-pause",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "xf86AudioMicMute",
+      "dispatcher": "exec",
+      "command": "swayosd-client --input-volume mute-toggle",
+      "isEditing": false
+    },
+    {
+      "type": "bindl",
+      "mods": "",
+      "key": "xf86audiomute",
+      "dispatcher": "exec",
+      "command": "swayosd-client --output-volume mute-toggle",
+      "isEditing": false
+    },
+    {
+      "type": "bindel",
+      "mods": "",
+      "key": "xf86audiolowervolume",
+      "dispatcher": "exec",
+      "command": "swayosd-client --output-volume lower",
+      "isEditing": false
+    },
+    {
+      "type": "bindel",
+      "mods": "",
+      "key": "xf86audioraisevolume",
+      "dispatcher": "exec",
+      "command": "swayosd-client --output-volume raise",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "1",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 1",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "2",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 2",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "3",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 3",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "4",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 4",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "5",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 5",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "6",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 6",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "7",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 7",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "8",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 8",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "9",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 9",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "0",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 10",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "1",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 1 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "2",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 2 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "3",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 3 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "4",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 4 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "5",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 5 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "6",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 6 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "7",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 7 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "8",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 8 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "9",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 9 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod SHIFT",
+      "key": "0",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/qs_manager.sh 10 move",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "TAB",
+      "dispatcher": "exec",
+      "command": "~/.config/hypr/scripts/focus_next_monitor.sh",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "$mainMod",
+      "key": "F",
+      "dispatcher": "fullscreen",
+      "command": "1",
+      "isEditing": false
+    },
+    {
+      "type": "bind",
+      "mods": "SHIFT_L $mainMod",
+      "key": "F",
+      "dispatcher": "fullscreen",
+      "command": "0",
+      "isEditing": false
+    }
   ],
   "startup": [
-    {"command": "systemctl --user start hyprpolkitagent"},
-    {"command": "awww-daemon"},
-    {"command": "hypridle"},
-    {"command": "quickshell -p ~/.config/hypr/scripts/quickshell/Shell.qml"},
-    {"command": "~/.config/hypr/scripts/quickshell/focustime/launch_daemon.sh"},
-    {"command": "~/.config/hypr/scripts/init.sh"},
-    {"command": "~/.config/hypr/scripts/settings_watcher.sh &"},
-    {"command": "playerctld"},
-    {"command": "swayosd-server --top-margin 0.9 --style \"$HOME/.config/swayosd/style.css\""},
-    {"command": "wl-paste --type text --watch cliphist store"},
-    {"command": "wl-paste --type image --watch cliphist store"},
-    {"command": "~/.config/hypr/scripts/volume_listener.sh"},
-    {"command": "~/.config/hypr/scripts/update_notifier.sh"}
-  ]
-}
+    {
+      "command": "systemctl --user start hyprpolkitagent"
+    },
+    {
+      "command": "awww-daemon"
+    },
+    {
+      "command": "hypridle"
+    },
+    {
+      "command": "quickshell -p ~/.config/hypr/scripts/quickshell/Shell.qml"
+    },
+    {
+      "command": "~/.config/hypr/scripts/quickshell/focustime/launch_daemon.sh"
+    },
+    {
+      "command": "~/.config/hypr/scripts/init.sh"
+    },
+    {
+      "command": "~/.config/hypr/scripts/settings_watcher.sh &"
+    },
+    {
+      "command": "playerctld"
+    },
+    {
+      "command": "swayosd-server --config \"$HOME/.config/swayosd/config.toml\" --top-margin 0.9 --style \"$HOME/.config/swayosd/style.css\""
+    },
+    {
+      "command": "wl-paste --type text --watch cliphist store"
+    },
+    {
+      "command": "wl-paste --type image --watch cliphist store"
+    },
+    {
+      "command": "~/.config/hypr/scripts/volume_listener.sh"
+    },
+    {
+      "command": "~/.config/hypr/scripts/update_notifier.sh"
+    }
