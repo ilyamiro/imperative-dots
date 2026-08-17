@@ -207,6 +207,7 @@ Item {
     Timer { id: btPendingReset; interval: 8000; onTriggered: { window.btPowerPending = false; window.expectedBtPower = ""; } }
 
     property bool showInfoView: false
+    onShowInfoViewChanged: Qt.callLater(window.refreshOrbitModel)
 
     property string pendingWifiSsid: ""
     property string pendingWifiId: ""
@@ -228,7 +229,7 @@ Item {
         property string targetId: ""
         property string targetSsid: ""
 
-        onExited: {
+        onExited: function(exitCode, exitStatus) {
             let code = exitCode;
             let bt = window.busyTasks;
             delete bt[targetId];
@@ -372,11 +373,17 @@ Item {
         syncCores();
         window.showInfoView = window.currentConn;
         if (window.showInfoView) window.updateInfoNodes();
+
+        Qt.callLater(window.refreshOrbitModel);
     }
 
     ListModel { id: wifiListModel }
     ListModel { id: btListModel }
     ListModel { id: infoListModel }
+
+    // Stable model owned permanently by orbitRepeater.
+    // Source contents may change, but the Repeater's model identity never does.
+    ListModel { id: orbitDisplayModel }
 
     function syncModel(listModel, dataArray) {
         for (let i = listModel.count - 1; i >= 0; i--) {
@@ -413,6 +420,47 @@ Item {
                 }
             }
         }
+
+        // Mirror source-model changes into the permanent display model.
+        // Guard prevents recursion when orbitDisplayModel itself is synced.
+        if (listModel !== orbitDisplayModel) {
+            Qt.callLater(window.refreshOrbitModel);
+        }
+    }
+
+    function refreshOrbitModel() {
+        let source = null;
+
+        if (window.currentConn && window.showInfoView) {
+            source = infoListModel;
+        } else if (window.activeMode === "wifi") {
+            source = wifiListModel;
+        } else if (window.activeMode === "bt") {
+            source = btListModel;
+        }
+
+        let data = [];
+
+        if (source !== null) {
+            for (let i = 0; i < source.count; i++) {
+                let d = source.get(i);
+                data.push({
+                    id: d.id || "",
+                    ssid: d.ssid || "",
+                    mac: d.mac || "",
+                    name: d.name || d.ssid || "",
+                    icon: d.icon || "",
+                    security: d.security || "",
+                    action: d.action || "",
+                    isInfoNode: d.isInfoNode || false,
+                    isActionable: d.isActionable !== undefined ? d.isActionable : false,
+                    cmdStr: d.cmdStr || "",
+                    parentIndex: d.parentIndex !== undefined ? d.parentIndex : -1
+                });
+            }
+        }
+
+        syncModel(orbitDisplayModel, data);
     }
 
     property int hoveredCardCount: 0
@@ -1523,7 +1571,7 @@ Item {
 
                     Repeater {
                         id: orbitRepeater
-                        model: (window.currentConn && window.showInfoView) ? infoListModel : (window.activeMode === "wifi" ? wifiListModel : (window.activeMode === "bt" ? btListModel : null))
+                        model: orbitDisplayModel
                         
                         delegate: Item {
                             id: floatCardDelegateContainer
@@ -1724,7 +1772,7 @@ Item {
                                     }
                                 }
 
-                                color: locksList ? "#2affffff" : "#0effffff"
+                                color: floatCard.locksList ? "#2affffff" : "#0effffff"
                                 Behavior on color { ColorAnimation { duration: 200 } }
                                 
                                 Rectangle {
@@ -1741,25 +1789,25 @@ Item {
                                     color: "transparent"
                                     border.width: 1
                                     border.color: floatCard.isFailed ? window.red : window.surface2
-                                    visible: !isHighlighted && !locksList
+                                    visible: !floatCard.isHighlighted && !floatCard.locksList
                                     Behavior on border.color { ColorAnimation { duration: 300 } }
                                 }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: window.s(14)
-                                    opacity: locksList || isHighlighted ? 1.0 : 0.0
+                                    opacity: floatCard.locksList || floatCard.isHighlighted ? 1.0 : 0.0
                                     color: "transparent"
-                                    border.width: isHighlighted && !locksList ? 1 : window.s(2)
+                                    border.width: floatCard.isHighlighted && !floatCard.locksList ? 1 : window.s(2)
                                     border.color: floatCard.isFailed ? window.red : "transparent"
                                     Behavior on opacity { NumberAnimation { duration: 250 } }
                                     
                                     Rectangle {
                                         anchors.fill: parent
-                                        anchors.margins: isHighlighted && !locksList ? 1 : window.s(2)
+                                        anchors.margins: floatCard.isHighlighted && !floatCard.locksList ? 1 : window.s(2)
                                         radius: window.s(12)
                                         color: window.base
-                                        opacity: locksList ? 0.9 : 1.0
+                                        opacity: floatCard.locksList ? 0.9 : 1.0
                                     }
                                     
                                     gradient: Gradient {
