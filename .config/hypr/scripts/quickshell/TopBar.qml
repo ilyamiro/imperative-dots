@@ -447,7 +447,7 @@ Variants {
                     }
                 }
             }
-            Process { id: kbWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/kb_wait.sh"]; onExited: { kbPoller.running = false; kbPoller.running = true; } }
+            Process { id: kbWaiter; command: ["setpriv", "--pdeathsig", "TERM", "bash", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/watchers/kb_wait.sh"]; onExited: { kbPoller.running = false; kbPoller.running = true; } }
 
             Process {
                 id: audioPoller; running: true
@@ -470,7 +470,7 @@ Variants {
                     }
                 }
             }
-            Process { id: audioWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/audio_wait.sh"]; onExited: { audioPoller.running = false; audioPoller.running = true; } }
+            Process { id: audioWaiter; command: ["setpriv", "--pdeathsig", "TERM", "bash", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/watchers/audio_wait.sh"]; onExited: { audioPoller.running = false; audioPoller.running = true; } }
 
             Process {
                 id: networkPoller; running: true
@@ -492,7 +492,7 @@ Variants {
                     }
                 }
             }
-            Process { id: networkWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/network_wait.sh"]; onExited: { networkPoller.running = false; networkPoller.running = true; } }
+            Process { id: networkWaiter; command: ["setpriv", "--pdeathsig", "TERM", "bash", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/watchers/network_wait.sh"]; onExited: { networkPoller.running = false; networkPoller.running = true; } }
 
             Process {
                 id: btPoller; running: true
@@ -513,7 +513,7 @@ Variants {
                     }
                 }
             }
-            Process { id: btWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/bt_wait.sh"]; onExited: { btPoller.running = false; btPoller.running = true; } }
+            Process { id: btWaiter; command: ["setpriv", "--pdeathsig", "TERM", "bash", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/watchers/bt_wait.sh"]; onExited: { btPoller.running = false; btPoller.running = true; } }
 
             Process {
                 id: batteryPoller; running: true
@@ -535,7 +535,7 @@ Variants {
                     }
                 }
             }
-            Process { id: batteryWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/battery_wait.sh"]; onExited: { batteryPoller.running = false; batteryPoller.running = true; } }
+            Process { id: batteryWaiter; command: ["setpriv", "--pdeathsig", "TERM", "bash", Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/watchers/battery_wait.sh"]; onExited: { batteryPoller.running = false; batteryPoller.running = true; } }
 
             Process {
                 id: weatherPoller
