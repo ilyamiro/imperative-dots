@@ -62,9 +62,18 @@ Variants {
 
             property int barHeight: s(48)
 
-            height: barHeight
-            margins { top: s(8); bottom: 0; left: s(4); right: s(4) }
-            exclusiveZone: barHeight 
+            property bool isBarHidden: false
+
+            implicitHeight: barHeight
+            margins { 
+                top: isBarHidden ? (-barHeight - s(8)) : s(8)
+                bottom: 0
+                left: s(4)
+                right: s(4) 
+            }
+            Behavior on margins.top { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+            
+            exclusiveZone: isBarHidden ? 0 : barHeight 
             color: "transparent"
 
             MatugenColors {
@@ -81,6 +90,7 @@ Variants {
             property int workspaceCount: 8
             
             property string activeWidget: "" 
+            property string mouseBatPercent: ""
             property bool isSettingsOpen: activeWidget === "settings"
 
             property real settingsSlideProgress: isSettingsOpen ? 1.0 : 0.0
@@ -110,7 +120,7 @@ Variants {
 
             Process {
                 id: widgetWatcher
-                command: ["bash", "-c", "while [ ! -f " + paths.runDir + "/current_widget ]; do sleep 1; done; inotifywait -qq -e modify,close_write " + paths.runDir + "/current_widget"]
+                command: ["bash", "-c", "while [ ! -f " + paths.runDir + "/current_widget ]; do sleep 1; done; exec inotifywait -qq -e modify,close_write " + paths.runDir + "/current_widget"]
                 running: true
                 onExited: {
                     widgetPoller.running = false;
@@ -133,7 +143,7 @@ Variants {
             Process {
  	    	id: recWatcher
  		running: true
- 		command: ["bash", "-c", "inotifywait -qq -e create,delete,modify,close_write " + paths.getCacheDir("recording") + "/ 2>/dev/null || sleep 2"]
+ 		command: ["bash", "-c", "exec inotifywait -qq -e create,delete,modify,close_write " + paths.getCacheDir("recording") + "/ 2>/dev/null || sleep 2"]
  	        onExited: {
  	        	recPoller.running = false;
  	         	recPoller.running = true;
@@ -155,7 +165,7 @@ Variants {
 	    Process {
 	        id: updateWatcher
 	        running: true
-	        command: ["bash", "-c", "inotifywait -qq -e create,delete,close_write " + paths.getCacheDir("updater") + "/ 2>/dev/null || sleep 5"]
+	        command: ["bash", "-c", "exec inotifywait -qq -e create,delete,close_write " + paths.getCacheDir("updater") + "/ 2>/dev/null || sleep 5"]
 	        onExited: {
 	            updatePoller.running = false;
 	            updatePoller.running = true;
@@ -178,6 +188,10 @@ Variants {
                                     barWindow.showHelpIcon = parsed.topbarHelpIcon;
                                 }
                                 
+                                if (parsed.topbarHide !== undefined && barWindow.isBarHidden !== parsed.topbarHide) {
+                                    barWindow.isBarHidden = parsed.topbarHide;
+                                }
+                                
                                 if (parsed.workspaceCount !== undefined && barWindow.workspaceCount !== parsed.workspaceCount) {
                                     barWindow.workspaceCount = parsed.workspaceCount;
                                     wsDaemon.running = false;
@@ -191,7 +205,7 @@ Variants {
 
             Process {
                 id: settingsWatcher
-                command: ["bash", "-c", "while [ ! -f ~/.config/hypr/settings.json ]; do sleep 1; done; inotifywait -qq -e modify,close_write ~/.config/hypr/settings.json"]
+                command: ["bash", "-c", "while [ ! -f ~/.config/hypr/settings.json ]; do sleep 1; done; exec inotifywait -qq -e modify,close_write ~/.config/hypr/settings.json"]
                 running: true
                 stdout: StdioCollector {
                     onStreamFinished: {
@@ -291,7 +305,7 @@ Variants {
 
             Process {
                 id: wsDaemon
-                command: ["bash", "-c", "~/.config/hypr/scripts/workspaces.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/workspaces.sh"]
                 running: true
             }
 
@@ -340,7 +354,7 @@ Variants {
             Process {
                 id: wsWatcher
                 running: true
-                command: ["bash", "-c", "inotifywait -qq -e close_write,modify " + paths.getRunDir("workspaces") + "/workspaces.json"]
+                command: ["bash", "-c", "exec inotifywait -qq -e close_write,modify " + paths.getRunDir("workspaces") + "/workspaces.json"]
                 onExited: {
                     wsReader.running = false;
                     wsReader.running = true;
@@ -414,7 +428,7 @@ Variants {
             Process {
                 id: mprisWatcher
                 running: true
-                command: ["bash", "-c", "dbus-monitor --session \"type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.mpris.MediaPlayer2.Player'\" \"type='signal',interface='org.mpris.MediaPlayer2.Player',member='Seeked'\" 2>/dev/null | grep -m 1 'member=' > /dev/null || sleep 2"]
+                command: ["bash", "-c", "exec dbus-monitor --session \"type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.mpris.MediaPlayer2.Player'\" \"type='signal',interface='org.mpris.MediaPlayer2.Player',member='Seeked'\" 2>/dev/null | grep -m 1 'member=' > /dev/null || sleep 2"]
                 onExited: {
                     musicForceRefresh.running = false;
                     musicForceRefresh.running = true;
@@ -436,7 +450,7 @@ Variants {
 
             Process {
                 id: kbPoller; running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/kb_fetch.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/kb_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
@@ -447,11 +461,11 @@ Variants {
                     }
                 }
             }
-            Process { id: kbWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/kb_wait.sh"]; onExited: { kbPoller.running = false; kbPoller.running = true; } }
+            Process { id: kbWaiter; command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/kb_wait.sh"]; onExited: { kbPoller.running = false; kbPoller.running = true; } }
 
             Process {
                 id: audioPoller; running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/audio_fetch.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/audio_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
@@ -470,11 +484,11 @@ Variants {
                     }
                 }
             }
-            Process { id: audioWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/audio_wait.sh"]; onExited: { audioPoller.running = false; audioPoller.running = true; } }
+            Process { id: audioWaiter; command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/audio_wait.sh"]; onExited: { audioPoller.running = false; audioPoller.running = true; } }
 
             Process {
                 id: networkPoller; running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/network_fetch.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/network_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
@@ -492,11 +506,11 @@ Variants {
                     }
                 }
             }
-            Process { id: networkWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/network_wait.sh"]; onExited: { networkPoller.running = false; networkPoller.running = true; } }
+            Process { id: networkWaiter; command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/network_wait.sh"]; onExited: { networkPoller.running = false; networkPoller.running = true; } }
 
             Process {
                 id: btPoller; running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/bt_fetch.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/bt_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
@@ -513,11 +527,11 @@ Variants {
                     }
                 }
             }
-            Process { id: btWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/bt_wait.sh"]; onExited: { btPoller.running = false; btPoller.running = true; } }
+            Process { id: btWaiter; command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/bt_wait.sh"]; onExited: { btPoller.running = false; btPoller.running = true; } }
 
             Process {
                 id: batteryPoller; running: true
-                command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/battery_fetch.sh"]
+                command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/battery_fetch.sh"]
                 stdout: StdioCollector {
                     onStreamFinished: {
                         let txt = this.text.trim();
@@ -535,7 +549,24 @@ Variants {
                     }
                 }
             }
-            Process { id: batteryWaiter; command: ["bash", "-c", "~/.config/hypr/scripts/quickshell/watchers/battery_wait.sh"]; onExited: { batteryPoller.running = false; batteryPoller.running = true; } }
+            Process { id: batteryWaiter; command: ["bash", "-c", "exec ~/.config/hypr/scripts/quickshell/watchers/battery_wait.sh"]; onExited: { batteryPoller.running = false; batteryPoller.running = true; } }
+
+            Process {
+                id: mouseBatteryPoller; running: true
+                command: ["bash", "-c", "lsusb -d 046d:c52b >/dev/null 2>&1 && upower -d | awk '/Logitech M510/ {found=1} found && /battery-level:/ {level=$2} found && /percentage:/ {if(level==\"full\") print 100; else if(level==\"good\") print 90; else if(level==\"normal\") print 70; else if(level==\"low\") print 20; else if(level==\"critical\") print 5; else {gsub(\"%\",\"\", $2); print $2}; exit}' || echo 'offline'"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        let txt = this.text.trim();
+                        let match = txt.match(/(\d+)/);
+                        if (match) {
+                            barWindow.mouseBatPercent = match[1] + "%";
+                        } else if (txt === "offline" || txt === "") {
+                            barWindow.mouseBatPercent = "";
+                        }
+                    }
+                }
+            }
+            Timer { running: true; repeat: true; interval: 15000; onTriggered: { mouseBatteryPoller.running = false; mouseBatteryPoller.running = true; } }
 
             Process {
                 id: weatherPoller
@@ -1269,14 +1300,15 @@ Variants {
                                 width: targetWidth
                                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                                 
+                                id: kbContainer
                                 scale: isHovered ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on color { ColorAnimation { duration: 200 } }
 
                                 property bool initAnimTrigger: false
-                                Timer { running: rightContent.showLayout && !parent.initAnimTrigger; interval: 0; onTriggered: parent.initAnimTrigger = true }
+                                Timer { running: rightContent.showLayout && !kbContainer.initAnimTrigger; interval: 0; onTriggered: kbContainer.initAnimTrigger = true }
                                 opacity: initAnimTrigger ? 1 : 0
-                                transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                                transform: Translate { y: kbContainer.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                                 Row { 
@@ -1319,9 +1351,9 @@ Variants {
                                 Behavior on color { ColorAnimation { duration: 200 } }
 
                                 property bool initAnimTrigger: false
-                                Timer { running: rightContent.showLayout && !parent.initAnimTrigger; interval: 50; onTriggered: parent.initAnimTrigger = true }
+                                Timer { running: rightContent.showLayout && !wifiPill.initAnimTrigger; interval: 50; onTriggered: wifiPill.initAnimTrigger = true }
                                 opacity: initAnimTrigger ? 1 : 0
-                                transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                                transform: Translate { y: wifiPill.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                                 Row { 
@@ -1378,9 +1410,9 @@ Variants {
                                 Behavior on color { ColorAnimation { duration: 200 } }
 
                                 property bool initAnimTrigger: false
-                                Timer { running: rightContent.showLayout && !parent.initAnimTrigger; interval: 100; onTriggered: parent.initAnimTrigger = true }
+                                Timer { running: rightContent.showLayout && !btPill.initAnimTrigger; interval: 100; onTriggered: btPill.initAnimTrigger = true }
                                 opacity: initAnimTrigger ? 1 : 0
-                                transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                                transform: Translate { y: btPill.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                                 Row { 
@@ -1425,14 +1457,15 @@ Variants {
                                 width: targetWidth
                                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                                 
+                                id: volItem
                                 scale: isHovered ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on color { ColorAnimation { duration: 200 } }
 
                                 property bool initAnimTrigger: false
-                                Timer { running: rightContent.showLayout && !parent.initAnimTrigger; interval: 150; onTriggered: parent.initAnimTrigger = true }
+                                Timer { running: rightContent.showLayout && !volItem.initAnimTrigger; interval: 150; onTriggered: volItem.initAnimTrigger = true }
                                 opacity: initAnimTrigger ? 1 : 0
-                                transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                                transform: Translate { y: volItem.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                                 Row { 
@@ -1474,18 +1507,19 @@ Variants {
                                     }
                                 }
                                 
-                                property real targetWidth: barWindow.isDesktop ? barWindow.s(34) : batLayoutRow.implicitWidth + barWindow.s(24)
+                                property real targetWidth: (barWindow.isDesktop && barWindow.mouseBatPercent === "") ? barWindow.s(34) : batLayoutRow.implicitWidth + barWindow.s(24)
                                 width: targetWidth
                                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                                 
+                                id: batItem
                                 scale: isHovered ? 1.05 : 1.0
                                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                                 Behavior on color { ColorAnimation { duration: 200 } }
 
                                 property bool initAnimTrigger: false
-                                Timer { running: rightContent.showLayout && !parent.initAnimTrigger; interval: 200; onTriggered: parent.initAnimTrigger = true }
+                                Timer { running: rightContent.showLayout && !batItem.initAnimTrigger; interval: 200; onTriggered: batItem.initAnimTrigger = true }
                                 opacity: initAnimTrigger ? 1 : 0
-                                transform: Translate { y: parent.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                                transform: Translate { y: batItem.initAnimTrigger ? 0 : barWindow.s(15); Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                                 Row { 
@@ -1503,6 +1537,20 @@ Variants {
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: !barWindow.isDesktop
                                         text: barWindow.batPercent; font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
+                                        color: mocha.base 
+                                        Behavior on color { ColorAnimation { duration: 300 } }
+                                    }
+                                    Text { 
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: barWindow.mouseBatPercent !== ""
+                                        text: "󰍽"; font.family: "Iosevka Nerd Font"; font.pixelSize: barWindow.s(16); 
+                                        color: mocha.base 
+                                        Behavior on color { ColorAnimation { duration: 300 } }
+                                    }
+                                    Text { 
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: barWindow.mouseBatPercent !== ""
+                                        text: barWindow.mouseBatPercent; font.family: "JetBrains Mono"; font.pixelSize: barWindow.s(13); font.weight: Font.Black; 
                                         color: mocha.base 
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                     }

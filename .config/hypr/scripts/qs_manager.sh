@@ -173,6 +173,18 @@ if [[ "$ACTION" == "open" || "$ACTION" == "toggle" ]]; then
         exit 0
     fi
 
+    if [[ "$TARGET" == "topbar_hide" ]]; then
+        SETTINGS_FILE="$HOME/.config/hypr/settings.json"
+        if [ -f "$SETTINGS_FILE" ]; then
+            CURRENT_VAL=$(jq -r '.topbarHide // false' "$SETTINGS_FILE")
+            NEW_VAL="true"
+            [[ "$CURRENT_VAL" == "true" ]] && NEW_VAL="false"
+            TEMP_FILE=$(mktemp)
+            jq ".topbarHide = $NEW_VAL" "$SETTINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$SETTINGS_FILE"
+        fi
+        exit 0
+    fi
+
     if [[ "$TARGET" == "wallpaper" ]]; then
         handle_wallpaper_prep
         CURRENT_SRC=""

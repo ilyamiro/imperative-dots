@@ -304,16 +304,7 @@ Item {
     // --- SOURCE MODEL ---
     ListModel {
         id: sourceModel
-        ListElement { name: "VidSrc.net";    urlMovie: "https://vidsrc.net/embed/movie/%1";                               urlTv: "https://vidsrc.net/embed/tv/%1/%2/%3";                            status: "pending" }
-        ListElement { name: "VidLink";       urlMovie: "https://vidlink.pro/movie/%1?autoplay=1";                         urlTv: "https://vidlink.pro/tv/%1/%2/%3?autoplay=1";                      status: "pending" }
-        ListElement { name: "VidSrc.pro";    urlMovie: "https://vidsrc.pro/embed/movie/%1";                               urlTv: "https://vidsrc.pro/embed/tv/%1/%2/%3";                            status: "pending" }
-        ListElement { name: "VidSrc.in";     urlMovie: "https://vidsrc.in/embed/movie/%1";                                urlTv: "https://vidsrc.in/embed/tv/%1/%2/%3";                             status: "pending" }
-        ListElement { name: "VidSrc.cc";     urlMovie: "https://vidsrc.cc/v2/embed/movie/%1?autoPlay=true";               urlTv: "https://vidsrc.cc/v2/embed/tv/%1/%2/%3?autoPlay=true";            status: "pending" }
-        ListElement { name: "Embed.su";      urlMovie: "https://embed.su/embed/movie/%1";                                 urlTv: "https://embed.su/embed/tv/%1/%2/%3";                              status: "pending" }
-        ListElement { name: "SmashyStream";  urlMovie: "https://player.smashy.stream/movie/%1";                           urlTv: "https://player.smashy.stream/tv/%1?s=%2&e=%3";                    status: "pending" }
-        ListElement { name: "AutoEmbed";     urlMovie: "https://autoembed.to/movie/imdb/%1";                              urlTv: "https://autoembed.to/tv/imdb/%1-%2-%3";                           status: "pending" }
-        ListElement { name: "2Embed";        urlMovie: "https://www.2embed.cc/embed/%1";                                  urlTv: "https://www.2embed.cc/embedtv/%1&s=%2&e=%3";                      status: "pending" }
-        ListElement { name: "MultiEmbed";    urlMovie: "https://multiembed.mov/directstream.php?video_id=%1";             urlTv: "https://multiembed.mov/directstream.php?video_id=%1&s=%2&e=%3";  status: "pending" }
+        ListElement { name: "Stremio";    urlMovie: "stremio://detail/movie/%1/%1";                               urlTv: "stremio://detail/series/%1/%1:%2:%3";                            status: "pending" }
     }
 
     // --- ANIMATIONS & FOCUS ---
@@ -545,6 +536,15 @@ Item {
         let idx = window.currentCheckIndex
         let step = window.sourceCheckStep
         let url = buildSourceUrl(idx)
+        if (url.startsWith("stremio://")) {
+            sourceModel.setProperty(idx, "status", "success")
+            window.foundSourceName = sourceModel.get(idx).name
+            window.checkingState = "found"
+            saveUiState()
+            Quickshell.execDetached(["xdg-open", url])
+            return
+        }
+
         let xhr = new XMLHttpRequest()
         window.activeCheckXhr = xhr
         
