@@ -82,7 +82,7 @@ compile_settings() {
 
     # Evaluate the guide boolean natively in jq and output the line ONLY if it resolves to true
     if [[ $(jq -r 'if (if type == "object" and has("openGuideAtStartup") then .openGuideAtStartup else true end) then "yes" else "no" end' "$SETTINGS_FILE") == "yes" ]]; then
-        echo "exec-once = bash -c 'sleep 1 && ~/.config/hypr/scripts/qs_manager.sh toggle guide'" >> "$AUTOSTART_CONF"
+        echo "exec-once = bash -c 'sleep 0.5 && ~/.config/hypr/scripts/qs_manager.sh toggle guide'" >> "$AUTOSTART_CONF"
     fi
 
     # 4. Regenerate keybindings.conf
