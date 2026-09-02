@@ -507,7 +507,7 @@ Item {
         }
     }
     property var bindTypes: ["bind", "binde", "bindl", "bindel", "bindm"]
-    property var dispatchers: ["exec", "exec-once", "dispatch", "workspace", "movetoworkspace", "movewindow", "resizeactive", "movefocus", "togglefloating", "killactive"]
+    property var dispatchers: ["exec", "exec-once", "dispatch", "workspace", "movetoworkspace", "movewindow", "resizeactive", "movefocus", "togglefloating", "killactive", "fullscreen"]
 
     function saveAllKeybinds() {
         let bindsArray = [];
